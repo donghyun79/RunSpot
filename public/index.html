@@ -1,0 +1,2455 @@
+﻿<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#2359dc">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="NaviHeal Runners">
+  <title>NaviHeal Runners</title>
+  <link rel="manifest" href="manifest.webmanifest">
+
+  <script src="vendor/chart.umd.js"></script>
+
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f8fbff;
+      --surface: #ffffff;
+      --surface-soft: #fff7dd;
+      --text: #172033;
+      --muted: #5d6a86;
+      --line: #dfe7fb;
+      --brand: #2359dc;
+      --brand-dark: #1744b2;
+      --brand-soft: #eaf0ff;
+      --accent: #f5b52b;
+      --accent-dark: #9a6500;
+      --accent-soft: #fff4cf;
+      --danger: #c94848;
+      --shadow: 0 10px 24px rgba(35, 89, 220, 0.08);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background-color: var(--bg);
+      background:
+        radial-gradient(circle at top left, rgba(245, 181, 43, 0.18), transparent 320px),
+        linear-gradient(180deg, var(--bg) 0%, #ffffff 46%, #fffdf6 100%);
+      color: var(--text);
+      font-family: Arial, "Noto Sans KR", sans-serif;
+      line-height: 1.5;
+    }
+
+    .page {
+      width: min(1180px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 28px 0 48px;
+    }
+
+    .app-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 24px;
+      padding-bottom: 18px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      flex: 1 1 auto;
+      gap: 16px;
+      min-width: 0;
+    }
+
+    .brand-logo {
+      width: clamp(240px, 22vw, 340px);
+      height: auto;
+      max-height: 128px;
+      object-fit: contain;
+      object-position: center;
+      border-radius: 0;
+      border: 0;
+      background: transparent;
+    }
+
+    h1, h2, h3 { margin: 0; line-height: 1.2; }
+    h1 { font-size: 32px; letter-spacing: 0; }
+    h2 {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: fit-content;
+      margin-bottom: 18px;
+      padding: 0 0 9px 14px;
+      color: var(--brand-dark);
+      font-size: 24px;
+      font-weight: 800;
+    }
+
+    h2::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 2px;
+      width: 5px;
+      height: calc(100% - 11px);
+      min-height: 23px;
+      background: var(--accent);
+      border-radius: 8px;
+    }
+
+    h2::after {
+      content: "";
+      position: absolute;
+      left: 14px;
+      right: 0;
+      bottom: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--brand), var(--accent));
+      border-radius: 8px;
+    }
+
+    h3 {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 26px 0 12px;
+      color: var(--brand-dark);
+      font-size: 18px;
+      font-weight: 800;
+    }
+
+    h3::before {
+      content: "";
+      width: 9px;
+      height: 9px;
+      flex: 0 0 9px;
+      background: var(--accent);
+      border: 2px solid var(--brand);
+      border-radius: 50%;
+    }
+
+    .subtitle { margin: 6px 0 0; color: var(--muted); }
+
+    h1 {
+      color: var(--brand);
+    }
+
+    .section {
+      margin-top: 26px;
+      padding: 24px 0 0;
+      border-top: 1px solid var(--line);
+    }
+
+    .section-soft {
+      padding: 18px;
+      background: var(--surface-soft);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .form-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      margin-top: 12px;
+    }
+
+    label {
+      display: inline-flex;
+      flex-direction: column;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    input, select, textarea, button {
+      min-height: 38px;
+      border-radius: 8px;
+      font: inherit;
+    }
+
+    input, select, textarea {
+      min-width: 150px;
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      background: var(--surface);
+      color: var(--text);
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 120px;
+      resize: vertical;
+    }
+
+    input:focus, select:focus, textarea:focus {
+      outline: 3px solid rgba(245, 181, 43, 0.28);
+      border-color: var(--brand);
+    }
+
+    button {
+      padding: 8px 14px;
+      border: 1px solid var(--brand);
+      background: var(--brand);
+      color: #fff;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    button:hover { background: var(--brand-dark); }
+
+    button:disabled {
+      border-color: var(--line);
+      background: #c9d4ec;
+      cursor: not-allowed;
+    }
+
+    .hidden { display: none !important; }
+
+    .auth-view {
+      min-height: calc(100vh - 76px);
+      display: grid;
+      grid-template-columns: minmax(0, 0.95fr) minmax(320px, 420px);
+      gap: 28px;
+      align-items: center;
+      padding: 36px 0;
+    }
+
+    .auth-view.hidden {
+      display: none;
+    }
+
+    .auth-copy {
+      max-width: 760px;
+    }
+
+    .auth-brand-lockup {
+      display: grid;
+      grid-template-columns: clamp(260px, 28vw, 380px) minmax(0, 1fr);
+      gap: 14px;
+      align-items: center;
+      margin-bottom: 18px;
+    }
+
+    .auth-logo {
+      width: 100%;
+      height: auto;
+      max-height: 150px;
+      object-fit: contain;
+      object-position: left center;
+    }
+
+    .auth-title {
+      max-width: 520px;
+      color: var(--brand);
+      font-size: 32px;
+      font-weight: 800;
+    }
+
+    .auth-slogan-ko {
+      margin: 8px 0 0;
+      padding: 8px 10px;
+      background: var(--accent-soft);
+      border-left: 5px solid var(--accent);
+      border-radius: 8px;
+      color: var(--accent-dark);
+      font-size: 18px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .auth-copy .subtitle {
+      margin-top: 22px;
+      color: var(--text);
+      font-size: 17px;
+      font-weight: 800;
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    .auth-highlights {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      padding: 0;
+      margin: 28px 0 0;
+      list-style: none;
+    }
+
+    .auth-highlights li {
+      min-height: 84px;
+      padding: 13px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-top: 4px solid var(--accent);
+      border-radius: 8px;
+      color: var(--muted);
+      font-weight: 700;
+      box-shadow: var(--shadow);
+    }
+
+    .auth-panel {
+      padding: 22px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: 0 18px 44px rgba(35, 89, 220, 0.12);
+    }
+
+    .auth-panel h2 {
+      margin-bottom: 6px;
+      color: var(--brand);
+    }
+
+    .auth-panel .subtitle {
+      margin-bottom: 18px;
+    }
+
+    .auth-fields {
+      display: grid;
+      gap: 12px;
+    }
+
+    .auth-fields input {
+      width: 100%;
+    }
+
+    .auth-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    .auth-note {
+      margin: 16px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .auth-guide-box {
+      margin-top: 16px;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--brand-soft);
+    }
+
+    .auth-guide-title {
+      margin-bottom: 10px;
+      color: var(--brand-dark);
+      font-weight: 800;
+      text-align: center;
+    }
+
+    .auth-guide-list {
+      display: grid;
+      gap: 0;
+      margin: 0;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+      overflow: hidden;
+    }
+
+    .auth-guide-row {
+      display: grid;
+      grid-template-columns: 86px minmax(0, 1fr);
+      gap: 10px;
+      padding: 10px 12px;
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .auth-guide-row + .auth-guide-row {
+      border-top: 1px solid var(--line);
+    }
+
+    .auth-guide-label {
+      color: var(--brand-dark);
+      font-weight: 800;
+    }
+
+    .header-actions {
+      display: flex;
+      flex-direction: column;
+      flex: 0 0 470px;
+      gap: 8px;
+      align-items: flex-end;
+      justify-content: flex-end;
+      width: 470px;
+      max-width: 470px;
+    }
+
+    .account-actions {
+      display: grid;
+      width: 100%;
+      grid-template-columns: minmax(0, 1fr) 128px;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .app-tabs {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0;
+      margin: -8px 0 22px;
+      padding: 4px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+
+    .app-tab {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      min-height: 42px;
+      min-width: 0;
+      padding: 8px 16px;
+      border: 0;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--brand);
+      font-weight: 800;
+      text-decoration: none;
+    }
+
+    .app-tab:hover {
+      background: var(--brand-soft);
+    }
+
+    .app-tab.active {
+      background: var(--brand);
+      color: #fff;
+      box-shadow: 0 6px 14px rgba(35, 89, 220, 0.18);
+    }
+
+    .button-secondary {
+      background: var(--surface);
+      color: var(--brand);
+    }
+
+    .button-secondary:hover {
+      background: var(--brand-soft);
+    }
+
+    .button-link {
+      display: inline-flex;
+      min-height: 38px;
+      align-items: center;
+      justify-content: center;
+      padding: 8px 14px;
+      border: 1px solid var(--brand);
+      border-radius: 8px;
+      background: var(--surface);
+      color: var(--brand);
+      font-weight: 800;
+      text-decoration: none;
+    }
+
+    .button-link:hover {
+      background: var(--brand-soft);
+    }
+
+    .button-danger {
+      border-color: var(--danger);
+      background: var(--surface);
+      color: var(--danger);
+    }
+
+    .button-danger:hover {
+      background: #fff0f0;
+    }
+
+    .table-action {
+      min-height: 32px;
+      margin: 2px;
+      padding: 5px 10px;
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    .member-action-cell {
+      min-width: 150px;
+    }
+
+    .member-action-stack {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      align-items: center;
+    }
+
+    .member-runs-panel {
+      margin-top: 18px;
+    }
+
+    .admin-details {
+      border-top: 1px solid var(--line);
+    }
+
+    .admin-details summary {
+      width: fit-content;
+      margin-bottom: 14px;
+      padding: 8px 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--brand-soft);
+      color: var(--brand-dark);
+      font-weight: 800;
+      cursor: pointer;
+      box-shadow: var(--shadow);
+    }
+
+    .admin-details summary:hover {
+      border-color: var(--brand);
+    }
+
+    .suggestion-form {
+      display: grid;
+      grid-template-columns: minmax(150px, 180px) minmax(0, 1fr);
+      gap: 12px;
+      align-items: end;
+    }
+
+    .suggestion-form .field-wide,
+    .suggestion-form .suggestion-content-field,
+    .suggestion-form .suggestion-actions {
+      grid-column: 1 / -1;
+    }
+
+    .quality-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(280px, 0.9fr);
+      gap: 14px;
+      align-items: start;
+    }
+
+    .quality-plan {
+      display: grid;
+      gap: 10px;
+    }
+
+    .quality-plan-list {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+    }
+
+    .quality-plan-item {
+      padding: 13px;
+      border: 1px solid var(--line);
+      border-left: 5px solid var(--accent);
+      border-radius: 8px;
+      background: var(--surface);
+      font-weight: 700;
+    }
+
+    .quality-plan-date {
+      display: grid;
+      grid-template-columns: 56px minmax(0, 1fr);
+      align-items: center;
+      gap: 8px;
+      min-height: 40px;
+      padding: 7px 9px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+      color: var(--text);
+      box-shadow: none;
+      text-align: left;
+    }
+
+    .quality-plan-date:hover,
+    .quality-plan-date.active {
+      border-color: var(--brand);
+      background: var(--brand-soft);
+      color: var(--brand-dark);
+    }
+
+    .quality-plan-date-day {
+      color: var(--brand-dark);
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .quality-plan-date-text {
+      min-width: 0;
+      overflow: visible;
+      white-space: normal;
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .quality-plan-selected {
+      border-left-color: var(--brand);
+      background: #f7fbff;
+    }
+
+    .quality-plan-title {
+      margin-bottom: 5px;
+      color: var(--brand-dark);
+      font-weight: 900;
+    }
+
+    .quality-plan-meta {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .quality-form {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      align-items: end;
+    }
+
+    .quality-form .field-wide,
+    .quality-form .quality-detail-field,
+    .quality-form .quality-reflection-field,
+    .quality-form .quality-actions {
+      grid-column: 1 / -1;
+    }
+
+    .quality-form textarea {
+      min-height: 86px;
+    }
+
+    .quality-form-section {
+      grid-column: 1 / -1;
+      padding-top: 4px;
+      color: var(--brand-dark);
+      font-weight: 900;
+    }
+
+    .quality-result-row {
+      display: grid;
+      grid-template-columns: 0.8fr 0.55fr 0.55fr 0.55fr;
+      grid-column: 1 / -1;
+      gap: 8px;
+      align-items: end;
+    }
+
+    .quality-result-row label {
+      min-width: 0;
+    }
+
+    .quality-result-row input {
+      width: 100%;
+      min-width: 0;
+    }
+
+    .quality-set-row {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-column: 1 / -1;
+      gap: 8px;
+      align-items: end;
+    }
+
+    .quality-set-row label {
+      min-width: 0;
+    }
+
+    .quality-set-row input {
+      width: 100%;
+      min-width: 0;
+    }
+
+    .quality-review-row {
+      display: grid;
+      grid-template-columns: minmax(120px, 0.35fr) minmax(0, 1fr);
+      grid-column: 1 / -1;
+      gap: 10px;
+      align-items: end;
+    }
+
+    .quality-review-row textarea {
+      min-height: 64px;
+    }
+
+    .quality-table {
+      min-width: 1040px;
+      table-layout: fixed;
+    }
+
+    .quality-table th,
+    .quality-table td {
+      padding: 8px 9px;
+      vertical-align: middle;
+    }
+
+    .quality-table th:nth-child(1) { width: 78px; }
+    .quality-table th:nth-child(2) { width: 70px; }
+    .quality-table th:nth-child(3) { width: 68px; }
+    .quality-table th:nth-child(4) { width: 70px; }
+    .quality-table th:nth-child(5) { width: 82px; }
+    .quality-table th:nth-child(6) { width: 190px; }
+    .quality-table th:nth-child(7) { width: 190px; }
+    .quality-table th:nth-child(8) { width: 62px; }
+    .quality-table th:nth-child(9) { width: 210px; }
+    .quality-table th:nth-child(10) { width: 82px; }
+
+    .quality-text-cell,
+    .quality-vdot-cell {
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+
+    .quality-number-cell,
+    .quality-date-cell,
+    .quality-type-cell,
+    .quality-rating-cell {
+      text-align: center;
+    }
+
+    .group-standard-header {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .group-standard-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .group-standard-table {
+      min-width: 900px;
+    }
+
+    .group-standard-table input {
+      width: 100%;
+      min-width: 0;
+      text-align: center;
+    }
+
+    .group-standard-table td,
+    .group-standard-table th {
+      text-align: center;
+    }
+
+    .group-standard-table td:nth-child(6),
+    .group-standard-table th:nth-child(6) {
+      min-width: 210px;
+      text-align: left;
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+
+    .suggestion-card {
+      margin-top: 14px;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+    }
+
+    .suggestion-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .suggestion-type {
+      display: inline-flex;
+      align-items: center;
+      min-height: 26px;
+      padding: 3px 9px;
+      border: 1px solid var(--brand);
+      border-radius: 8px;
+      background: var(--brand-soft);
+      color: var(--brand-dark);
+    }
+
+    .suggestion-title {
+      margin: 10px 0 6px;
+      color: var(--text);
+      font-size: 18px;
+      font-weight: 800;
+    }
+
+    .suggestion-body,
+    .suggestion-reply {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    .suggestion-reply {
+      margin-top: 12px;
+      padding: 12px;
+      border-left: 4px solid var(--accent);
+      background: var(--accent-soft);
+      border-radius: 8px;
+    }
+
+    .suggestion-reply-title {
+      margin-bottom: 6px;
+      color: var(--accent-dark);
+      font-weight: 800;
+    }
+
+    .suggestion-reply-form {
+      display: grid;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .host-badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      padding: 4px 9px;
+      background: var(--accent-soft);
+      border: 1px solid #f1cc68;
+      border-radius: 8px;
+      color: var(--accent-dark);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .member-disabled {
+      color: var(--danger);
+      font-weight: 700;
+    }
+
+    .member-pending {
+      color: var(--accent-dark);
+      font-weight: 800;
+    }
+
+    .status-line {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: 1 1 auto;
+      min-width: 0;
+      min-height: 36px;
+      padding: 7px 12px;
+      background: var(--brand-soft);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: var(--brand-dark);
+      font-weight: 700;
+      box-shadow: var(--shadow);
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    .environment-widget {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 128px;
+      grid-template-rows: repeat(2, minmax(34px, auto));
+      align-items: stretch;
+      gap: 6px;
+      width: 100%;
+      max-width: none;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .environment-pill {
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-width: 0;
+      min-height: 34px;
+      padding: 5px 8px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+      box-shadow: var(--shadow);
+      text-align: center;
+      line-height: 1.25;
+      white-space: normal;
+    }
+
+    .environment-pill.dust {
+      min-height: 36px;
+    }
+
+    .environment-pill strong {
+      margin-right: 4px;
+      color: var(--brand-dark);
+    }
+
+    .environment-pill.weather {
+      grid-row: 1 / span 2;
+    }
+
+    .environment-main,
+    .environment-sub {
+      display: block;
+      max-width: 100%;
+      overflow-wrap: normal;
+    }
+
+    .environment-main {
+      color: inherit;
+      font-weight: 900;
+    }
+
+    .environment-sub {
+      margin-top: 2px;
+      font-size: 10px;
+      font-weight: 800;
+      opacity: 0.9;
+      white-space: nowrap;
+    }
+
+    .hourly-weather-strip {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 3px;
+      width: 100%;
+      margin-top: 4px;
+      padding-top: 4px;
+      border-top: 1px solid var(--line);
+    }
+
+    .hourly-weather-point {
+      display: grid;
+      gap: 1px;
+      justify-items: center;
+      min-width: 0;
+      color: var(--muted);
+      font-size: 8px;
+      font-weight: 800;
+      line-height: 1.15;
+    }
+
+    .hourly-weather-icon {
+      font-size: 12px;
+      line-height: 1;
+    }
+
+    .hourly-weather-temp {
+      color: var(--text);
+      font-size: 10px;
+      font-weight: 900;
+    }
+
+    .hourly-weather-rain {
+      color: var(--brand-dark);
+    }
+
+    #logout {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 128px;
+      white-space: nowrap;
+      word-break: keep-all;
+      overflow-wrap: normal;
+    }
+
+    #logout .logout-text {
+      display: inline-block;
+      white-space: nowrap;
+      word-break: keep-all;
+      overflow-wrap: normal;
+      min-width: max-content;
+    }
+
+    .environment-widget .environment-pill.good {
+      border-color: #149447;
+      background: #dff7e7;
+      color: #075b27;
+      box-shadow: inset 4px 0 0 #149447, var(--shadow);
+    }
+
+    .environment-widget .environment-pill.normal {
+      border-color: #d39200;
+      background: #fff1b8;
+      color: #6f4b00;
+      box-shadow: inset 4px 0 0 #d39200, var(--shadow);
+    }
+
+    .environment-widget .environment-pill.bad {
+      border-color: #d93025;
+      background: #ffe5e1;
+      color: #8f1d17;
+      box-shadow: inset 4px 0 0 #d93025, var(--shadow);
+    }
+
+    .environment-widget .environment-pill.good strong {
+      color: #0b6b2d;
+    }
+
+    .environment-widget .environment-pill.normal strong {
+      color: #8a6100;
+    }
+
+    .environment-widget .environment-pill.bad strong {
+      color: #b3261e;
+    }
+
+    .form-panel {
+      padding: 16px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .input-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      align-items: end;
+    }
+
+    .input-grid + .input-grid,
+    .input-grid + .form-row {
+      margin-top: 12px;
+    }
+
+    .field-wide {
+      grid-column: span 2;
+    }
+
+    .time-grid input {
+      min-width: 0;
+      text-align: center;
+    }
+
+    .run-detail {
+      display: block;
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+
+    .summary-line {
+      padding: 12px 14px;
+      background: var(--brand-soft);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: var(--brand-dark);
+      font-weight: 700;
+    }
+
+    .engagement-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .engagement-panel {
+      min-height: 112px;
+      padding: 13px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-top: 4px solid var(--accent);
+      border-radius: 8px;
+    }
+
+    .engagement-title {
+      margin-bottom: 8px;
+      color: var(--brand-dark);
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .engagement-text {
+      color: var(--text);
+      font-weight: 700;
+    }
+
+    .badge-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+      gap: 8px;
+    }
+
+    .run-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 42px;
+      padding: 8px 10px;
+      background: linear-gradient(135deg, #fffaf0 0%, #fff4cf 100%);
+      border: 1px solid #f1cc68;
+      border-radius: 8px;
+      color: var(--accent-dark);
+      font-size: 13px;
+      font-weight: 800;
+      box-shadow: 0 7px 14px rgba(154, 101, 0, 0.10);
+    }
+
+    .run-badge-icon {
+      display: inline-grid;
+      place-items: center;
+      width: 28px;
+      height: 28px;
+      flex: 0 0 28px;
+      border: 1px solid rgba(154, 101, 0, 0.26);
+      border-radius: 8px;
+      background: #ffffff;
+      font-size: 16px;
+    }
+
+    .run-badge-text {
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .run-badge-waiting {
+      background: var(--brand-soft);
+      border-color: var(--line);
+      color: var(--brand-dark);
+      box-shadow: none;
+    }
+
+    .goal-star { color: var(--accent); font-weight: 700; }
+
+    .goal-panel {
+      display: grid;
+      grid-template-columns: minmax(110px, 150px) auto minmax(220px, 1fr);
+      gap: 8px;
+      align-items: center;
+      padding: 12px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .goal-panel input {
+      min-width: 0;
+    }
+
+    .goal-status {
+      min-height: 34px;
+      padding: 7px 10px;
+      background: var(--accent-soft);
+      border: 1px solid #f1cc68;
+      border-radius: 8px;
+      color: var(--accent-dark);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .goal-note {
+      grid-column: 1 / -1;
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .vdot-guide-note {
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1.45;
+    }
+
+    .table-wrap { width: 100%; overflow-x: auto; }
+
+    table {
+      width: 100%;
+      min-width: 760px;
+      margin-top: 10px;
+      border-collapse: collapse;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    th, td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      white-space: nowrap;
+    }
+
+    th {
+      background: var(--brand-soft);
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    td:nth-child(1),
+    td:nth-child(3),
+    td:nth-child(4),
+    td:nth-child(5),
+    th:nth-child(1),
+    th:nth-child(3),
+    th:nth-child(4),
+    th:nth-child(5) {
+      text-align: center;
+    }
+
+    tr:last-child td { border-bottom: 0; }
+    tbody tr:hover { background: #fff9e8; }
+    .my-rank { background: var(--accent-soft); font-weight: 700; }
+    .record-table-title { margin-top: 32px; }
+
+    .run-record-table td:nth-child(6) {
+      min-width: 220px;
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+
+    .weekly-table {
+      min-width: 0;
+      table-layout: fixed;
+    }
+
+    .weekly-table th,
+    .weekly-table td {
+      padding: 8px 7px;
+      text-align: center;
+    }
+
+    .pb-list {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      padding: 0;
+      margin: 0;
+      list-style: none;
+    }
+
+    .pb-list li {
+      display: grid;
+      gap: 6px;
+      min-height: 88px;
+      padding: 13px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-top: 4px solid var(--accent);
+      border-radius: 8px;
+      font-weight: 700;
+    }
+
+    .pb-label {
+      color: var(--brand-dark);
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .pb-list span:not(.pb-label) {
+      align-self: end;
+      color: var(--text);
+      font-size: 16px;
+      font-weight: 800;
+    }
+
+    .pb-celebration {
+      margin-top: 12px;
+      padding: 12px 14px;
+      background: var(--accent-soft);
+      border: 1px solid #f1cc68;
+      border-left: 5px solid var(--accent);
+      border-radius: 8px;
+      color: var(--accent-dark);
+      font-weight: 800;
+    }
+
+    #targetResult,
+    #marathonPrediction,
+    #rankingStatus,
+    #weeklyRankingStatus {
+      margin-top: 12px;
+      padding: 14px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    #targetResult {
+      border-left: 5px solid var(--brand);
+      color: var(--text);
+    }
+
+    #targetResult b {
+      display: inline-block;
+      color: var(--brand-dark);
+      font-size: 16px;
+    }
+
+    .target-block {
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+    }
+
+    .target-block + .target-block {
+      margin-top: 10px;
+    }
+
+    .target-block:last-child {
+      padding-bottom: 14px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .target-block-title {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      margin-bottom: 8px;
+      padding: 3px 9px;
+      background: var(--brand-soft);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: var(--brand-dark);
+      font-weight: 800;
+    }
+
+    .target-analysis {
+      background: linear-gradient(180deg, #ffffff 0%, #f7faff 100%);
+    }
+
+    .target-probability {
+      background: var(--accent-soft);
+      border-color: #f1cc68;
+      color: var(--accent-dark);
+      font-weight: 700;
+    }
+
+    .target-probability .target-block-title {
+      background: var(--surface);
+      border-color: #f1cc68;
+      color: var(--accent-dark);
+    }
+
+    .target-plan {
+      background: #f7fbf5;
+      border-color: #cfe5c7;
+    }
+
+    .target-plan .target-block-title {
+      background: #e8f5e3;
+      border-color: #cfe5c7;
+      color: #2f6b2f;
+    }
+
+    .official-training-label {
+      color: #0b57d0;
+      font-weight: 900;
+    }
+
+    .target-comment {
+      background: #fff4f1;
+      border-color: #f0beb4;
+      border-left: 5px solid #e75449;
+      color: #7a2b24;
+      font-weight: 700;
+    }
+
+    .target-comment .target-block-title {
+      background: #ffffff;
+      border-color: #f0beb4;
+      color: #b33228;
+    }
+
+    .target-metric {
+      display: inline-block;
+      margin: 4px 0 2px;
+      color: var(--brand-dark);
+      font-weight: 800;
+    }
+
+    .prediction-time {
+      display: inline-block;
+      margin-left: 6px;
+      color: var(--brand-dark);
+      font-size: 22px;
+      font-weight: 900;
+    }
+
+    .prediction-detail {
+      display: block;
+      margin-top: 8px;
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    #marathonPrediction b {
+      display: inline-block;
+      margin-top: 4px;
+      color: var(--brand-dark);
+      font-size: 16px;
+    }
+
+    .group-badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      padding: 4px 10px;
+      background: var(--brand);
+      border: 1px solid var(--brand-dark);
+      border-radius: 8px;
+      color: #fff;
+      font-weight: 800;
+    }
+
+    .section-guide {
+      margin: -8px 0 14px;
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    .filter-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      padding: 14px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .record-filter-bar select {
+      min-width: 130px;
+    }
+
+    .run-record-table {
+      min-width: 640px;
+    }
+
+    #runChart {
+      margin-top: 16px;
+      max-width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px;
+    }
+
+    .chart-empty {
+      margin: 10px 0 0;
+      color: var(--muted);
+      font-weight: 700;
+      text-align: center;
+    }
+
+    @media (max-width: 760px) {
+      .auth-view {
+        min-height: calc(100svh - 36px);
+        background: transparent;
+        grid-template-columns: 1fr;
+        gap: 14px;
+        align-content: center;
+        padding: 4px 0 14px;
+      }
+      .auth-copy {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        max-width: none;
+        text-align: center;
+      }
+      .auth-brand-lockup {
+        display: flex;
+        width: 100%;
+        flex-direction: column;
+        align-items: center;
+        justify-items: center;
+        gap: 6px;
+        margin-bottom: 12px;
+      }
+      .auth-brand-lockup > div {
+        display: flex;
+        width: 100%;
+        flex-direction: column;
+        align-items: center;
+      }
+      .auth-title {
+        width: 100%;
+        max-width: none;
+        font-size: 17px;
+        text-align: center;
+        white-space: nowrap;
+      }
+      .auth-slogan-ko {
+        display: inline-block;
+        margin-top: 6px;
+        padding: 7px 8px;
+        border-left: 0;
+        border-top: 4px solid var(--accent);
+        font-size: 14px;
+        text-align: center;
+      }
+      .auth-copy .subtitle {
+        margin-top: 14px;
+        font-size: 12px;
+      }
+      .auth-logo {
+        display: block;
+        width: min(320px, 84vw);
+        height: auto;
+        margin: 0 auto;
+        object-fit: contain;
+        object-position: center;
+      }
+      .auth-highlights { display: none; }
+      .auth-panel {
+        padding: 16px;
+      }
+      .auth-panel .subtitle {
+        margin-bottom: 12px;
+        font-size: 13px;
+      }
+      .auth-fields {
+        gap: 8px;
+      }
+      .auth-actions {
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        margin-top: 12px;
+      }
+      .auth-note {
+        margin-top: 10px;
+        font-size: 12px;
+      }
+      .auth-guide-box {
+        margin-top: 12px;
+        padding: 11px;
+      }
+      .auth-guide-title {
+        margin-bottom: 8px;
+        font-size: 13px;
+      }
+      .auth-guide-row {
+        grid-template-columns: 72px minmax(0, 1fr);
+        gap: 8px;
+        padding: 8px 9px;
+        font-size: 12px;
+      }
+      .header-actions { justify-content: stretch; width: 100%; }
+      .app-header {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 10px;
+        margin-bottom: 14px;
+        padding-bottom: 12px;
+      }
+      .brand {
+        justify-content: center;
+        text-align: center;
+      }
+      .brand-logo {
+        width: min(300px, 76vw);
+        height: auto;
+      }
+      .grid, .input-grid, .goal-panel, .quality-grid, .quality-form { grid-template-columns: 1fr; }
+      .quality-result-row {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .quality-review-row {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .quality-set-row {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+      .quality-review-row .quality-reflection-field {
+        grid-column: 1 / -1;
+      }
+      .quality-plan-list {
+        grid-template-columns: 1fr;
+        gap: 6px;
+      }
+      .engagement-grid {
+        grid-template-columns: 1fr;
+      }
+      .pb-list {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+      }
+      .pb-list li {
+        min-height: 82px;
+        padding: 11px;
+      }
+      .pb-list span:not(.pb-label) {
+        font-size: 14px;
+      }
+      .goal-panel {
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 8px;
+      }
+      .goal-status,
+      .goal-note {
+        grid-column: 1 / -1;
+      }
+      .goal-panel #saveMonthlyGoal {
+        width: auto;
+        padding: 8px 10px;
+        white-space: nowrap;
+      }
+      .run-meta-grid,
+      .time-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+      }
+      .run-meta-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .time-grid button {
+        grid-column: 1 / -1;
+      }
+      .time-grid input {
+        padding: 8px 6px;
+      }
+      input, select, button, label { width: 100%; }
+      .header-actions {
+        display: grid;
+        grid-template-columns: 1fr;
+        flex: 0 1 auto;
+        gap: 6px;
+        width: 100%;
+        max-width: none;
+      }
+      .environment-widget {
+        grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
+        font-size: 11px;
+      }
+      .environment-main,
+      .environment-sub {
+        overflow-wrap: anywhere;
+      }
+      .environment-pill {
+        padding: 5px 7px;
+      }
+      .environment-pill.weather {
+        gap: 2px;
+      }
+      .environment-pill.weather strong {
+        margin-right: 0;
+      }
+      .account-actions {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 128px;
+        gap: 6px;
+        width: 100%;
+      }
+      .header-actions .status-line {
+        min-width: 0;
+        width: 100%;
+        padding: 7px 9px;
+        font-size: 13px;
+        overflow-wrap: anywhere;
+      }
+      .header-actions #logout {
+        width: 100%;
+        min-width: 128px;
+        min-height: 36px;
+        padding: 7px 10px;
+        white-space: nowrap;
+        word-break: keep-all;
+        overflow-wrap: normal;
+      }
+      .field-wide { grid-column: span 1; }
+      .section { margin-top: 22px; padding-top: 20px; }
+      .section-soft, .form-panel { padding: 14px; }
+      h1 { font-size: 28px; }
+      h2 {
+        padding-left: 12px;
+        font-size: 21px;
+      }
+      h2::after {
+        left: 12px;
+      }
+      h3 { font-size: 17px; }
+      table { min-width: 680px; }
+      .member-table {
+        min-width: 520px;
+      }
+      .weekly-table {
+        min-width: 0;
+        width: 100%;
+      }
+      .weekly-table th,
+      .weekly-table td {
+        padding: 7px 4px;
+        font-size: 12px;
+      }
+      .record-filter-bar {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 7px;
+        padding: 10px;
+      }
+      .record-filter-bar select {
+        min-width: 0;
+        width: 100%;
+        padding: 7px 5px;
+        font-size: 12px;
+      }
+      .record-filter-bar #recordListStatus {
+        grid-column: 1 / -1;
+        font-size: 12px;
+      }
+      .run-record-table {
+        min-width: 560px;
+      }
+      #runChart {
+        padding: 6px;
+      }
+      .member-action-cell {
+        min-width: 96px;
+      }
+      .member-action-stack {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .member-action-stack .table-action {
+        width: 100%;
+        margin: 0;
+        padding: 5px 7px;
+        font-size: 12px;
+      }
+      #runChart { min-height: 260px; }
+    }
+
+    @media (max-width: 480px) {
+      .page {
+        width: min(100% - 20px, 1180px);
+        padding-top: 10px;
+      }
+
+      .auth-view {
+        min-height: calc(100svh - 20px);
+        gap: 10px;
+        padding-bottom: 10px;
+      }
+
+      .auth-brand-lockup {
+        gap: 5px;
+      }
+
+      .auth-logo {
+        width: min(300px, 84vw);
+        height: auto;
+      }
+
+      .auth-title {
+        font-size: 16px;
+      }
+
+      .auth-slogan-ko {
+        padding: 6px 7px;
+        font-size: 13px;
+      }
+
+      .auth-copy .subtitle {
+        font-size: 11px;
+      }
+
+      .auth-panel {
+        padding: 14px;
+      }
+
+      .auth-panel h2 {
+        margin-bottom: 4px;
+        font-size: 19px;
+      }
+
+      .auth-panel .subtitle {
+        margin-bottom: 10px;
+      }
+
+      .auth-fields {
+        gap: 7px;
+      }
+
+      .auth-actions {
+        margin-top: 10px;
+      }
+
+      table {
+        min-width: 620px;
+      }
+
+      .weekly-table {
+        min-width: 0;
+      }
+
+      .weekly-table th,
+      .weekly-table td {
+        padding: 6px 3px;
+        font-size: 11px;
+      }
+
+      .run-record-table {
+        min-width: 520px;
+      }
+
+      .brand {
+        width: 100%;
+        align-items: center;
+        flex-direction: column;
+        gap: 6px;
+        text-align: center;
+      }
+
+      .brand-logo {
+        width: min(210px, 62vw);
+        height: auto;
+      }
+      .brand h1 {
+        font-size: 24px;
+      }
+      .brand .subtitle {
+        margin-top: 3px;
+        font-size: 13px;
+        line-height: 1.35;
+      }
+      .environment-widget {
+        grid-template-rows: repeat(2, minmax(28px, auto));
+        gap: 4px;
+        font-size: 10px;
+      }
+      .environment-pill {
+        min-height: 28px;
+        padding: 4px 6px;
+        line-height: 1.18;
+      }
+      .environment-sub {
+        margin-top: 1px;
+        font-size: 9px;
+      }
+      .hourly-weather-strip {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 2px;
+        margin-top: 3px;
+        padding-top: 3px;
+      }
+      .hourly-weather-point:nth-child(n+5) {
+        display: none;
+      }
+      .hourly-weather-time {
+        font-size: 7px;
+      }
+      .header-actions .status-line,
+      .header-actions #logout {
+        min-height: 32px;
+        padding-top: 5px;
+        padding-bottom: 5px;
+        font-size: 12px;
+      }
+      .account-actions {
+        grid-template-columns: 1fr;
+      }
+      .header-actions #logout {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        min-width: 0;
+        white-space: nowrap;
+        word-break: keep-all;
+        overflow-wrap: normal;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <main class="page">
+    <section id="authView" class="auth-view">
+      <div class="auth-copy">
+        <div class="auth-brand-lockup">
+          <img class="auth-logo" src="assets/naviheal-logo.png" alt="NaviHeal Runners 로고">
+          <div>
+            <h1 class="auth-title">"Navigate Your Run. Heal Your Life.”</h1>
+            <p class="auth-slogan-ko">달리기의 방향을 찾고, 삶을 회복하세요!</p>
+          </div>
+        </div>
+        <p class="subtitle">[스마트한 목표 설정과 체계적인 훈련으로 완성하는 지속가능한 러닝]</p>
+        <ul class="auth-highlights">
+          <li>훈련과 대회 기록을 한곳에</li>
+          <li>월간 목표와 개인 최고 기록 관리</li>
+          <li>나빌러닝 PB 랭킹과 마라톤 목표 분석</li>
+        </ul>
+      </div>
+
+      <section class="auth-panel" aria-labelledby="authTitle">
+        <h2 id="authTitle">로그인 / 회원 가입</h2>
+        <p class="subtitle">이메일과 비밀번호로 시작하세요.</p>
+        <div class="auth-fields">
+          <label>이름 <input id="name" placeholder="회원 가입 시 입력" autocomplete="name"></label>
+          <label>이메일 <input id="email" type="email" placeholder="이메일" autocomplete="email"></label>
+          <label>비밀번호 <input id="password" type="password" placeholder="비밀번호" autocomplete="current-password"></label>
+          <label>가입코드 <input id="inviteCode" placeholder="회원 가입 시 입력" autocomplete="off"></label>
+        </div>
+        <div class="auth-actions">
+          <button id="login">로그인</button>
+          <button id="signup" class="button-secondary">회원 가입</button>
+        </div>
+        <div class="auth-guide-box">
+          <div class="auth-guide-title">[가입/로그인 방법]</div>
+          <div class="auth-guide-list">
+            <div class="auth-guide-row">
+              <span class="auth-guide-label">회원 가입</span>
+              <span>이름/이메일/비밀번호/가입코드 입력</span>
+            </div>
+            <div class="auth-guide-row">
+              <span class="auth-guide-label">로그인</span>
+              <span>이메일/비밀번호 입력</span>
+            </div>
+            <div class="auth-guide-row">
+              <span class="auth-guide-label">문의</span>
+              <span>페이서(01071557374)</span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </section>
+
+    <header id="appHeader" class="app-header hidden">
+      <div class="brand">
+        <img class="brand-logo" src="assets/naviheal-logo.png" alt="NaviHeal Runners 로고">
+        <div>
+          <h1>NaviHeal Runners</h1>
+          <p class="subtitle">
+            “Navigate Your Run. Heal Your Life.”<br>
+            달리기의 방향을 찾고, 삶을 회복하세요!
+          </p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <div id="nowonEnvironment" class="environment-widget" aria-live="polite">
+          <span class="environment-pill weather"><span class="environment-main"><strong>노원구</strong> 날씨 확인 중</span><span class="environment-sub">미세먼지도 함께 확인해요</span></span>
+        </div>
+        <div class="account-actions">
+          <div id="status" class="status-line">로그아웃 상태</div>
+          <button id="logout" class="button-secondary"><span class="logout-text">로그아웃</span></button>
+        </div>
+      </div>
+    </header>
+
+    <div id="dashboardView" class="hidden">
+    <nav class="app-tabs" aria-label="앱 메뉴">
+      <button id="trainingTab" class="app-tab active" type="button">내 훈련</button>
+      <button id="qualityTab" class="app-tab" type="button">화요 정훈</button>
+      <button id="suggestionTab" class="app-tab" type="button">제안</button>
+    </nav>
+    <div id="trainingView">
+    <section class="section">
+      <h2>내 훈련 기록 입력</h2>
+      <p class="section-guide">회원님~ 입력하는 건 훈련기록 이거 하나뿐이에요~<br>나머지는 제가 다 알아서 할께요! 😊</p>
+      <div class="form-panel">
+        <div class="input-grid run-meta-grid">
+          <label>운동일 <input id="runDate" type="date"></label>
+          <label>구분
+            <select id="runType">
+              <option value="training">훈련</option>
+              <option value="race">대회</option>
+            </select>
+          </label>
+          <label>거리 선택
+            <select id="distanceSelect">
+              <option value="">직접 입력</option>
+              <option value="5">5K</option>
+              <option value="10">10K</option>
+              <option value="21.097">Half</option>
+              <option value="42.195">Full</option>
+            </select>
+          </label>
+          <label>직접 거리
+            <input id="distance" type="number" placeholder="km">
+          </label>
+        </div>
+
+        <div id="raceFields" class="input-grid hidden">
+          <label class="field-wide">대회명 <input id="raceName" placeholder="예: 서울마라톤"></label>
+          <label>대회일 <input id="raceDate" type="date"></label>
+        </div>
+
+        <div class="input-grid time-grid">
+          <label>시간 <input id="hour" type="number" placeholder="h"></label>
+          <label>분 <input id="minute" type="number" placeholder="m" max="59"></label>
+          <label>초 <input id="second" type="number" placeholder="s" max="59"></label>
+          <button id="saveRun">저장</button>
+          <button id="cancelRunEdit" class="button-secondary hidden" type="button">수정 취소</button>
+        </div>
+        <div id="runEditStatus" class="goal-status hidden">기록 수정 중입니다.</div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>나의 러닝 기록</h2>
+      <div id="mileageSummary" class="summary-line">운동일 기준(오늘: 2026-04-12) 마일리지<br>주간: -, 월간: -, 연간: -</div>
+
+      <div class="engagement-grid">
+        <div class="engagement-panel">
+          <div class="engagement-title">이번 주 한 줄 요약</div>
+          <div id="weeklyInsight" class="engagement-text">기록을 남기면 이번 주 흐름을 편하게 짚어드릴게요.</div>
+        </div>
+        <div class="engagement-panel">
+          <div class="engagement-title">이번 주 러닝 배지</div>
+          <div id="weeklyBadges" class="badge-list">
+            <span class="run-badge run-badge-waiting"><span class="run-badge-icon">✨</span><span class="run-badge-text">기록 대기 중</span></span>
+          </div>
+        </div>
+        <div class="engagement-panel">
+          <div class="engagement-title">오늘의 추천 러닝</div>
+          <div id="dailyRecommendation" class="engagement-text">오늘 몸에 맞는 러닝을 살짝 골라드릴게요.</div>
+        </div>
+      </div>
+
+      <h3>월 마일리지 목표</h3>
+      <div class="goal-panel">
+        <input id="monthlyGoal" type="number" placeholder="목표 km">
+        <button id="saveMonthlyGoal">목표 저장</button>
+        <div id="monthlyGoalStatus" class="goal-status">목표 입력 전</div>
+        <p class="goal-note">월 마일리지 목표는 매월 1회만 저장할 수 있으며, 저장 후에는 이번 달 수정이 제한됩니다.</p>
+      </div>
+
+      <h3>주간 통계</h3>
+      <div class="table-wrap">
+        <table class="weekly-table">
+          <thead>
+            <tr>
+              <th>기간</th>
+              <th>횟수</th>
+              <th>거리</th>
+              <th>시간</th>
+              <th>페이스</th>
+              <th>최장</th>
+            </tr>
+          </thead>
+          <tbody id="periodStats"></tbody>
+        </table>
+      </div>
+
+      <h3 class="record-table-title">운동일별 기록</h3>
+      <div class="filter-bar record-filter-bar">
+        <select id="recordPeriod">
+          <option value="all">전체기간</option>
+          <option value="month">30일</option>
+          <option value="quarter">3개월</option>
+          <option value="year">1년</option>
+        </select>
+        <select id="recordType">
+          <option value="all">훈련·대회</option>
+          <option value="training">훈련</option>
+          <option value="race">대회</option>
+        </select>
+        <select id="recordDistance">
+          <option value="all">전체거리</option>
+          <option value="5">5K</option>
+          <option value="10">10K</option>
+          <option value="21.097">Half</option>
+          <option value="42.195">Full</option>
+        </select>
+        <div id="recordListStatus">최근 기록을 불러오는 중입니다.</div>
+      </div>
+      <div class="table-wrap">
+        <table class="run-record-table">
+          <thead>
+            <tr>
+              <th>운동일</th>
+              <th>구분</th>
+              <th>거리</th>
+              <th>시간</th>
+              <th>페이스</th>
+              <th>훈련내용/대회명</th>
+              <th>기록/관리</th>
+            </tr>
+          </thead>
+          <tbody id="runList"></tbody>
+        </table>
+      </div>
+      <div class="form-row">
+        <button id="loadMoreRuns" class="button-secondary">더보기</button>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>개인 최고 기록</h2>
+      <ul class="pb-list">
+        <li><span class="pb-label">5K</span><span id="pb5k">-</span></li>
+        <li><span class="pb-label">10K</span><span id="pb10k">-</span></li>
+        <li><span class="pb-label">Half</span><span id="pbHalf">-</span></li>
+        <li><span class="pb-label">Full</span><span id="pbFull">-</span></li>
+      </ul>
+      <div id="pbCelebration" class="pb-celebration hidden"></div>
+    </section>
+
+    <section class="section">
+      <h2>나빌러닝 PB 랭킹</h2>
+      <div class="form-row">
+        <select id="rankingDistance">
+          <option value="5">5K</option>
+          <option value="10">10K</option>
+          <option value="21.097">Half</option>
+          <option value="42.195">Full</option>
+        </select>
+        <select id="rankingType">
+          <option value="race">대회 기록만</option>
+          <option value="all">전체 기록</option>
+        </select>
+        <button id="loadRanking">랭킹 보기</button>
+      </div>
+      <div id="rankingStatus"></div>
+
+      <div class="table-wrap">
+        <table class="member-table">
+          <thead>
+            <tr>
+              <th>순위</th>
+              <th>이름</th>
+              <th>기록</th>
+              <th>페이스</th>
+              <th>운동일</th>
+              <th>대회명</th>
+              <th class="ranking-type-col">구분</th>
+              <th class="ranking-admin-col hidden">관리</th>
+            </tr>
+          </thead>
+          <tbody id="rankingList"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>주간 챌린지 랭킹</h2>
+      <p class="section-guide">최근 7일 동안의 누적 거리와 출석 횟수로 함께 달리는 분위기를 확인하세요.</p>
+      <div id="weeklyRankingStatus">로그인 후 주간 챌린지 랭킹을 확인할 수 있습니다.</div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>순위</th>
+              <th>이름</th>
+              <th>누적 거리</th>
+              <th>출석</th>
+              <th>평균 페이스</th>
+            </tr>
+          </thead>
+          <tbody id="weeklyRankingList"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>마라톤 예상 기록</h2>
+      <div id="marathonPrediction">-</div>
+    </section>
+
+    <section class="section">
+      <h2>마라톤 목표 설정</h2>
+      <p class="section-guide">준비하는 마라톤 대회를 상상하며 목표치를 넣어보세요.</p>
+      <div class="filter-bar">
+        <select id="targetTime"></select>
+        <button id="calcTarget">목표 분석</button>
+        <a class="button-link" href="http://marathon.pe.kr/index_calendar.html" target="_blank" rel="noopener noreferrer">접수중 대회일정 보기</a>
+      </div>
+      <div id="targetResult" class="hidden"></div>
+    </section>
+
+    <section class="section">
+      <h2>페이스 그래프</h2>
+      <p class="section-guide">페이스 변화 추이를 통해 훈련 성과와 컨디션 흐름을 확인하고, 무리한 목표나 회복이 필요한 시점을 판단할 수 있습니다.</p>
+      <div class="filter-bar">
+        <select id="filterPeriod">
+          <option value="all">전체 기간</option>
+          <option value="week">주간</option>
+          <option value="month">월간</option>
+          <option value="year">연간</option>
+        </select>
+        <select id="filterDistance">
+          <option value="all">전체</option>
+          <option value="5">5K</option>
+          <option value="10">10K</option>
+          <option value="21.097">Half</option>
+          <option value="42.195">Full</option>
+        </select>
+      </div>
+      <canvas id="runChart" width="400" height="200"></canvas>
+      <p id="chartEmpty" class="chart-empty hidden">선택한 조건의 기록이 없습니다.</p>
+    </section>
+
+    <section id="memberManagement" class="section hidden">
+      <details class="admin-details">
+        <summary>회원 관리 열기 <span class="host-badge">Host</span></summary>
+        <h2>회원 관리</h2>
+        <div class="filter-bar">
+          <button id="loadMembers">회원 목록 새로고침</button>
+          <div id="memberStatus">필요할 때 회원 목록을 새로고침해 확인하세요.</div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>이름</th>
+                <th>이메일</th>
+                <th>상태</th>
+                <th>기록/관리</th>
+              </tr>
+            </thead>
+            <tbody id="memberList"></tbody>
+          </table>
+        </div>
+        <div id="memberRunsPanel" class="member-runs-panel hidden">
+          <h3 id="memberRunsTitle">회원 기록</h3>
+          <div id="memberRunsStatus" class="goal-status">회원을 선택하면 기록을 확인할 수 있습니다.</div>
+          <div class="table-wrap">
+            <table class="run-record-table">
+              <thead>
+                <tr>
+                  <th>운동일</th>
+                  <th>구분</th>
+                  <th>거리</th>
+                  <th>시간</th>
+                  <th>페이스</th>
+                  <th>훈련내용/대회명</th>
+                  <th>관리</th>
+                </tr>
+              </thead>
+              <tbody id="memberRunsList"></tbody>
+            </table>
+          </div>
+        </div>
+      </details>
+    </section>
+    </div>
+
+    <div id="qualityView" class="hidden">
+    <section class="section">
+      <h2>화요 정훈</h2>
+      <p class="section-guide">나빌러닝 정훈 계획과 조별 페이스를 확인하고 결과를 남기세요.</p>
+      <div id="vdotTrainingGuide" class="goal-status">VDOT 참고값을 계산할 기록이 아직 부족해요. 훈련 기록을 조금 더 입력하면 개인별 훈련 페이스를 안내해드릴게요.</div>
+      <p class="vdot-guide-note">VDOT은 최근 기록을 바탕으로 현재 달리기 능력을 추정해 E/M/T/I/R 훈련 페이스를 잡는 참고값입니다. 컨디션, 날씨, 코스에 따라 여유 있게 조절해 주세요.</p>
+
+      <div class="group-standard-header">
+        <h3>나빌러닝 조별 기준표</h3>
+        <div id="groupStandardActions" class="group-standard-actions hidden">
+          <button id="editGroupStandards" class="button-secondary" type="button">기준표 수정</button>
+          <button id="saveGroupStandards" type="button" class="hidden">저장</button>
+          <button id="cancelGroupStandardEdit" class="button-secondary hidden" type="button">취소</button>
+        </div>
+      </div>
+      <div id="groupStandardStatus" class="goal-status">조별 기준표를 불러오는 중입니다.</div>
+      <div class="table-wrap">
+        <table class="group-standard-table">
+          <thead>
+            <tr>
+              <th>조</th>
+              <th>목표 기록</th>
+              <th>인터벌 페이스</th>
+              <th>리커버리 조깅</th>
+              <th>권장 월간 마일리지</th>
+              <th>조별 명단</th>
+            </tr>
+          </thead>
+          <tbody id="groupStandardList"></tbody>
+        </table>
+      </div>
+
+      <div class="quality-grid">
+        <div>
+          <h3>앞으로의 계획</h3>
+          <div id="qualityMonthlyPlan" class="quality-plan"></div>
+        </div>
+
+        <div>
+          <h3>정훈 결과 입력</h3>
+          <div class="form-panel quality-form">
+            <div class="quality-form-section">계획 선택</div>
+            <label>운동일 <input id="qualityDate" type="date"></label>
+            <label>훈련 프로그램
+              <select id="qualityPlanSelect"></select>
+            </label>
+            <label>훈련 종류
+              <select id="qualityWorkoutType">
+                <option value="interval">인터벌</option>
+                <option value="repetition">레피티션</option>
+                <option value="build-up">빌드업</option>
+                <option value="tt">TT</option>
+                <option value="tempo">템포주</option>
+                <option value="other">기타</option>
+              </select>
+            </label>
+            <label class="quality-detail-field">훈련 계획
+              <textarea id="qualityPlannedWorkout" maxlength="500" placeholder="예: 1000m x 4 / E,S 3"></textarea>
+            </label>
+
+            <div class="quality-form-section">결과 입력</div>
+            <div class="quality-result-row">
+              <label>총 거리 <input id="qualityDistance" type="number" step="0.01" placeholder="km"></label>
+              <label>시간 <input id="qualityHour" type="number" placeholder="h"></label>
+              <label>분 <input id="qualityMinute" type="number" placeholder="m" max="59"></label>
+              <label>초 <input id="qualitySecond" type="number" placeholder="s" max="59"></label>
+            </div>
+            <div class="quality-set-row">
+              <label>1세트 <input class="quality-set-input" placeholder="4:13"></label>
+              <label>2세트 <input class="quality-set-input" placeholder="4:14"></label>
+              <label>3세트 <input class="quality-set-input" placeholder="4:10"></label>
+              <label>4세트 <input class="quality-set-input" placeholder="4:07"></label>
+              <label>5세트 <input class="quality-set-input" placeholder="-"></label>
+              <label>6세트 <input class="quality-set-input" placeholder="-"></label>
+              <label>리커버리 <input id="qualitySetMemo" maxlength="160" placeholder="R: 1:15"></label>
+            </div>
+            <input id="qualitySetResults" type="hidden">
+
+            <div class="quality-form-section">평가와 소감</div>
+            <div class="quality-review-row">
+              <label>훈련 평가
+                <select id="qualitySelfRating">
+                  <option value="">선택</option>
+                  <option value="좋음">좋음</option>
+                  <option value="보통">보통</option>
+                  <option value="힘듦">힘듦</option>
+                  <option value="중단/조절">중단/조절</option>
+                </select>
+              </label>
+              <label class="quality-reflection-field">훈련 소감
+                <textarea id="qualityReflection" maxlength="800" placeholder="오늘 컨디션, 잘 된 점, 힘들었던 지점, 다음 훈련에서 조정할 점을 적어주세요."></textarea>
+              </label>
+            </div>
+            <div class="quality-actions">
+              <button id="saveQualityRun" type="button">결과 저장</button>
+              <button id="cancelQualityRunEdit" class="button-secondary hidden" type="button">수정 취소</button>
+            </div>
+            <div id="qualityEditStatus" class="goal-status hidden">정훈 결과를 수정 중입니다.</div>
+          </div>
+        </div>
+      </div>
+
+      <h3 class="record-table-title">지난 정훈 결과</h3>
+      <div id="qualityStatus" class="goal-status">정훈 결과를 불러오는 중입니다.</div>
+      <div class="table-wrap">
+        <table class="quality-table">
+          <thead>
+            <tr>
+              <th>운동일</th>
+              <th>종류</th>
+              <th>거리</th>
+              <th>시간</th>
+              <th>페이스</th>
+              <th>훈련 계획</th>
+              <th>VDOT 평가</th>
+              <th>평가</th>
+              <th>소감</th>
+              <th>관리</th>
+            </tr>
+          </thead>
+          <tbody id="qualityRunList"></tbody>
+        </table>
+      </div>
+    </section>
+    </div>
+
+    <div id="suggestionView" class="hidden">
+    <section id="suggestionSection" class="section">
+      <h2>제안</h2>
+      <p class="section-guide">나빌 회원님의 소중한 의견은 페이서에게 파워젤과 같은 에너지가 됩니다! 😊</p>
+      <div class="form-panel suggestion-form">
+        <label>유형
+          <select id="suggestionType">
+            <option value="error">오류</option>
+            <option value="improvement">개선</option>
+            <option value="other">기타</option>
+          </select>
+        </label>
+        <label class="field-wide">제목
+          <input id="suggestionTitle" maxlength="80" placeholder="제목을 입력해주세요">
+        </label>
+        <label class="suggestion-content-field">내용
+          <textarea id="suggestionContent" maxlength="1200" placeholder="내용을 입력해주세요"></textarea>
+        </label>
+        <div class="suggestion-actions">
+          <button id="submitSuggestion" type="button">전송</button>
+        </div>
+      </div>
+
+      <h3 class="record-table-title">제안 목록</h3>
+      <div id="suggestionStatus" class="goal-status">제안을 불러오는 중입니다.</div>
+      <div id="suggestionList"></div>
+    </section>
+    </div>
+    </div>
+  </main>
+
+  <script>
+    const hour = document.getElementById("hour");
+    const minute = document.getElementById("minute");
+    const second = document.getElementById("second");
+
+    function updateTime() {
+      let h = Number(hour.value) || 0;
+      let m = Number(minute.value) || 0;
+      let s = Number(second.value) || 0;
+
+      if (s >= 60) {
+        m += Math.floor(s / 60);
+        s %= 60;
+      }
+
+      if (m >= 60) {
+        h += Math.floor(m / 60);
+        m %= 60;
+      }
+
+      minute.value = m;
+      second.value = s;
+    }
+
+    hour.addEventListener("input", updateTime);
+    minute.addEventListener("input", updateTime);
+    second.addEventListener("input", updateTime);
+  </script>
+
+  <script type="module" src="app.js?v=20260418-group-note"></script>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("service-worker.js?v=20260418-group-note").then((registration) => {
+          registration.update().catch(() => {});
+        }).catch(() => {});
+      });
+    }
+
+    if ("caches" in window) {
+      caches.keys().then((keys) => {
+        keys
+          .filter((key) => key.startsWith("naviheal-runners-") && key !== "naviheal-runners-v121")
+          .forEach((key) => caches.delete(key));
+      }).catch(() => {});
+    }
+  </script>
+</body>
+</html>

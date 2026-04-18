@@ -1,0 +1,18 @@
+{
+  "name": "NaviHeal Runners",
+  "short_name": "NaviHeal",
+  "description": "나빌러닝 기록, 목표, 랭킹 관리 앱",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fbff",
+  "theme_color": "#2359dc",
+  "lang": "ko-KR",
+  "icons": [
+    {
+      "src": "assets/naviheal-logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

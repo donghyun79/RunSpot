@@ -1,0 +1,263 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function isHost() {
+      return signedIn()
+        && (
+          request.auth.token.email == "dhseo@skku.edu"
+          || (
+            exists(/databases/$(database)/documents/users/$(request.auth.uid))
+            && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "host"
+          )
+        );
+    }
+
+    function approvedUser() {
+      return isHost()
+        || (
+          signedIn()
+          && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+          && (
+            !get(/databases/$(database)/documents/users/$(request.auth.uid)).data.keys().hasAny(["approved"])
+            || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.approved == true
+          )
+          && (
+            !get(/databases/$(database)/documents/users/$(request.auth.uid)).data.keys().hasAny(["disabled"])
+            || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.disabled == false
+          )
+        );
+    }
+
+    function validRunShape() {
+      return request.resource.data.keys().hasOnly([
+        "userId",
+        "name",
+        "email",
+        "runDate",
+        "distance",
+        "type",
+        "time",
+        "createdAt",
+        "updatedAt",
+        "raceName",
+        "raceDate",
+        "workoutType",
+        "workoutDetail",
+        "rankingEligible",
+        "qualityPlanDate",
+        "qualityPlannedWorkout",
+        "qualitySetResults",
+        "qualitySelfRating",
+        "qualityReflection"
+      ])
+      && request.resource.data.userId is string
+      && request.resource.data.email is string
+      && request.resource.data.name is string
+      && request.resource.data.runDate is string
+      && request.resource.data.distance is number
+      && request.resource.data.distance > 0
+      && request.resource.data.distance <= 300
+      && request.resource.data.time is number
+      && request.resource.data.time > 0
+      && request.resource.data.time <= 1440
+      && request.resource.data.type in ["training", "race"]
+      && (!request.resource.data.keys().hasAny(["workoutType"]) || request.resource.data.workoutType in ["", "steady", "interval", "repetition", "build-up", "tt", "tempo", "long", "recovery", "other"])
+      && (!request.resource.data.keys().hasAny(["workoutDetail"]) || (request.resource.data.workoutDetail is string && request.resource.data.workoutDetail.size() <= 2500))
+      && (!request.resource.data.keys().hasAny(["rankingEligible"]) || request.resource.data.rankingEligible is bool)
+      && (!request.resource.data.keys().hasAny(["qualityPlanDate"]) || (request.resource.data.qualityPlanDate is string && request.resource.data.qualityPlanDate.size() <= 20))
+      && (!request.resource.data.keys().hasAny(["qualityPlannedWorkout"]) || (request.resource.data.qualityPlannedWorkout is string && request.resource.data.qualityPlannedWorkout.size() <= 500))
+      && (!request.resource.data.keys().hasAny(["qualitySetResults"]) || (request.resource.data.qualitySetResults is string && request.resource.data.qualitySetResults.size() <= 500))
+      && (!request.resource.data.keys().hasAny(["qualitySelfRating"]) || (request.resource.data.qualitySelfRating is string && request.resource.data.qualitySelfRating.size() <= 20))
+      && (!request.resource.data.keys().hasAny(["qualityReflection"]) || (request.resource.data.qualityReflection is string && request.resource.data.qualityReflection.size() <= 800));
+    }
+
+    function validRunData() {
+      return validRunShape()
+      && request.resource.data.userId == request.auth.uid
+      && request.resource.data.email == request.auth.token.email;
+    }
+
+    function validOwnerRunUpdateData() {
+      return validRunShape()
+      && resource.data.userId == request.auth.uid
+      && request.resource.data.userId == request.auth.uid
+      && request.resource.data.email == request.auth.token.email;
+    }
+
+    function validHostRunUpdateData() {
+      return validRunShape()
+      && (
+        !resource.data.keys().hasAny(["userId"])
+        || request.resource.data.userId == resource.data.userId
+      );
+    }
+
+    function validMonthlyGoalData() {
+      return request.resource.data.keys().hasOnly([
+        "userId",
+        "email",
+        "name",
+        "month",
+        "goalKm",
+        "updatedAt"
+      ])
+      && request.resource.data.userId == request.auth.uid
+      && request.resource.data.email == request.auth.token.email
+      && request.resource.data.name is string
+      && request.resource.data.month is string
+      && request.resource.data.goalKm is number
+      && request.resource.data.goalKm > 0
+      && request.resource.data.goalKm <= 1000;
+    }
+
+    function validUserProfileShape() {
+      return request.resource.data.keys().hasOnly([
+        "userId",
+        "email",
+        "name",
+        "approved",
+        "disabled",
+        "role",
+        "updatedAt"
+      ])
+      && request.resource.data.email is string
+      && request.resource.data.name is string
+      && request.resource.data.name.size() > 0
+      && request.resource.data.name.size() <= 40
+      && (!request.resource.data.keys().hasAny(["approved"]) || request.resource.data.approved is bool)
+      && (!request.resource.data.keys().hasAny(["disabled"]) || request.resource.data.disabled is bool)
+      && (!request.resource.data.keys().hasAny(["role"]) || request.resource.data.role in ["member", "host"]);
+    }
+
+    function validUserProfileData() {
+      return validUserProfileShape()
+      && request.resource.data.userId == request.auth.uid
+      && request.resource.data.email == request.auth.token.email
+      && (!request.resource.data.keys().hasAny(["approved"]) || request.resource.data.approved == false || isHost())
+      && (!request.resource.data.keys().hasAny(["role"]) || request.resource.data.role == "member" || isHost());
+    }
+
+    function validManagedUserProfileData(userId) {
+      return validUserProfileShape()
+      && request.resource.data.userId == userId;
+    }
+
+
+    function validSuggestionShape() {
+      return request.resource.data.keys().hasOnly([
+        "type",
+        "title",
+        "content",
+        "userId",
+        "name",
+        "email",
+        "createdAt",
+        "updatedAt",
+        "reply",
+        "replyAuthor",
+        "replyAuthorEmail",
+        "repliedAt"
+      ])
+      && request.resource.data.type in ["error", "improvement", "other"]
+      && request.resource.data.title is string
+      && request.resource.data.title.size() > 0
+      && request.resource.data.title.size() <= 80
+      && request.resource.data.content is string
+      && request.resource.data.content.size() > 0
+      && request.resource.data.content.size() <= 1200
+      && request.resource.data.userId is string
+      && request.resource.data.name is string
+      && request.resource.data.email is string;
+    }
+
+    function validSuggestionCreateData() {
+      return validSuggestionShape()
+      && request.resource.data.userId == request.auth.uid
+      && request.resource.data.email == request.auth.token.email
+      && !request.resource.data.keys().hasAny(["reply", "replyAuthor", "replyAuthorEmail", "repliedAt"]);
+    }
+
+    function validSuggestionReplyData() {
+      return validSuggestionShape()
+      && request.resource.data.userId == resource.data.userId
+      && request.resource.data.email == resource.data.email
+      && request.resource.data.name == resource.data.name
+      && request.resource.data.type == resource.data.type
+      && request.resource.data.title == resource.data.title
+      && request.resource.data.content == resource.data.content
+      && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["reply", "replyAuthor", "replyAuthorEmail", "repliedAt", "updatedAt"])
+      && request.resource.data.reply is string
+      && request.resource.data.reply.size() > 0
+      && request.resource.data.reply.size() <= 1200
+      && request.resource.data.replyAuthor is string
+      && request.resource.data.replyAuthorEmail == request.auth.token.email;
+    }
+
+    function validRunningGroupStandardsData() {
+      return request.resource.data.keys().hasOnly([
+        "standards",
+        "updatedAt",
+        "updatedBy"
+      ])
+      && request.resource.data.standards is list
+      && request.resource.data.standards.size() == 6
+      && request.resource.data.updatedBy == request.auth.token.email;
+    }
+
+    match /settings/runningGroupStandards {
+      allow read: if approvedUser();
+      allow create, update: if isHost() && validRunningGroupStandardsData();
+      allow delete: if false;
+    }
+
+    match /runs/{runId} {
+      allow read: if approvedUser();
+      allow create: if approvedUser() && validRunData();
+      allow update: if approvedUser()
+        && (
+          (isOwner(resource.data.userId) && validOwnerRunUpdateData())
+          || (isHost() && validHostRunUpdateData())
+        );
+      allow delete: if isOwner(resource.data.userId) || isHost();
+    }
+
+    match /suggestions/{suggestionId} {
+      allow read: if approvedUser();
+      allow create: if approvedUser() && validSuggestionCreateData();
+      allow update: if isHost() && validSuggestionReplyData();
+      allow delete: if isHost();
+    }
+
+    match /monthlyGoals/{goalId} {
+      allow get: if approvedUser();
+      allow list: if false;
+      allow create: if approvedUser() && !exists(/databases/$(database)/documents/monthlyGoals/$(goalId)) && validMonthlyGoalData();
+      allow update, delete: if false;
+    }
+
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isHost() || approvedUser();
+      allow list: if isHost() || approvedUser();
+      allow create: if isOwner(userId) && validUserProfileData();
+      allow update: if (
+        isOwner(userId)
+        && validUserProfileData()
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(["approved", "disabled", "role"])
+      ) || (
+        isHost()
+        && validManagedUserProfileData(userId)
+      );
+      allow delete: if isHost() && userId != request.auth.uid;
+    }
+  }
+}
+
