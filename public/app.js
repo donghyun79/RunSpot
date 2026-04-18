@@ -1513,19 +1513,14 @@ document.addEventListener("DOMContentLoaded", () => {
     const requiredHalf = reverseRiegel(targetTime, 21.097);
     const resultDiv = document.getElementById("targetResult");
     const trainingPlan = generateTrainingPlan(pb, targetTime, required10K, requiredHalf);
-    const trainingMsg = recommendTraining(pb, required10K, requiredHalf);
+    const trainingMsg = recommendTraining(pb, targetTime, required10K, requiredHalf);
     const goalProbability = analyzeGoalProbability(targetTime);
 
     resultDiv.classList.remove("hidden");
     resultDiv.innerHTML = `
       <div class="target-block target-analysis">
         <div class="target-block-title">목표 분석</div><br>
-        <span class="target-metric">5K 필요 기록: ${formatTime(required5K)} (${formatPace(required5K / 5)})</span><br>
-        ${compareRecord(pb["5K"]?.time, required5K)}<br><br>
-        <span class="target-metric">10K 필요 기록: ${formatTime(required10K)} (${formatPace(required10K / 10)})</span><br>
-        ${compareRecord(pb["10K"]?.time, required10K)}<br><br>
-        <span class="target-metric">하프 필요 기록: ${formatTime(requiredHalf)} (${formatPace(requiredHalf / 21.097)})</span><br>
-        ${compareRecord(pb["HALF"]?.time, requiredHalf)}
+        ${createTargetAnalysisHtml(targetTime, required5K, required10K, requiredHalf)}
       </div>
       <div class="target-block target-probability">
         <div class="target-block-title">목표 달성 확률</div><br>
@@ -4596,6 +4591,101 @@ function compareRecord(current, target) {
   return `${formatTime(diff)} 단축이 필요합니다`;
 }
 
+function getTargetRecordRows(targetTime, required5K, required10K, requiredHalf) {
+  return [
+    { key: "5K", label: "5K", distance: 5, current: pb["5K"]?.time, target: required5K },
+    { key: "10K", label: "10K", distance: 10, current: pb["10K"]?.time, target: required10K },
+    { key: "HALF", label: "하프", distance: 21.097, current: pb["HALF"]?.time, target: requiredHalf },
+    { key: "FULL", label: "풀코스", distance: 42.195, current: pb["FULL"]?.time, target: targetTime }
+  ];
+}
+
+function getRecordComparisonText(row) {
+  if (!row.current) {
+    return getFriendlyMessage([
+      `${row.label} 기준 기록이 아직 없어서 이 구간은 판단을 보류할게요.`,
+      `${row.label} 기록을 하나 남기면 목표 분석이 더 선명해집니다.`,
+      `${row.label} 데이터가 비어 있어요. 다음 기록이 들어오면 페이서가 바로 다시 계산할게요.`
+    ], `target-missing-${row.key}`);
+  }
+
+  const diff = row.current - row.target;
+
+  if (diff <= 0) {
+    return getFriendlyMessage([
+      `현재 기록이 필요 기준보다 ${formatTime(Math.abs(diff))} 여유 있습니다.`,
+      `${row.label} 기록은 목표 페이스를 받쳐주는 좋은 근거입니다.`,
+      `이 구간은 이미 목표권입니다. 무리하게 더 당기기보다 안정성을 지켜주세요.`
+    ], `target-ready-${row.key}-${Math.round(Math.abs(diff) * 10)}`);
+  }
+
+  return getFriendlyMessage([
+    `필요 기준까지 ${formatTime(diff)} 단축이 필요합니다.`,
+    `${row.label}에서 ${formatTime(diff)}만 줄이면 목표 계산이 훨씬 좋아집니다.`,
+    `아직 ${formatTime(diff)} 정도 간격이 있어요. 이 구간을 훈련 포인트로 잡으면 좋겠습니다.`
+  ], `target-gap-${row.key}-${Math.round(diff * 10)}`);
+}
+
+function getTargetAnalysisSummary(rows, targetTime) {
+  const recordedRows = rows.filter((row) => row.current);
+
+  if (!recordedRows.length) {
+    return getFriendlyMessage([
+      "아직 기준 기록이 부족합니다. 5K나 10K부터 하나 남기면 목표가 훨씬 또렷해집니다.",
+      "지금은 목표를 정교하게 판단하기보다 기록의 첫 기준점을 만드는 단계입니다.",
+      "기록이 쌓이면 페이서가 속도형인지 지구력형인지 더 정확히 짚어드릴게요."
+    ], `target-summary-empty-${targetTime}`);
+  }
+
+  const readyRows = recordedRows.filter((row) => row.current <= row.target);
+  const gapRows = recordedRows
+    .filter((row) => row.current > row.target)
+    .sort((a, b) => (b.current - b.target) - (a.current - a.target));
+  const strongest = readyRows
+    .slice()
+    .sort((a, b) => (a.current - a.target) - (b.current - b.target))[0];
+  const weakest = gapRows[0];
+
+  if (readyRows.length === recordedRows.length) {
+    return getFriendlyMessage([
+      `저장된 기록은 전반적으로 목표권입니다. 특히 ${strongest.label} 기록이 좋은 근거가 됩니다.`,
+      `현재 기록 흐름만 보면 목표 페이스를 감당할 기본기는 있습니다. 이제는 레이스 운영과 후반 유지가 핵심입니다.`,
+      `속도 기준은 잘 맞아 있습니다. 남은 훈련은 무리한 상승보다 컨디션을 오래 지키는 쪽이 좋습니다.`
+    ], `target-summary-ready-${targetTime}-${readyRows.length}`);
+  }
+
+  if (readyRows.length > 0 && weakest) {
+    return getFriendlyMessage([
+      `${strongest.label}는 강점이고 ${weakest.label}는 보완 포인트입니다. 강점은 유지하고 약한 구간을 차분히 채워가면 됩니다.`,
+      `목표에 닿는 기록과 부족한 기록이 섞여 있어요. 지금은 한 방의 훈련보다 꾸준한 반복이 더 크게 작용합니다.`,
+      `${weakest.label} 기준에서 간격이 가장 큽니다. 다음 몇 주는 그 구간을 좁히는 훈련으로 잡아보세요.`
+    ], `target-summary-mixed-${targetTime}-${weakest.key}`);
+  }
+
+  return getFriendlyMessage([
+    `${weakest.label} 기준 간격이 가장 큽니다. 목표는 유지하되 중간 목표를 하나 두면 훈련이 안정됩니다.`,
+    "저장된 기록 기준으로는 아직 목표가 공격적입니다. 속도보다 먼저 반복 가능한 주간 루틴을 만드는 게 좋겠습니다.",
+    "목표까지 거리가 있지만 방향은 잡을 수 있습니다. 지금은 기록 욕심보다 마일리지와 회복 리듬이 우선입니다."
+  ], `target-summary-gap-${targetTime}-${weakest?.key || "all"}`);
+}
+
+function createTargetAnalysisHtml(targetTime, required5K, required10K, requiredHalf) {
+  const rows = getTargetRecordRows(targetTime, required5K, required10K, requiredHalf);
+  const visibleRows = rows.filter((row) => row.key !== "FULL");
+  const rowHtml = visibleRows.map((row) => {
+    return [
+      `<span class="target-metric">${row.label} 필요 기록: ${formatTime(row.target)} (${formatPace(row.target / row.distance)})</span><br>`,
+      getRecordComparisonText(row)
+    ].join("");
+  }).join("<br><br>");
+
+  return [
+    rowHtml,
+    "<br><br>",
+    `<span class="target-metric">페이서 요약</span><br>${getTargetAnalysisSummary(rows, targetTime)}`
+  ].join("");
+}
+
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
@@ -4612,30 +4702,48 @@ function analyzeGoalProbability(targetTime) {
 
   const diff = basis.predictedTime - targetTime;
   const diffRate = diff / targetTime;
+  const recentMileage = basis.mileageAdjustment?.recentMileage || 0;
   let probability;
   let comment;
 
   if (diff <= 0) {
     probability = clamp(Math.round(82 + Math.abs(diffRate) * 180), 82, 95);
-    comment = "현재 기록 흐름으로는 목표 달성 가능성이 좋아 보여요. 레이스 당일 컨디션과 보급 전략까지 잘 챙기면 더 안정적입니다.";
+    comment = getFriendlyMessage([
+      "현재 기록 흐름으로는 목표 달성 가능성이 좋아 보여요. 레이스 당일 컨디션과 보급 전략까지 챙기면 더 안정적입니다.",
+      "기록 기준은 목표 안쪽에 있습니다. 이제 남은 변수는 오버페이스를 참는 운영과 후반 보급입니다.",
+      "목표권에 들어온 상태입니다. 더 강하게 밀기보다 몸 상태를 일정하게 유지하는 것이 성공 확률을 높입니다."
+    ], `goal-prob-ready-${targetTime}-${Math.round(recentMileage)}`);
   } else {
     probability = clamp(Math.round(80 - diffRate * 500), 10, 78);
 
     if (probability >= 60) {
-      comment = "목표에 가까운 편입니다. 몇 주 동안 핵심 훈련을 꾸준히 가져가면 충분히 도전권에 들어올 수 있어요.";
+      comment = getFriendlyMessage([
+        "목표에 가까운 편입니다. 몇 주 동안 핵심 훈련을 꾸준히 가져가면 충분히 도전권에 들어올 수 있어요.",
+        "간격은 크지 않습니다. 화요 정훈과 주말 롱런을 끊기지 않게 이어가면 확률이 올라갑니다.",
+        "지금은 마지막 한 끗을 만드는 구간입니다. 강도보다 반복성과 회복을 같이 챙겨주세요."
+      ], `goal-prob-close-${targetTime}-${Math.round(diff * 10)}`);
     } else if (probability >= 35) {
-      comment = "아직은 조금 여유가 필요합니다. 무리하게 당기기보다 속도와 지구력을 차근차근 쌓는 쪽이 좋습니다.";
+      comment = getFriendlyMessage([
+        "아직은 조금 여유가 필요합니다. 무리하게 당기기보다 속도와 지구력을 차근차근 쌓는 쪽이 좋습니다.",
+        "도전은 가능하지만 준비 구간이 더 필요합니다. 기록 욕심보다 꾸준한 주간 마일리지가 먼저입니다.",
+        "목표까지 중간 간격이 있습니다. 10K 리듬과 하프 이후 버티는 힘을 함께 키워야 합니다."
+      ], `goal-prob-mid-${targetTime}-${Math.round(diff * 10)}`);
     } else {
-      comment = "현재 기록 기준으로는 목표가 꽤 공격적입니다. 목표를 유지하되 중간 목표를 하나 더 두면 훈련이 안정적이에요.";
+      comment = getFriendlyMessage([
+        "현재 기록 기준으로는 목표가 꽤 공격적입니다. 목표를 유지하되 중간 목표를 하나 더 두면 훈련이 안정적이에요.",
+        "지금 목표는 도전성이 높습니다. 먼저 완주 안정성과 후반 페이스 유지력을 만드는 쪽이 좋겠습니다.",
+        "목표를 바로 당기기보다 단계 목표를 두는 편이 안전합니다. 훈련이 쌓이면 확률은 다시 올라갑니다."
+      ], `goal-prob-far-${targetTime}-${Math.round(diff * 10)}`);
     }
   }
 
   const gapText = diff <= 0
     ? `목표보다 ${formatTime(Math.abs(diff))} 빠른 수준입니다.`
     : `목표보다 ${formatTime(diff)} 단축이 필요합니다.`;
+  const probabilityLabel = probability >= 80 ? "높음" : probability >= 60 ? "도전권" : probability >= 35 ? "준비 필요" : "장기 준비";
 
   return [
-    `예상 확률: ${probability}%`,
+    `예상 확률: ${probability}% (${probabilityLabel})`,
     `분석 기준: ${basis.label}`,
     `기준 예상 기록: ${formatTime(basis.predictedTime)}`,
     getMileageAdjustmentText(basis.mileageAdjustment),
@@ -4644,43 +4752,88 @@ function analyzeGoalProbability(targetTime) {
   ].join("\n");
 }
 
-function recommendTraining(pb, required10K, requiredHalf) {
+function getTrainingFocusData(pb, targetTime, required10K, requiredHalf) {
   const has10K = Boolean(pb["10K"]);
   const hasHalf = Boolean(pb["HALF"]);
   const needSpeed = has10K && pb["10K"].time > required10K;
   const needEndurance = hasHalf && pb["HALF"].time > requiredHalf;
-  const officialTrainingComment = getOfficialTrainingCommentText(getMarathonPredictionBasis()?.predictedTime);
+  const basis = getMarathonPredictionBasis();
+  const recentMileage = basis?.mileageAdjustment?.recentMileage || 0;
+  const weekStats = calculateRunStats(filterRunsByPeriod(latestRuns, "week"));
+  const predictionGap = basis ? basis.predictedTime - targetTime : null;
 
-  if (!has10K && !hasHalf) {
+  return {
+    has10K,
+    hasHalf,
+    needSpeed,
+    needEndurance,
+    basis,
+    recentMileage,
+    weekStats,
+    predictionGap,
+    speedGap: has10K ? pb["10K"].time - required10K : null,
+    enduranceGap: hasHalf ? pb["HALF"].time - requiredHalf : null
+  };
+}
+
+function recommendTraining(pb, targetTime, required10K, requiredHalf) {
+  const focus = getTrainingFocusData(pb, targetTime, required10K, requiredHalf);
+  const officialTrainingComment = getOfficialTrainingCommentText(getMarathonPredictionBasis()?.predictedTime);
+  const mileageText = `최근 30일 마일리지는 ${formatMileage(focus.recentMileage)}입니다.`;
+  const weekText = focus.weekStats.count
+    ? `이번 주는 ${focus.weekStats.count}회, ${formatMileage(focus.weekStats.totalDistance)}를 쌓았습니다.`
+    : "이번 주 기록은 아직 적습니다.";
+
+  if (!focus.has10K && !focus.hasHalf) {
     return [
-      "아직 목표를 판단할 기준 기록이 조금 부족해요.",
-      "먼저 10K나 하프 기록을 하나 남겨주면, 페이서가 훨씬 더 정확하게 방향을 잡아줄 수 있어요.",
+      getFriendlyMessage([
+        "아직 목표를 판단할 기준 기록이 조금 부족해요.",
+        "지금은 목표 기록을 세밀하게 당기기보다 기준 기록을 만드는 단계입니다.",
+        "페이서가 가장 먼저 보고 싶은 건 10K나 하프에서의 현재 리듬입니다."
+      ], `coach-missing-${targetTime}`),
+      "먼저 10K나 하프 기록을 하나 남겨주면 목표 분석이 훨씬 정확해집니다.",
+      `${mileageText} ${weekText}`,
       `${officialTrainingComment} 기록을 억지로 재기보다 몸 상태에 맞춰 반복을 안정적으로 가져가세요.`,
       "좋은 훈련은 지금 내 몸을 아는 것에서 시작됩니다."
     ].join("\n");
   }
 
-  if (needSpeed && needEndurance) {
+  if (focus.needSpeed && focus.needEndurance) {
     return [
-      "목표 기록까지 가려면 속도와 지구력을 함께 키워야 해요.",
+      getFriendlyMessage([
+        "목표 기록까지 가려면 속도와 지구력을 함께 키워야 해요.",
+        "10K와 하프 기준이 모두 조금 부족합니다. 빠르게 달리는 힘과 오래 버티는 힘을 같이 올려야 합니다.",
+        "지금은 특정 한 구간보다 전체 러닝 체력을 다시 넓히는 게 핵심입니다."
+      ], `coach-both-${targetTime}-${Math.round(focus.speedGap * 10)}-${Math.round(focus.enduranceGap * 10)}`),
+      `10K는 약 ${formatTime(focus.speedGap)} 단축, 하프는 약 ${formatTime(focus.enduranceGap)} 단축이 필요합니다. ${mileageText}`,
       "이번 주 핵심은 화요일 나빌러닝 정훈의 인터벌입니다. 빠른 한 번보다 마지막 반복까지 차분하게 페이스를 지켜보세요.",
       "주말 롱런은 욕심내서 빠르게 뛰기보다 오래 안정적으로 버티는 쪽이 더 좋습니다.",
       "잘 쉬는 것도 훈련입니다. 페이서는 그 균형을 더 중요하게 볼게요."
     ].join("\n");
   }
 
-  if (needSpeed) {
+  if (focus.needSpeed) {
     return [
-      "10K 기록을 보면 목표 마라톤 페이스에 필요한 스피드 여유를 조금 더 만들어두면 좋겠어요.",
+      getFriendlyMessage([
+        "10K 기록을 보면 목표 마라톤 페이스에 필요한 스피드 여유를 조금 더 만들어두면 좋겠어요.",
+        "지구력보다 스피드 쪽 간격이 더 눈에 띕니다. 짧은 반복에서 목표 페이스보다 빠른 리듬을 익혀야 합니다.",
+        "후반 체력보다 목표 페이스 자체를 편하게 만드는 작업이 먼저입니다."
+      ], `coach-speed-${targetTime}-${Math.round(focus.speedGap * 10)}`),
+      `10K 기준으로 약 ${formatTime(focus.speedGap)} 간격이 있습니다. ${weekText}`,
       `${officialTrainingComment} 이번 주 핵심 훈련으로 가져가세요.`,
       "목표는 최고 속도를 찍는 것이 아니라 같은 페이스를 여러 번 반복하는 것입니다.",
       "인터벌 다음 날은 기록 욕심을 내려놓고 회복에 집중하세요. 그래야 다음 훈련이 살아납니다."
     ].join("\n");
   }
 
-  if (needEndurance) {
+  if (focus.needEndurance) {
     return [
-      "하프 기록을 보면 후반 유지력을 조금 더 키우면 목표에 더 가까워질 수 있어요.",
+      getFriendlyMessage([
+        "하프 기록을 보면 후반 유지력을 조금 더 키우면 목표에 더 가까워질 수 있어요.",
+        "스피드는 어느 정도 보이지만 오래 버티는 쪽에서 보완점이 있습니다.",
+        "마라톤 목표에는 하프 이후의 안정감이 중요합니다. 지금은 롱런과 지속주가 답에 가깝습니다."
+      ], `coach-endurance-${targetTime}-${Math.round(focus.enduranceGap * 10)}`),
+      `하프 기준으로 약 ${formatTime(focus.enduranceGap)} 간격이 있습니다. ${mileageText}`,
       `${officialTrainingComment} 화요일에는 리듬을 만들고, 주말 롱런에서 오래 버티는 감각을 쌓아보세요.`,
       "롱런은 초반을 참는 훈련입니다. 마지막 5km까지 자세를 지키는 게 더 중요해요.",
       "천천히 오래 가는 힘이 결국 마라톤의 자신감이 됩니다."
@@ -4688,7 +4841,12 @@ function recommendTraining(pb, required10K, requiredHalf) {
   }
 
   return [
-    "현재 기록은 목표 마라톤 기록에 꽤 가까운 편이에요.",
+    getFriendlyMessage([
+      "현재 기록은 목표 마라톤 기록에 꽤 가까운 편이에요.",
+      "기록 기준은 목표권 안에 있습니다. 이제는 훈련을 더 세게 하기보다 흔들리지 않게 유지하는 단계입니다.",
+      "목표를 향한 기본 기록은 잘 맞아 있습니다. 남은 핵심은 컨디션 관리와 레이스 운영입니다."
+    ], `coach-ready-${targetTime}-${Math.round(focus.recentMileage)}`),
+    `${mileageText} ${weekText}`,
     "무리해서 강도를 올리기보다 화요일 나빌러닝 정훈, 주중 템포런, 주말 롱런의 균형을 유지해보세요.",
     "컨디션이 좋은 날에도 계획보다 많이 뛰기보다는 다음 훈련을 살리는 쪽이 좋습니다.",
     "지금 흐름을 차분히 이어가면 충분히 좋은 레이스를 만들 수 있습니다."
