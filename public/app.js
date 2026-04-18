@@ -118,6 +118,8 @@ const DEFAULT_RUNNING_GROUP_STANDARDS = runningGroupStandards.map((standard) => 
 const RUNNING_GROUP_STANDARD_XLSX_PATH = "assets/나빌러닝 조별기준.xlsx";
 const RUNNING_GROUP_STANDARD_NOTE = "조편성 조정을 원하시면 코치와 상의해 주세요.";
 const OFFICIAL_TRAINING_LABEL = "나빌러닝 정훈";
+const UPDATE_NOTICE_VERSION = "20260418-update-notice";
+const UPDATE_NOTICE_STORAGE_KEY = `naviheal-update-notice-${UPDATE_NOTICE_VERSION}`;
 let runningGroupStandardsLoadedFromXlsx = false;
 const QUALITY_MONTHLY_SCHEDULE = {
   4: {
@@ -1252,6 +1254,9 @@ function resetPersonalBest() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+  const updateModal = document.getElementById("updateModal");
+  const closeUpdateModalBtn = document.getElementById("closeUpdateModal");
+  const hideUpdateNotice = document.getElementById("hideUpdateNotice");
   const email = document.getElementById("email");
   const name = document.getElementById("name");
   const password = document.getElementById("password");
@@ -1317,6 +1322,50 @@ document.addEventListener("DOMContentLoaded", () => {
   filterPeriod = document.getElementById("filterPeriod");
   runDateInput.value = getTodayDateString();
   qualityDateInput.value = getTodayDateString();
+
+  function hasSeenUpdateNotice() {
+    try {
+      return localStorage.getItem(UPDATE_NOTICE_STORAGE_KEY) === "seen";
+    } catch (error) {
+      return false;
+    }
+  }
+
+  function rememberUpdateNotice() {
+    try {
+      localStorage.setItem(UPDATE_NOTICE_STORAGE_KEY, "seen");
+    } catch (error) {
+      // Storage can be unavailable in private or restricted browser modes.
+    }
+  }
+
+  function showUpdateNotice() {
+    if (!updateModal || hasSeenUpdateNotice()) return;
+
+    updateModal.classList.remove("hidden");
+    closeUpdateModalBtn?.focus();
+  }
+
+  function closeUpdateNotice() {
+    if (!updateModal) return;
+
+    updateModal.classList.add("hidden");
+
+    if (hideUpdateNotice?.checked) {
+      rememberUpdateNotice();
+    }
+  }
+
+  closeUpdateModalBtn?.addEventListener("click", closeUpdateNotice);
+  updateModal?.addEventListener("click", (event) => {
+    if (event.target === updateModal) closeUpdateNotice();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !updateModal?.classList.contains("hidden")) {
+      closeUpdateNotice();
+    }
+  });
+  showUpdateNotice();
 
   function setAuthenticatedView(isLoggedIn) {
     document.body.classList.toggle("is-authenticated", isLoggedIn);
@@ -4854,7 +4903,3 @@ function drawChart(runs) {
     }
   });
 }
-
-
-
-
