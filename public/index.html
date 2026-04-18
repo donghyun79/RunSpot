@@ -2280,7 +2280,7 @@
 
     <section class="section">
       <h2>주간 챌린지 랭킹</h2>
-      <p class="section-guide">최근 7일 동안의 누적 거리와 출석 횟수로 함께 달리는 분위기를 확인하세요.</p>
+      <p class="section-guide">최근 7일 동안의 누적 거리와 출석 일수로 함께 달리는 분위기를 확인하세요.</p>
       <div id="weeklyRankingStatus">로그인 후 주간 챌린지 랭킹을 확인할 수 있습니다.</div>
       <div class="table-wrap">
         <table>
@@ -2289,7 +2289,7 @@
               <th>순위</th>
               <th>이름</th>
               <th>누적 거리</th>
-              <th>출석</th>
+              <th>출석 일수</th>
               <th>평균 페이스</th>
             </tr>
           </thead>
@@ -2567,11 +2567,11 @@
     second.addEventListener("input", updateTime);
   </script>
 
-  <script type="module" src="app.js?v=20260418-update-notice"></script>
+  <script type="module" src="app.js?v=20260418-group-trend"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
-        navigator.serviceWorker.register("service-worker.js?v=20260418-update-notice").then((registration) => {
+        navigator.serviceWorker.register("service-worker.js?v=20260418-group-trend").then((registration) => {
           registration.update().catch(() => {});
         }).catch(() => {});
       });
@@ -2580,7 +2580,7 @@
     if ("caches" in window) {
       caches.keys().then((keys) => {
         keys
-          .filter((key) => key.startsWith("naviheal-runners-") && key !== "naviheal-runners-v122")
+          .filter((key) => key.startsWith("naviheal-runners-") && key !== "naviheal-runners-v124")
           .forEach((key) => caches.delete(key));
       }).catch(() => {});
     }

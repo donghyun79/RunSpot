@@ -909,8 +909,29 @@ function formatChartDate(dateString) {
 function parseInputDate(dateString) {
   if (!dateString) return null;
 
-  const date = new Date(`${dateString}T00:00:00`);
+  const dateKey = getDateKey(dateString);
+  const date = dateKey ? new Date(`${dateKey}T00:00:00`) : new Date(dateString);
   return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function getDateKey(value) {
+  if (!value) return "";
+
+  if (value?.toDate) {
+    return dateToInputValue(value.toDate());
+  }
+
+  if (value instanceof Date) {
+    return dateToInputValue(value);
+  }
+
+  const stringValue = String(value).trim();
+  const dateMatch = stringValue.match(/^(\d{4}-\d{2}-\d{2})/);
+
+  if (dateMatch) return dateMatch[1];
+
+  const parsedDate = new Date(stringValue);
+  return Number.isNaN(parsedDate.getTime()) ? "" : dateToInputValue(parsedDate);
 }
 
 function getPeriodStartDate(period) {
@@ -4151,9 +4172,10 @@ async function loadWeeklyRanking(user) {
       const distance = Number(data.distance);
       const time = Number(data.time);
       const runDate = getSavedRunDate(data);
+      const runDateKey = getDateKey(runDate);
       const parsedRunDate = parseInputDate(runDate);
 
-      if (!Number.isFinite(distance) || !Number.isFinite(time) || !parsedRunDate) return;
+      if (!Number.isFinite(distance) || !Number.isFinite(time) || !parsedRunDate || !runDateKey) return;
       if (parsedRunDate < startDate || parsedRunDate > endDate) return;
 
       const userId = data.userId || data.email || snapshotDoc.id;
@@ -4168,7 +4190,7 @@ async function loadWeeklyRanking(user) {
 
       entry.totalDistance += distance;
       entry.totalTime += time;
-      entry.runDates.add(runDate);
+      entry.runDates.add(runDateKey);
       rankingsByUser.set(userId, entry);
     });
 
@@ -4201,7 +4223,7 @@ async function loadWeeklyRanking(user) {
         `${index + 1}${isMe ? " (나)" : ""}`,
         entry.name,
         formatMileage(entry.totalDistance),
-        `${entry.count}회`,
+        `${entry.count}일`,
         entry.averagePace ? formatPace(entry.averagePace) : "-"
       ].forEach((value) => {
         const td = document.createElement("td");
@@ -4216,7 +4238,7 @@ async function loadWeeklyRanking(user) {
 
     if (myRankIndex >= 0) {
       const myEntry = rankings[myRankIndex];
-      weeklyRankingStatus.innerText = `내 주간 순위: ${myRankIndex + 1}위 / ${rankings.length}명, ${formatMileage(myEntry.totalDistance)} · ${myEntry.count}회 출석`;
+      weeklyRankingStatus.innerText = `내 주간 순위: ${myRankIndex + 1}위 / ${rankings.length}명, ${formatMileage(myEntry.totalDistance)} · ${myEntry.count}일 출석`;
     } else {
       weeklyRankingStatus.innerText = `최근 7일 기준 ${rankings.length}명이 챌린지에 참여 중입니다. 이번 주 첫 기록을 남겨보세요.`;
     }
@@ -4337,6 +4359,7 @@ function updateMarathonPrediction() {
 
   const mileageDetail = getMileageAdjustmentText(basis.mileageAdjustment);
   const assignedGroup = getRunningGroup(basis.predictedTime);
+  const memberGroup = getRunningGroupByMemberName(getUserName(auth.currentUser));
 
   if (!assignedGroup) {
     predictionDiv.innerHTML = [
@@ -4345,7 +4368,7 @@ function updateMarathonPrediction() {
       `<span class="prediction-detail">${basis.label}<br>${mileageDetail}</span>`,
       '</div>',
       '<div class="target-block">',
-      '<b>나빌러닝 조 배정</b><br>현재 기준표의 Sub 5:00보다 여유가 필요합니다.',
+      '<b>나빌러닝 예상조</b><br>현재 기준표의 Sub 5:00보다 여유가 필요합니다.<br>예상조는 최근 기록과 훈련량으로 계산한 임시 참고값이라 실제 조편성과 다를 수 있습니다.',
       '</div>'
     ].join("");
     return;
@@ -4353,6 +4376,7 @@ function updateMarathonPrediction() {
 
   const comparison = compareWithGroupTarget(basis.predictedTime, assignedGroup);
   const groupEncouragement = getGroupEncouragementMessage(basis.predictedTime, assignedGroup, basis.mileageAdjustment);
+  const groupTrendMessage = getGroupTrendMessage(assignedGroup, memberGroup);
   const vdotBlock = vdotPaces
     ? [
         '<div class="target-block">',
@@ -4367,7 +4391,7 @@ function updateMarathonPrediction() {
     `<span class="prediction-detail">${basis.label}<br>${mileageDetail}</span>`,
     '</div>',
     '<div class="target-block">',
-    `<b>나빌러닝 조 배정</b><br><span class="group-badge">${assignedGroup.group}조</span> ${assignedGroup.targetLabel} 기준 / ${comparison}<br>${groupEncouragement}`,
+    `<b>나빌러닝 예상조</b><br><span class="group-badge">${assignedGroup.group}조</span> ${assignedGroup.targetLabel} 기준 / ${comparison}<br>${groupTrendMessage}<br>${groupEncouragement}`,
     '</div>',
     '<div class="target-block">',
     `<b>적정 훈련 기준</b><br>인터벌 페이스: ${assignedGroup.intervalPace}<br>리커버리 조깅 페이스: ${assignedGroup.recoveryPace}<br>월간 마일리지: ${assignedGroup.monthlyMileage}`,
@@ -4480,6 +4504,38 @@ function getRunningGroup(predictedTime) {
   }
 
   return runningGroupStandards[runningGroupStandards.length - 1];
+}
+
+function getRunningGroupIndex(group) {
+  if (!group?.group) return -1;
+
+  return runningGroupStandards.findIndex((standard) => standard.group === group.group);
+}
+
+function getGroupTrendMessage(predictedGroup, memberGroup) {
+  const baseNotice = "예상조는 최근 기록과 훈련량으로 계산한 임시 참고값이라 실제 조편성과 다를 수 있습니다.";
+
+  if (!memberGroup) {
+    return `${baseNotice} 조별 명단에 이름이 없으면 예상 기록 기준으로만 안내됩니다.`;
+  }
+
+  const predictedIndex = getRunningGroupIndex(predictedGroup);
+  const memberIndex = getRunningGroupIndex(memberGroup);
+  const actualGroupText = `현재 실제 조편성은 ${memberGroup.group}조입니다.`;
+
+  if (predictedIndex < 0 || memberIndex < 0) {
+    return `${baseNotice} ${actualGroupText}`;
+  }
+
+  if (predictedIndex < memberIndex) {
+    return `${baseNotice} ${actualGroupText} 예상조가 실제 조보다 높게 나왔어요. 최근 흐름이 성장 쪽으로 움직이고 있다는 좋은 신호입니다.`;
+  }
+
+  if (predictedIndex > memberIndex) {
+    return `${baseNotice} ${actualGroupText} 예상조가 실제 조보다 낮게 나왔어요. 최근 훈련량이나 기록 흐름이 잠시 부족했을 수 있으니, 다시 차근차근 쌓아보면 좋겠습니다.`;
+  }
+
+  return `${baseNotice} ${actualGroupText} 예상조와 실제 조가 같은 흐름입니다.`;
 }
 
 function compareWithGroupTarget(predictedTime, group) {
