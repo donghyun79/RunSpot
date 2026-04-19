@@ -2299,6 +2299,35 @@
     </section>
 
     <section class="section">
+      <h2>이달의 선수</h2>
+      <p class="section-guide">출석 일수, 조별 마일리지 달성률, 화요 정훈 참여율, 전월 대비 성장도를 합산해 월말 공지 후보를 확인하세요.</p>
+      <div id="monthlyAthleteStatus" class="goal-status">로그인 후 이달의 선수 후보를 확인할 수 있습니다.</div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>순위</th>
+              <th>이름</th>
+              <th>총점</th>
+              <th>출석</th>
+              <th>마일리지</th>
+              <th>정훈</th>
+              <th>성장</th>
+            </tr>
+          </thead>
+          <tbody id="monthlyAthleteList"></tbody>
+        </table>
+      </div>
+      <div id="monthlyAthleteNotice" class="target-block target-analysis">
+        <div class="target-block-title">월말 공지용 선발 기준</div><br>
+        이달의 선수는 누적 거리만으로 선정하지 않습니다.<br>
+        월간 출석 일수 30점, 실제 조 기준 마일리지 달성률 25점, 화요 정훈 참여율 25점, 전월 대비 성장도 20점을 합산합니다.<br>
+        같은 날 여러 번 뛴 기록은 거리는 합산하되 출석은 1일로 계산합니다.<br>
+        동점자는 정훈 참여율, 출석 일수, 조별 마일리지 달성률, 성장도 순으로 정하며, 그래도 같으면 공동 수상으로 공지합니다.
+      </div>
+    </section>
+
+    <section class="section">
       <h2>마라톤 예상 기록</h2>
       <div id="marathonPrediction">-</div>
     </section>
@@ -2567,11 +2596,11 @@
     second.addEventListener("input", updateTime);
   </script>
 
-  <script type="module" src="app.js?v=20260418-target-coach"></script>
+  <script type="module" src="app.js?v=20260419-monthly-athlete"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
-        navigator.serviceWorker.register("service-worker.js?v=20260418-target-coach").then((registration) => {
+        navigator.serviceWorker.register("service-worker.js?v=20260419-monthly-athlete").then((registration) => {
           registration.update().catch(() => {});
         }).catch(() => {});
       });
@@ -2580,7 +2609,7 @@
     if ("caches" in window) {
       caches.keys().then((keys) => {
         keys
-          .filter((key) => key.startsWith("naviheal-runners-") && key !== "naviheal-runners-v125")
+          .filter((key) => key.startsWith("naviheal-runners-") && key !== "naviheal-runners-v126")
           .forEach((key) => caches.delete(key));
       }).catch(() => {});
     }
