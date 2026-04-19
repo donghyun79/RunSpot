@@ -143,6 +143,20 @@
       color: var(--brand);
     }
 
+    .section-title-sub {
+      display: inline-flex;
+      align-items: center;
+      min-height: 26px;
+      padding: 3px 8px;
+      background: var(--accent-soft);
+      border: 1px solid #f1cc68;
+      border-radius: 8px;
+      color: var(--accent-dark);
+      font-size: 13px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
     .section {
       margin-top: 26px;
       padding: 24px 0 0;
@@ -1653,6 +1667,52 @@
       font-weight: 800;
     }
 
+    .update-modal-lead {
+      margin: 0 0 14px;
+      color: var(--text);
+      font-weight: 800;
+      line-height: 1.55;
+    }
+
+    .notice-section-grid {
+      display: grid;
+      gap: 10px;
+    }
+
+    .notice-section {
+      padding: 12px 13px;
+      border: 1px solid var(--line);
+      border-left: 5px solid var(--brand);
+      border-radius: 8px;
+      background: var(--brand-soft);
+    }
+
+    .notice-section strong {
+      display: block;
+      margin-bottom: 7px;
+      color: var(--brand-dark);
+      font-size: 15px;
+      font-weight: 900;
+    }
+
+    .notice-section ul {
+      display: grid;
+      gap: 4px;
+      margin: 0;
+      padding-left: 18px;
+      color: var(--text);
+      font-weight: 800;
+    }
+
+    .notice-section-accent {
+      border-left-color: var(--accent);
+      background: var(--accent-soft);
+    }
+
+    .notice-section-accent strong {
+      color: var(--accent-dark);
+    }
+
     .update-modal-note {
       margin: 14px 0 0;
       color: var(--muted);
@@ -1661,28 +1721,10 @@
     }
 
     .update-modal-actions {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
-      gap: 10px;
+      display: flex;
+      justify-content: flex-end;
       align-items: center;
       margin-top: 18px;
-    }
-
-    .update-modal-check {
-      display: inline-flex;
-      flex-direction: row;
-      align-items: center;
-      gap: 8px;
-      min-width: 0;
-      color: var(--muted);
-      font-size: 13px;
-      font-weight: 800;
-    }
-
-    .update-modal-check input {
-      width: 18px;
-      min-width: 18px;
-      min-height: 18px;
     }
 
     @media (max-width: 760px) {
@@ -1692,10 +1734,6 @@
 
       .update-modal-title {
         font-size: 21px;
-      }
-
-      .update-modal-actions {
-        grid-template-columns: 1fr;
       }
 
       .auth-view {
@@ -2138,20 +2176,52 @@
 <body>
   <div id="updateModal" class="update-modal hidden" role="dialog" aria-modal="true" aria-labelledby="updateModalTitle">
     <section class="update-modal-panel">
-      <p class="update-modal-kicker">업데이트 안내</p>
-      <h2 id="updateModalTitle" class="update-modal-title">변경사항을 확인해 주세요</h2>
-      <p class="update-modal-date">2026년 4월 18일 반영</p>
-      <ul class="update-modal-list">
-        <li>화요 정훈 화면에서 나빌러닝 조별 기준표와 훈련 계획을 더 쉽게 확인할 수 있어요.</li>
-        <li>조편성 조정 안내 문구를 추가해 필요한 경우 코치와 상의할 수 있게 했어요.</li>
-        <li>앱 첫 화면에 변경사항 알림창을 추가했어요.</li>
-      </ul>
-      <p class="update-modal-note">이 안내는 같은 업데이트 버전에서는 한 번만 표시됩니다.</p>
+      <p class="update-modal-kicker">기록 입력 안내</p>
+      <h2 id="updateModalTitle" class="update-modal-title">나빌러닝 기록 입력 안내</h2>
+      <p class="update-modal-date">이달의 선수 · 명예의 전당 · PB 기록 · 조별 마일리지 반영</p>
+      <p class="update-modal-lead">안녕하세요. 회원님들의 훈련 데이터를 함께 공유하고, 주요 기록에 정확히 반영하기 위해 아래 입력을 부탁드립니다.</p>
+      <div class="notice-section-grid">
+        <section class="notice-section">
+          <strong>1. 훈련 / 대회 기록</strong>
+          <ul>
+            <li>러닝 후 마이트레이닝 화면에서 입력</li>
+            <li>운동 날짜, 구분, 거리, 시간 입력</li>
+            <li>대회 참가 시 대회명 입력</li>
+          </ul>
+        </section>
+        <section class="notice-section">
+          <strong>2. 화요 정훈 기록</strong>
+          <ul>
+            <li>화요 정훈 화면에서 입력</li>
+            <li>정훈일 참여 기록 입력</li>
+            <li>같은 달 보강훈련 완료 기록 입력</li>
+          </ul>
+        </section>
+        <section class="notice-section">
+          <strong>3. 월간 목표 거리</strong>
+          <ul>
+            <li>매월 초 월간 목표 거리 입력</li>
+          </ul>
+        </section>
+        <section class="notice-section notice-section-accent">
+          <strong>자동 반영 항목</strong>
+          <ul>
+            <li>개인 PB 기록, 주간 챌린지</li>
+            <li>이달의 선수 예상 순위, 명예의 전당</li>
+            <li>예상 마라톤 기록</li>
+          </ul>
+        </section>
+        <section class="notice-section notice-section-accent">
+          <strong>꼭 확인해주세요</strong>
+          <ul>
+            <li>실제 운동 날짜 입력</li>
+            <li>대회는 대회명 입력</li>
+            <li>같은 날 여러 번 뛰어도 출석은 1일 인정</li>
+          </ul>
+        </section>
+      </div>
+      <p class="update-modal-note"><strong>기록은 성장의 시작입니다.</strong><br>꾸준한 입력 부탁드립니다.</p>
       <div class="update-modal-actions">
-        <label class="update-modal-check">
-          <input id="hideUpdateNotice" type="checkbox" checked>
-          오늘 이후 이 업데이트 안내 숨기기
-        </label>
         <button id="closeUpdateModal" type="button">확인</button>
       </div>
     </section>
@@ -2307,8 +2377,8 @@
           </div>
         </div>
         <div class="engagement-panel">
-          <div class="engagement-title">오늘의 추천 러닝</div>
-          <div id="dailyRecommendation" class="engagement-text">오늘 몸에 맞는 러닝을 살짝 골라드릴게요.</div>
+          <div class="engagement-title">오늘의 추천</div>
+          <div id="dailyRecommendation" class="engagement-text">오늘 몸에 맞는 러닝과 회복을 살짝 골라드릴게요.</div>
         </div>
       </div>
 
@@ -2428,7 +2498,7 @@
     </section>
 
     <section class="section">
-      <h2>주간 챌린지 랭킹</h2>
+      <h2>주간 챌린지 랭킹 <span id="weeklyRankingWeekLabel" class="section-title-sub">-</span></h2>
       <p class="section-guide">최근 7일 동안의 누적 거리와 출석 일수로 함께 달리는 분위기를 확인하세요.</p>
       <div id="weeklyRankingStatus">로그인 후 주간 챌린지 랭킹을 확인할 수 있습니다.</div>
       <div class="table-wrap">
@@ -2778,11 +2848,11 @@
     second.addEventListener("input", updateTime);
   </script>
 
-  <script type="module" src="app.js?v=20260419-badge-bonus"></script>
+  <script type="module" src="app.js?v=20260419-group-fallback"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
-        navigator.serviceWorker.register("service-worker.js?v=20260419-badge-bonus").then((registration) => {
+        navigator.serviceWorker.register("service-worker.js?v=20260419-group-fallback").then((registration) => {
           registration.update().catch(() => {});
         }).catch(() => {});
       });
@@ -2791,7 +2861,7 @@
     if ("caches" in window) {
       caches.keys().then((keys) => {
         keys
-          .filter((key) => key.startsWith("naviheal-runners-") && key !== "naviheal-runners-v134")
+          .filter((key) => key.startsWith("naviheal-runners-") && key !== "naviheal-runners-v141")
           .forEach((key) => caches.delete(key));
       }).catch(() => {});
     }

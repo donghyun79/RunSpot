@@ -51,6 +51,7 @@ let selectedAdminRuns = [];
 let editingRun = null;
 let editingQualityRun = null;
 let latestSuggestions = [];
+let latestEnvironment = null;
 const CLUB_INVITE_CODE = "NAVIHEAL";
 const HOST_EMAIL = "dhseo@skku.edu";
 const HOST_NAME = "서동현";
@@ -120,8 +121,8 @@ const RUNNING_GROUP_STANDARD_XLSX_PATH = "assets/나빌러닝 조별기준.xlsx"
 const RUNNING_GROUP_STANDARD_NOTE = "조편성 조정을 원하시면 코치와 상의해 주세요.";
 const OFFICIAL_TRAINING_LABEL = "나빌러닝 정훈";
 const QUALITY_MAKEUP_CREDIT = 0.7;
-const UPDATE_NOTICE_VERSION = "20260418-update-notice";
-const UPDATE_NOTICE_STORAGE_KEY = `naviheal-update-notice-${UPDATE_NOTICE_VERSION}`;
+const UPDATE_NOTICE_VERSION = "20260419-record-input-notice-week";
+const UPDATE_NOTICE_VISIBLE_UNTIL = "2026-04-26T23:59:59+09:00";
 let runningGroupStandardsLoadedFromXlsx = false;
 const QUALITY_MONTHLY_SCHEDULE = {
   4: {
@@ -376,6 +377,49 @@ function getRankingName(data, profileNames) {
   if (savedName && savedName !== email) return savedName;
 
   return email || "이름 없음";
+}
+
+function normalizeEmail(email) {
+  return String(email || "").trim().toLowerCase();
+}
+
+function isCurrentUserRankingEntry(entry, user) {
+  if (!entry || !user) return false;
+
+  const userEmail = normalizeEmail(user.email);
+  const entryEmail = normalizeEmail(entry.email);
+  const entryUserId = String(entry.userId || "").trim();
+  const entryName = normalizeMemberName(entry.name);
+  const userName = normalizeMemberName(getUserName(user));
+
+  return entryUserId === user.uid
+    || normalizeEmail(entryUserId) === userEmail
+    || entryEmail === userEmail
+    || (entryName && userName && entryName === userName);
+}
+
+function getCurrentUserNameKeys(user, profileNames = new Map()) {
+  return new Set([
+    getUserName(user),
+    profileNames.get(user?.uid),
+    profileNames.get(user?.email),
+    user?.displayName
+  ].map(normalizeMemberName).filter(Boolean));
+}
+
+function isCurrentUserRunData(data, user, profileNames = new Map()) {
+  if (!data || !user) return false;
+
+  const userEmail = normalizeEmail(user.email);
+  const dataUserId = String(data.userId || "").trim();
+  const dataEmail = normalizeEmail(data.email);
+  const dataName = normalizeMemberName(getRankingName(data, profileNames));
+  const currentUserNameKeys = getCurrentUserNameKeys(user, profileNames);
+
+  return dataUserId === user.uid
+    || normalizeEmail(dataUserId) === userEmail
+    || dataEmail === userEmail
+    || (dataName && currentUserNameKeys.has(dataName));
 }
 
 function formatTime(totalMinutes) {
@@ -803,6 +847,28 @@ function getHourlyWeatherTrendHtml(hourly) {
   return points.length ? `<span class="hourly-weather-strip">${points.join("")}</span>` : "";
 }
 
+function getUpcomingWeatherRisk(hourly) {
+  const times = hourly?.time || [];
+  const weatherCodes = hourly?.weather_code || [];
+  const precipitationProbabilities = hourly?.precipitation_probability || [];
+  const now = new Date();
+  const picked = times
+    .map((time, index) => ({
+      time: new Date(times[index]),
+      weatherCode: Number(weatherCodes[index]),
+      precipitationProbability: Math.round(Number(precipitationProbabilities[index]))
+    }))
+    .filter((entry) => entry.time.getTime() >= now.getTime())
+    .slice(0, 4);
+
+  return {
+    maxPrecipitationProbability: picked.reduce((max, entry) => {
+      return Number.isFinite(entry.precipitationProbability) ? Math.max(max, entry.precipitationProbability) : max;
+    }, 0),
+    hasRainOrStorm: picked.some((entry) => [51, 53, 55, 61, 63, 65, 80, 81, 82, 95, 96, 99].includes(entry.weatherCode))
+  };
+}
+
 function renderNowonEnvironment(weatherData, airCurrent) {
   const widget = document.getElementById("nowonEnvironment");
 
@@ -825,12 +891,27 @@ function renderNowonEnvironment(weatherData, airCurrent) {
   const pm25Main = Number.isFinite(pm25) ? `초미세 ${pm25Grade.label}` : "초미세 확인 중";
   const pm25Sub = Number.isFinite(pm25) ? `${getDustRunningAdvice(pm25Grade)} · ${pm25}㎍/㎥` : "잠시 후 갱신";
   const trendHtml = getHourlyWeatherTrendHtml(weatherData?.hourly);
+  const upcomingRisk = getUpcomingWeatherRisk(weatherData?.hourly);
+
+  latestEnvironment = {
+    temperature,
+    humidity,
+    weatherCode,
+    weatherLabel: getWeatherLabel(weatherCode),
+    pm10,
+    pm25,
+    pm10Grade,
+    pm25Grade,
+    ...upcomingRisk
+  };
 
   widget.innerHTML = [
     `<span class="environment-pill weather"><span class="environment-main"><strong>노원구</strong> ${weatherText}</span><span class="environment-sub">${humidityText}</span>${trendHtml}</span>`,
     `<span class="environment-pill dust ${pm10Grade.className}" title="${pm10Grade.label === "좋음" ? "뛰기 좋은 공기예요." : pm10Grade.label === "보통" ? "가볍게 달리기엔 무난해요." : "강도 높은 러닝은 줄이는 게 좋아요."}"><span class="environment-main">${pm10Main}</span><span class="environment-sub">${pm10Sub}</span></span>`,
     `<span class="environment-pill dust ${pm25Grade.className}" title="${pm25Grade.label === "좋음" ? "뛰기 좋은 공기예요." : pm25Grade.label === "보통" ? "가볍게 달리기엔 무난해요." : "강도 높은 러닝은 줄이는 게 좋아요."}"><span class="environment-main">${pm25Main}</span><span class="environment-sub">${pm25Sub}</span></span>`
   ].join("");
+
+  updateDailyRecommendation(latestRuns);
 }
 
 function resetNowonEnvironment() {
@@ -838,6 +919,7 @@ function resetNowonEnvironment() {
 
   if (!widget) return;
 
+  latestEnvironment = null;
   widget.innerHTML = '<span class="environment-pill weather"><span class="environment-main"><strong>노원구</strong> 날씨 확인 중</span><span class="environment-sub">미세먼지도 함께 확인해요</span></span>';
 }
 
@@ -884,6 +966,7 @@ async function loadNowonEnvironment() {
     renderNowonEnvironment(weatherData, airData.current);
   } catch (error) {
     console.error(error);
+    latestEnvironment = null;
     widget.innerHTML = '<span class="environment-pill weather bad"><span class="environment-main"><strong>노원구</strong> 정보 불러오기 실패</span><span class="environment-sub">잠시 후 다시 확인해 주세요</span></span>';
   }
 }
@@ -1015,6 +1098,18 @@ function getMileageSummaryPrefix() {
 
 function getCurrentMonthKey() {
   return getTodayDateString().slice(0, 7);
+}
+
+function getMonthWeekLabel(date = new Date()) {
+  return `${date.getMonth() + 1}월 ${Math.ceil(date.getDate() / 7)}주차`;
+}
+
+function updateWeeklyRankingWeekLabel() {
+  const weeklyRankingWeekLabel = document.getElementById("weeklyRankingWeekLabel");
+
+  if (!weeklyRankingWeekLabel) return;
+
+  weeklyRankingWeekLabel.innerText = getMonthWeekLabel();
 }
 
 function getLatestFinalizedMonthKey() {
@@ -1290,7 +1385,6 @@ function resetPersonalBest() {
 document.addEventListener("DOMContentLoaded", () => {
   const updateModal = document.getElementById("updateModal");
   const closeUpdateModalBtn = document.getElementById("closeUpdateModal");
-  const hideUpdateNotice = document.getElementById("hideUpdateNotice");
   const email = document.getElementById("email");
   const name = document.getElementById("name");
   const password = document.getElementById("password");
@@ -1356,25 +1450,16 @@ document.addEventListener("DOMContentLoaded", () => {
   filterPeriod = document.getElementById("filterPeriod");
   runDateInput.value = getTodayDateString();
   qualityDateInput.value = getTodayDateString();
+  updateWeeklyRankingWeekLabel();
 
-  function hasSeenUpdateNotice() {
-    try {
-      return localStorage.getItem(UPDATE_NOTICE_STORAGE_KEY) === "seen";
-    } catch (error) {
-      return false;
-    }
-  }
+  function isUpdateNoticeVisiblePeriod() {
+    const visibleUntil = new Date(UPDATE_NOTICE_VISIBLE_UNTIL);
 
-  function rememberUpdateNotice() {
-    try {
-      localStorage.setItem(UPDATE_NOTICE_STORAGE_KEY, "seen");
-    } catch (error) {
-      // Storage can be unavailable in private or restricted browser modes.
-    }
+    return !Number.isNaN(visibleUntil.getTime()) && new Date() <= visibleUntil;
   }
 
   function showUpdateNotice() {
-    if (!updateModal || hasSeenUpdateNotice()) return;
+    if (!updateModal || !isUpdateNoticeVisiblePeriod()) return;
 
     updateModal.classList.remove("hidden");
     closeUpdateModalBtn?.focus();
@@ -1384,10 +1469,6 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!updateModal) return;
 
     updateModal.classList.add("hidden");
-
-    if (hideUpdateNotice?.checked) {
-      rememberUpdateNotice();
-    }
   }
 
   closeUpdateModalBtn?.addEventListener("click", closeUpdateNotice);
@@ -2451,7 +2532,22 @@ function getUpcomingQualityWorkout(referenceDate = new Date()) {
 }
 
 function normalizeMemberName(name) {
-  return String(name || "").replace(/\s+/g, "").trim();
+  return String(name || "")
+    .replace(/\([^)]*\)/g, "")
+    .replace(/\[[^\]]*\]/g, "")
+    .replace(/회원님?|러너|님/g, "")
+    .replace(/[^가-힣a-zA-Z0-9]/g, "")
+    .trim();
+}
+
+function getRunningGroupStandardPools() {
+  return [
+    ...runningGroupStandards,
+    ...DEFAULT_RUNNING_GROUP_STANDARDS
+  ].filter((standard, index, standards) => {
+    const key = `${standard.group}-${standard.members}`;
+    return standards.findIndex((item) => `${item.group}-${item.members}` === key) === index;
+  });
 }
 
 function getRunningGroupByMemberName(memberName) {
@@ -2459,7 +2555,7 @@ function getRunningGroupByMemberName(memberName) {
 
   if (!normalizedName) return null;
 
-  return runningGroupStandards.find((standard) => {
+  return getRunningGroupStandardPools().find((standard) => {
     return String(standard.members || "")
       .split(/[,，]/)
       .map(normalizeMemberName)
@@ -3846,16 +3942,112 @@ function createRunBadge({ icon, label }, isWaiting = false) {
   return badge;
 }
 
+function getTodayRuns(runs) {
+  const todayKey = getTodayDateString();
+
+  return runs.filter((run) => getDateKey(run.runDate) === todayKey);
+}
+
+function getEnvironmentRecommendationLevel(environment = latestEnvironment) {
+  if (!environment) {
+    return {
+      level: "unknown",
+      reason: ""
+    };
+  }
+
+  const reasons = [];
+  const hasBadDust = environment.pm10Grade?.label === "나쁨"
+    || environment.pm10Grade?.label === "매우 나쁨"
+    || environment.pm25Grade?.label === "나쁨"
+    || environment.pm25Grade?.label === "매우 나쁨";
+  const hasModerateDust = environment.pm10Grade?.label === "보통" || environment.pm25Grade?.label === "보통";
+  const hasRainRisk = environment.hasRainOrStorm || environment.maxPrecipitationProbability >= 70;
+  const hasModerateRainRisk = environment.maxPrecipitationProbability >= 40;
+
+  if (hasBadDust) reasons.push("미세먼지");
+  if (hasRainRisk) reasons.push("비 예보");
+  if (Number.isFinite(environment.temperature) && environment.temperature >= 32) reasons.push("고온");
+  if (Number.isFinite(environment.temperature) && environment.temperature <= -5) reasons.push("한파");
+
+  if (reasons.length) {
+    return {
+      level: "avoid",
+      reason: reasons.join(", ")
+    };
+  }
+
+  if (hasModerateDust) reasons.push("보통 수준 미세먼지");
+  if (hasModerateRainRisk) reasons.push("비 가능성");
+  if (Number.isFinite(environment.temperature) && environment.temperature >= 28) reasons.push("더위");
+  if (Number.isFinite(environment.temperature) && environment.temperature <= 0) reasons.push("추위");
+  if (Number.isFinite(environment.humidity) && environment.humidity >= 85) reasons.push("높은 습도");
+
+  return {
+    level: reasons.length ? "caution" : "good",
+    reason: reasons.join(", ")
+  };
+}
+
+function getRecoveryRecommendation(todayStats, hasQualityToday) {
+  const recoveryReason = hasQualityToday
+    ? "오늘 정훈 기록이 들어왔어요."
+    : `오늘 ${formatMileage(todayStats.totalDistance)}를 이미 채웠어요.`;
+
+  return getFriendlyMessage([
+    `${recoveryReason} 추가 훈련보다 회복이 더 좋겠습니다. 하체 스트레칭, 폼롤러, 수분 보충으로 마무리해 주세요.`,
+    `${recoveryReason} 오늘의 남은 숙제는 회복입니다. 가벼운 걷기와 종아리, 햄스트링 스트레칭을 추천해요.`,
+    `${recoveryReason} 더 밀어붙이기보다 단백질과 탄수화물을 챙기고 다리를 부드럽게 풀어주세요.`
+  ], `daily-done-${Math.round(todayStats.totalDistance * 10)}-${Math.round(todayStats.totalTime)}`);
+}
+
+function getWeatherLimitedRecommendation(environmentLevel) {
+  if (environmentLevel.level === "avoid") {
+    return getFriendlyMessage([
+      `오늘은 ${environmentLevel.reason} 때문에 야외 러닝 강도를 낮추는 게 좋겠습니다. 실내 근력, 스트레칭, 폼롤러로 대체해 주세요.`,
+      `${environmentLevel.reason} 조건이 좋지 않아요. 러닝은 쉬고, 20분 가벼운 코어와 하체 가동성 루틴을 추천합니다.`,
+      `오늘 야외 러닝은 무리하지 않는 쪽이 좋겠습니다. ${environmentLevel.reason}을 고려해 휴식과 영양 보충을 우선해 주세요.`
+    ], `daily-weather-avoid-${environmentLevel.reason}`);
+  }
+
+  if (environmentLevel.level === "caution") {
+    return getFriendlyMessage([
+      `${environmentLevel.reason}이 있어요. 오늘은 대화 가능한 페이스로 30~40분 이내 가볍게 가는 편이 좋겠습니다.`,
+      `날씨 조건을 감안하면 강도 훈련보다 이지런이 맞아요. ${environmentLevel.reason}을 체크하고 5km 안팎으로 편하게 달려주세요.`,
+      `${environmentLevel.reason} 때문에 욕심은 줄이는 날입니다. 짧은 조깅 뒤 스트레칭으로 마무리해 주세요.`
+    ], `daily-weather-caution-${environmentLevel.reason}`);
+  }
+
+  return "";
+}
+
 function updateDailyRecommendation(runs) {
   const dailyRecommendation = document.getElementById("dailyRecommendation");
 
   if (!dailyRecommendation) return;
 
+  const todayRuns = getTodayRuns(runs);
+  const todayStats = calculateRunStats(todayRuns);
+  const hasQualityToday = todayRuns.some(isQualityWorkout);
+  const hasEnoughToday = todayStats.totalDistance >= 5 || todayStats.totalTime >= 30 || hasQualityToday;
+  const environmentLevel = getEnvironmentRecommendationLevel();
+  const weatherRecommendation = getWeatherLimitedRecommendation(environmentLevel);
+
+  if (hasEnoughToday) {
+    dailyRecommendation.innerText = getRecoveryRecommendation(todayStats, hasQualityToday);
+    return;
+  }
+
+  if (weatherRecommendation) {
+    dailyRecommendation.innerText = weatherRecommendation;
+    return;
+  }
+
   if (!runs.length) {
     dailyRecommendation.innerText = getFriendlyMessage([
-      "오늘은 기록보다 산책 같은 조깅으로 시작해봐요. 20~30분이면 충분합니다.",
-      "첫 기록은 가볍게 남기는 게 제일 좋아요. 숨이 편한 속도로 20분만 다녀와도 성공입니다.",
-      "오늘의 목표는 멋진 기록보다 문밖으로 나가기. 편한 조깅 20~30분을 추천해요."
+      "오늘은 기록보다 산책 같은 조깅으로 시작해봐요. 20~30분이면 충분하고, 마무리는 스트레칭까지 챙겨주세요.",
+      "첫 기록은 가볍게 남기는 게 제일 좋아요. 숨이 편한 속도로 20분만 다녀오고 수분을 보충해 주세요.",
+      "오늘의 목표는 멋진 기록보다 문밖으로 나가기. 편한 조깅 20~30분과 가벼운 하체 스트레칭을 추천해요."
     ], "daily-empty");
     return;
   }
@@ -3880,9 +4072,9 @@ function updateDailyRecommendation(runs) {
 
   if (weekStats.count >= 4 || weekStats.totalDistance >= 40) {
     dailyRecommendation.innerText = getFriendlyMessage([
-      "이번 주는 이미 꽤 잘 쌓았어요. 오늘은 회복 조깅이나 휴식으로 다음 훈련을 살려두면 좋겠습니다.",
-      "몸에 적립한 마일리지가 충분해요. 오늘은 30분 이내 아주 편한 조깅, 아니면 쉬어도 좋습니다.",
-      "잘 달린 주간입니다. 오늘 더 밀어붙이기보다 다리를 가볍게 풀어주는 쪽을 추천해요."
+      "이번 주는 이미 꽤 잘 쌓았어요. 오늘은 회복 조깅이나 휴식, 폼롤러로 다음 훈련을 살려두면 좋겠습니다.",
+      "몸에 적립한 마일리지가 충분해요. 오늘은 30분 이내 아주 편한 조깅, 아니면 스트레칭만 해도 좋습니다.",
+      "잘 달린 주간입니다. 오늘 더 밀어붙이기보다 다리를 가볍게 풀고 단백질과 수분을 챙겨주세요."
     ], `daily-recovery-${weekStats.count}-${Math.round(weekStats.totalDistance)}`);
     return;
   }
@@ -4198,11 +4390,12 @@ async function loadWeeklyRanking(user) {
       if (!Number.isFinite(distance) || !Number.isFinite(time) || !parsedRunDate || !runDateKey) return;
       if (parsedRunDate < startDate || parsedRunDate > endDate) return;
 
-      const userId = data.userId || data.email || snapshotDoc.id;
+      const isCurrentUserRecord = isCurrentUserRunData(data, user, profileNames);
+      const userId = isCurrentUserRecord ? user.uid : data.userId || data.email || snapshotDoc.id;
       const entry = rankingsByUser.get(userId) || {
         userId,
-        email: data.email || "",
-        name: getRankingName(data, profileNames),
+        email: isCurrentUserRecord ? user.email || data.email || "" : data.email || "",
+        name: isCurrentUserRecord ? getUserName(user) : getRankingName(data, profileNames),
         totalDistance: 0,
         totalTime: 0,
         runDates: new Set()
@@ -4233,7 +4426,7 @@ async function loadWeeklyRanking(user) {
 
     rankings.slice(0, 10).forEach((entry, index) => {
       const tr = document.createElement("tr");
-      const isMe = entry.userId === user.uid || entry.email === user.email;
+      const isMe = isCurrentUserRankingEntry(entry, user);
 
       if (isMe) {
         tr.classList.add("my-rank");
@@ -4254,7 +4447,7 @@ async function loadWeeklyRanking(user) {
       weeklyRankingList.appendChild(tr);
     });
 
-    const myRankIndex = rankings.findIndex((entry) => entry.userId === user.uid || entry.email === user.email);
+    const myRankIndex = rankings.findIndex((entry) => isCurrentUserRankingEntry(entry, user));
 
     if (myRankIndex >= 0) {
       const myEntry = rankings[myRankIndex];
@@ -4878,7 +5071,7 @@ function clearDashboard() {
   document.getElementById("mileageSummary").innerText = `${getMileageSummaryPrefix()} 마일리지\n주간: -, 월간: -, 연간: -`;
   document.getElementById("weeklyInsight").innerText = "기록을 남기면 이번 주 흐름을 편하게 짚어드릴게요.";
   document.getElementById("weeklyBadges").innerHTML = '<span class="run-badge run-badge-waiting"><span class="run-badge-icon">✨</span><span class="run-badge-text">기록 대기 중</span></span>';
-  document.getElementById("dailyRecommendation").innerText = "오늘 몸에 맞는 러닝을 살짝 골라드릴게요.";
+  document.getElementById("dailyRecommendation").innerText = "오늘 몸에 맞는 러닝과 회복을 살짝 골라드릴게요.";
   document.getElementById("monthlyGoal").value = "";
   document.getElementById("monthlyGoal").disabled = false;
   document.getElementById("saveMonthlyGoal").disabled = false;
