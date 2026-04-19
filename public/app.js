@@ -1363,6 +1363,73 @@ function parseQualitySetResults(setResults = "") {
   return { setValues, recoveryValues };
 }
 
+function parseQualityDurationMinutes(value = "") {
+  const text = String(value || "").trim();
+  const match = text.match(/(\d{1,2})(?::(\d{2}))(?::(\d{2}))?$/);
+
+  if (!match) return 0;
+
+  const first = Number(match[1]);
+  const second = Number(match[2]);
+  const third = match[3] === undefined ? null : Number(match[3]);
+
+  if (third === null) {
+    return first + (second / 60);
+  }
+
+  return (first * 60) + second + (third / 60);
+}
+
+function setQualityTimeInputs(timeMinutes) {
+  const qualityHourInput = document.getElementById("qualityHour");
+  const qualityMinuteInput = document.getElementById("qualityMinute");
+  const qualitySecondInput = document.getElementById("qualitySecond");
+
+  if (!qualityHourInput || !qualityMinuteInput || !qualitySecondInput) return;
+
+  if (!timeMinutes) {
+    qualityHourInput.value = "";
+    qualityMinuteInput.value = "";
+    qualitySecondInput.value = "";
+    return;
+  }
+
+  const totalSeconds = Math.round(timeMinutes * 60);
+  qualityHourInput.value = Math.floor(totalSeconds / 3600) || "";
+  qualityMinuteInput.value = Math.floor((totalSeconds % 3600) / 60) || "";
+  qualitySecondInput.value = totalSeconds % 60 || "";
+}
+
+function updateQualityCalculatedTotals() {
+  const qualityDistanceInput = document.getElementById("qualityDistance");
+  const plannedWorkout = document.getElementById("qualityPlannedWorkout")?.value || "";
+  const workoutType = document.getElementById("qualityWorkoutType")?.value || "";
+
+  if (!qualityDistanceInput) return;
+
+  const structure = getQualityWorkoutStructure(plannedWorkout, workoutType);
+  let totalDistance = 0;
+  let totalTime = 0;
+
+  Array.from(document.querySelectorAll(".quality-set-field")).forEach((field) => {
+    const setTime = parseQualityDurationMinutes(field.querySelector(".quality-set-input")?.value || "");
+    const recoveryTime = parseQualityDurationMinutes(field.querySelector(".quality-recovery-input")?.value || "");
+
+    if (setTime) {
+      totalTime += setTime;
+      totalDistance += structure.setDistanceKm || 0;
+    }
+
+    if (recoveryTime) {
+      totalTime += recoveryTime;
+      totalDistance += structure.recoveryDistanceKm || 0;
+    }
+  });
+
+  qualityDistanceInput.value = totalDistance ? Number(totalDistance.toFixed(2)) : "";
+  setQualityTimeInputs(totalTime);
+}
+
 function formatQualityRepDistance(distance, unit = "") {
   const value = Number(distance);
   const normalizedUnit = String(unit || "m").toLowerCase();
@@ -1459,13 +1526,16 @@ function getQualityWorkoutStructure(planText = "", workoutType = "") {
 
   if (/tt/i.test(text) || type === "tt") {
     const ttDistance = ttMatch ? formatQualityRepDistance(ttMatch[1], ttMatch[2]) : "TT";
+    const ttDistanceKm = getQualityTimeTrialDistance(text);
 
     return {
       setCount: 1,
       setLabel: `${ttDistance} 결과`,
       setPlaceholder: "21:30",
       guide: `${ttDistance} 타임트라이얼은 리커버리 반복훈련이 아니라 기록 측정입니다. ${getQualityTimeTrialPaceGuide(text)}`,
-      hasRecoveryInputs: false
+      hasRecoveryInputs: false,
+      setDistanceKm: ttDistanceKm,
+      recoveryDistanceKm: 0
     };
   }
 
@@ -1483,8 +1553,10 @@ function getQualityWorkoutStructure(planText = "", workoutType = "") {
       setCount,
       setLabel: `${repDistance}`,
       setPlaceholder: repDistance.endsWith("m") && Number.parseInt(repDistance, 10) <= 600 ? "2:05" : "4:13",
-      guide: `${repDistance} ${setCount}세트 결과를 순서대로 입력해 주세요.${groupGuide}${recoveryGuide} 리커버리 시간도 함께 남겨 주세요.`,
-      recoveryPlaceholder: recoveryDistanceLabel ? `예: ${recoveryDistanceLabel} 2:30` : "예: 1:15"
+      guide: `${repDistance} ${setCount}세트 기록과 각 세트 후 리커버리 시간만 입력해 주세요.${groupGuide}${recoveryGuide} 총 거리와 시간은 자동 계산됩니다.`,
+      recoveryPlaceholder: recoveryDistanceLabel ? `예: 2:30` : "예: 1:15",
+      setDistanceKm: intervalMeters / 1000,
+      recoveryDistanceKm: getQualityRecoveryDistanceMeters(intervalMeters) / 1000
     };
   }
 
@@ -1493,7 +1565,9 @@ function getQualityWorkoutStructure(planText = "", workoutType = "") {
     setLabel: "세트",
     setPlaceholder: "4:13",
     guide: "훈련 프로그램에 맞춰 세트 기록을 입력해 주세요. 직접 입력한 훈련은 기본 6칸을 제공합니다.",
-    recoveryPlaceholder: "예: 세트 사이 조깅 2분 또는 R 1:15"
+    recoveryPlaceholder: "예: 1:15",
+    setDistanceKm: 0,
+    recoveryDistanceKm: 0
   };
 }
 
@@ -1523,6 +1597,7 @@ function renderQualitySetInputs(planText = "", setResults = "") {
     setInput.className = "quality-set-input";
     setInput.placeholder = structure.setPlaceholder;
     setInput.value = setValues[index] || "";
+    setInput.addEventListener("input", updateQualityCalculatedTotals);
     setLabel.append("기록");
     setLabel.appendChild(setInput);
     field.appendChild(title);
@@ -1531,6 +1606,7 @@ function renderQualitySetInputs(planText = "", setResults = "") {
       recoveryInput.className = "quality-recovery-input";
       recoveryInput.placeholder = structure.recoveryPlaceholder;
       recoveryInput.value = recoveryValues[index] || "";
+      recoveryInput.addEventListener("input", updateQualityCalculatedTotals);
       recoveryLabel.append("리커버리");
       recoveryLabel.appendChild(recoveryInput);
       field.appendChild(recoveryLabel);
@@ -1541,6 +1617,8 @@ function renderQualitySetInputs(planText = "", setResults = "") {
   if (guide) {
     guide.innerText = structure.guide;
   }
+
+  updateQualityCalculatedTotals();
 }
 
 function parseFirstSetPace(setResults, plannedWorkout) {
@@ -2168,15 +2246,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const runDate = qualityDateInput.value;
     const workoutType = qualityWorkoutTypeSelect.value;
+    const qualityPlanDate = qualityPlanSelect.value;
+    const plannedWorkout = qualityPlannedWorkoutInput.value.trim();
+    const setResults = getQualitySetResultsFromInputs();
+    qualitySetResultsInput.value = setResults;
+    updateQualityCalculatedTotals();
     const distance = Number(qualityDistanceInput.value);
     const hour = Number(qualityHourInput.value) || 0;
     const minute = Number(qualityMinuteInput.value) || 0;
     const second = Number(qualitySecondInput.value) || 0;
     const time = hour * 60 + minute + (second / 60);
-    const qualityPlanDate = qualityPlanSelect.value;
-    const plannedWorkout = qualityPlannedWorkoutInput.value.trim();
-    const setResults = getQualitySetResultsFromInputs();
-    qualitySetResultsInput.value = setResults;
     const selfRating = qualitySelfRatingSelect.value;
     const reflection = qualityReflectionInput.value.trim();
     const workoutDetail = buildQualityWorkoutDetail({
@@ -2192,7 +2271,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     if (!distance || !time) {
-      alert("총 거리와 시간을 입력해주세요.");
+      alert("세트 기록과 리커버리 시간을 입력하면 총 거리와 시간이 자동 계산됩니다. 입력값을 확인해주세요.");
       return;
     }
 

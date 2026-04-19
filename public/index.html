@@ -2755,12 +2755,6 @@
             </label>
 
             <div class="quality-form-section">결과 입력</div>
-            <div class="quality-result-row">
-              <label>총 거리 <input id="qualityDistance" type="number" step="0.01" placeholder="km"></label>
-              <label>시간 <input id="qualityHour" type="number" placeholder="h"></label>
-              <label>분 <input id="qualityMinute" type="number" placeholder="m" max="59"></label>
-              <label>초 <input id="qualitySecond" type="number" placeholder="s" max="59"></label>
-            </div>
             <p id="qualitySetGuide" class="vdot-guide-note quality-set-guide">훈련 프로그램을 선택하면 세트 입력 칸이 자동으로 맞춰집니다.</p>
             <div id="qualitySetInputs" class="quality-set-row">
               <label>1세트 <input class="quality-set-input" placeholder="4:13"></label>
@@ -2769,6 +2763,13 @@
               <label>4세트 <input class="quality-set-input" placeholder="4:07"></label>
               <label>5세트 <input class="quality-set-input" placeholder="-"></label>
               <label>6세트 <input class="quality-set-input" placeholder="-"></label>
+            </div>
+            <p class="vdot-guide-note quality-set-guide">총 거리와 총 시간은 세트 기록과 리커버리 시간을 기준으로 자동 계산됩니다. 별도로 입력하지 않아도 됩니다.</p>
+            <div class="quality-result-row">
+              <label>자동 총 거리 <input id="qualityDistance" type="number" step="0.01" placeholder="km" readonly></label>
+              <label>자동 시간 <input id="qualityHour" type="number" placeholder="h" readonly></label>
+              <label>자동 분 <input id="qualityMinute" type="number" placeholder="m" max="59" readonly></label>
+              <label>자동 초 <input id="qualitySecond" type="number" placeholder="s" max="59" readonly></label>
             </div>
             <input id="qualitySetResults" type="hidden">
 
@@ -2880,11 +2881,11 @@
     second.addEventListener("input", updateTime);
   </script>
 
-  <script type="module" src="app.js?v=20260419-quality-recovery-simple"></script>
+  <script type="module" src="app.js?v=20260419-quality-auto-total-note"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
-        navigator.serviceWorker.register("service-worker.js?v=20260419-quality-recovery-simple").then((registration) => {
+        navigator.serviceWorker.register("service-worker.js?v=20260419-quality-auto-total-note").then((registration) => {
           registration.update().catch(() => {});
         }).catch(() => {});
       });
@@ -2893,7 +2894,7 @@
     if ("caches" in window) {
       caches.keys().then((keys) => {
         keys
-          .filter((key) => key.startsWith("naviheal-runners-") && key !== "naviheal-runners-v154")
+          .filter((key) => key.startsWith("naviheal-runners-") && key !== "naviheal-runners-v156")
           .forEach((key) => caches.delete(key));
       }).catch(() => {});
     }
