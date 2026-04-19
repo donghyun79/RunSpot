@@ -658,6 +658,11 @@
       font-weight: 900;
     }
 
+    .quality-set-guide {
+      grid-column: 1 / -1;
+      margin: -2px 0 0;
+    }
+
     .quality-result-row {
       display: grid;
       grid-template-columns: 0.8fr 0.55fr 0.55fr 0.55fr;
@@ -677,10 +682,33 @@
 
     .quality-set-row {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       grid-column: 1 / -1;
       gap: 8px;
       align-items: end;
+    }
+
+    .quality-set-field {
+      display: grid;
+      gap: 6px;
+      padding: 8px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    .quality-set-field-title {
+      color: var(--brand-dark);
+      font-size: 0.82rem;
+      font-weight: 900;
+    }
+
+    .quality-set-field label {
+      display: grid;
+      gap: 4px;
+      color: var(--muted);
+      font-size: 0.78rem;
+      font-weight: 800;
     }
 
     .quality-set-row label {
@@ -1852,7 +1880,7 @@
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
       .quality-set-row {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-columns: repeat(2, minmax(0, 1fr));
       }
       .quality-review-row .quality-reflection-field {
         grid-column: 1 / -1;
@@ -2031,6 +2059,10 @@
     }
 
     @media (max-width: 480px) {
+      .quality-set-row {
+        grid-template-columns: 1fr;
+      }
+
       .page {
         width: min(100% - 20px, 1180px);
         padding-top: 10px;
@@ -2471,8 +2503,8 @@
           <option value="42.195">Full</option>
         </select>
         <select id="rankingType">
-          <option value="race">대회 기록만</option>
           <option value="all">전체 기록</option>
+          <option value="race">대회 기록만</option>
         </select>
         <button id="loadRanking">랭킹 보기</button>
       </div>
@@ -2665,9 +2697,9 @@
     <div id="qualityView" class="hidden">
     <section class="section">
       <h2>화요 정훈</h2>
-      <p class="section-guide">나빌러닝 정훈 계획과 조별 페이스를 확인하고 결과를 남기세요. 당일 참여는 100%, 같은 달 보완 완료는 70%로 인정됩니다.</p>
+      <p class="section-guide">나빌러닝 정훈 내용(훈련 프로그램, 조별 페이스)을 확인하시고 결과를 입력해 보세요.</p>
       <div id="vdotTrainingGuide" class="goal-status">VDOT 참고값을 계산할 기록이 아직 부족해요. 훈련 기록을 조금 더 입력하면 개인별 훈련 페이스를 안내해드릴게요.</div>
-      <p class="vdot-guide-note">VDOT은 최근 기록을 바탕으로 현재 달리기 능력을 추정해 E/M/T/I/R 훈련 페이스를 잡는 참고값입니다. 컨디션, 날씨, 코스에 따라 여유 있게 조절해 주세요.</p>
+      <p class="vdot-guide-note">VDOT은 최근 기록을 바탕으로 현재 달리기 능력을 추정해 훈련 페이스를 잡는 참고값입니다. E는 이지, M은 마라톤, T는 템포, I는 인터벌, R은 반복 훈련 페이스를 뜻합니다. 컨디션, 날씨, 코스에 따라 여유 있게 조절해 주세요.</p>
 
       <div class="group-standard-header">
         <h3>나빌러닝 조별 기준표</h3>
@@ -2719,7 +2751,7 @@
               </select>
             </label>
             <label class="quality-detail-field">훈련 계획
-              <textarea id="qualityPlannedWorkout" maxlength="500" placeholder="예: 1000m x 4 / E,S 3"></textarea>
+              <textarea id="qualityPlannedWorkout" maxlength="500" placeholder="예: 1000m x 4 (E조, S조: 3세트)"></textarea>
             </label>
 
             <div class="quality-form-section">결과 입력</div>
@@ -2729,14 +2761,14 @@
               <label>분 <input id="qualityMinute" type="number" placeholder="m" max="59"></label>
               <label>초 <input id="qualitySecond" type="number" placeholder="s" max="59"></label>
             </div>
-            <div class="quality-set-row">
+            <p id="qualitySetGuide" class="vdot-guide-note quality-set-guide">훈련 프로그램을 선택하면 세트 입력 칸이 자동으로 맞춰집니다.</p>
+            <div id="qualitySetInputs" class="quality-set-row">
               <label>1세트 <input class="quality-set-input" placeholder="4:13"></label>
               <label>2세트 <input class="quality-set-input" placeholder="4:14"></label>
               <label>3세트 <input class="quality-set-input" placeholder="4:10"></label>
               <label>4세트 <input class="quality-set-input" placeholder="4:07"></label>
               <label>5세트 <input class="quality-set-input" placeholder="-"></label>
               <label>6세트 <input class="quality-set-input" placeholder="-"></label>
-              <label>리커버리 <input id="qualitySetMemo" maxlength="160" placeholder="R: 1:15"></label>
             </div>
             <input id="qualitySetResults" type="hidden">
 
@@ -2848,11 +2880,11 @@
     second.addEventListener("input", updateTime);
   </script>
 
-  <script type="module" src="app.js?v=20260419-group-fallback"></script>
+  <script type="module" src="app.js?v=20260419-quality-recovery-simple"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
-        navigator.serviceWorker.register("service-worker.js?v=20260419-group-fallback").then((registration) => {
+        navigator.serviceWorker.register("service-worker.js?v=20260419-quality-recovery-simple").then((registration) => {
           registration.update().catch(() => {});
         }).catch(() => {});
       });
@@ -2861,7 +2893,7 @@
     if ("caches" in window) {
       caches.keys().then((keys) => {
         keys
-          .filter((key) => key.startsWith("naviheal-runners-") && key !== "naviheal-runners-v141")
+          .filter((key) => key.startsWith("naviheal-runners-") && key !== "naviheal-runners-v154")
           .forEach((key) => caches.delete(key));
       }).catch(() => {});
     }
