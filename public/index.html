@@ -1284,6 +1284,105 @@
       font-weight: 800;
     }
 
+    .hall-summary-section {
+      margin-top: 18px;
+      padding: 18px;
+      background:
+        linear-gradient(135deg, rgba(35, 89, 220, 0.1), rgba(245, 181, 43, 0.16)),
+        var(--surface);
+      border: 1px solid #c9d8ff;
+      border-top: 5px solid var(--accent);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+
+    .hall-summary-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 14px;
+    }
+
+    .hall-summary-head h2 {
+      margin-bottom: 6px;
+    }
+
+    .hall-summary-kicker {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      padding: 3px 9px;
+      background: var(--brand);
+      border: 1px solid var(--brand-dark);
+      border-radius: 8px;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .hall-summary-list {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .hall-summary-card {
+      display: grid;
+      gap: 7px;
+      min-height: 112px;
+      padding: 13px;
+      background: #ffffff;
+      border: 1px solid #d6e1ff;
+      border-left: 5px solid var(--brand);
+      border-radius: 8px;
+    }
+
+    .hall-summary-month {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .hall-summary-name {
+      color: var(--brand-dark);
+      font-size: 18px;
+      font-weight: 900;
+      overflow-wrap: anywhere;
+    }
+
+    .hall-summary-score {
+      align-self: end;
+      color: var(--accent-dark);
+      font-size: 13px;
+      font-weight: 900;
+    }
+
+    .hall-summary-empty {
+      grid-column: 1 / -1;
+      padding: 14px;
+      background: #ffffff;
+      border: 1px dashed #c9d8ff;
+      border-radius: 8px;
+      color: var(--muted);
+      font-weight: 800;
+    }
+
+    .hall-feature-section {
+      padding: 22px 18px 18px;
+      background:
+        linear-gradient(180deg, #ffffff 0%, #fff9e8 100%);
+      border: 1px solid #f1cc68;
+      border-top: 5px solid var(--accent);
+      border-radius: 8px;
+      box-shadow: 0 12px 28px rgba(154, 101, 0, 0.11);
+    }
+
+    .hall-feature-section .table-wrap table {
+      border-color: #f1cc68;
+    }
+
     #targetResult,
     #marathonPrediction,
     #rankingStatus,
@@ -1333,6 +1432,27 @@
       border-radius: 8px;
       color: var(--brand-dark);
       font-weight: 800;
+    }
+
+    .criteria-details {
+      margin-top: 10px;
+    }
+
+    .criteria-details summary {
+      width: fit-content;
+      cursor: pointer;
+      list-style-position: inside;
+    }
+
+    .criteria-details summary::marker {
+      color: var(--brand);
+    }
+
+    .criteria-body {
+      margin-top: 8px;
+      color: var(--text);
+      font-weight: 700;
+      line-height: 1.55;
     }
 
     .target-analysis {
@@ -1705,6 +1825,23 @@
       }
       .engagement-grid {
         grid-template-columns: 1fr;
+      }
+      .hall-summary-section {
+        margin-top: 16px;
+        padding: 14px;
+      }
+      .hall-summary-head {
+        display: grid;
+        gap: 8px;
+      }
+      .hall-summary-kicker {
+        width: fit-content;
+      }
+      .hall-summary-list {
+        grid-template-columns: 1fr;
+      }
+      .hall-feature-section {
+        padding: 18px 14px 14px;
       }
       .pb-list {
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2100,6 +2237,18 @@
       <button id="suggestionTab" class="app-tab" type="button">제안</button>
     </nav>
     <div id="trainingView">
+    <section class="hall-summary-section" aria-labelledby="athleteHallSummaryTitle">
+      <div class="hall-summary-head">
+        <div>
+          <h2 id="athleteHallSummaryTitle">명예의 전당</h2>
+          <p class="section-guide">최근 확정된 이달의 선수를 먼저 확인하고 오늘의 훈련을 시작하세요.</p>
+        </div>
+        <div class="hall-summary-kicker">월간 수상자</div>
+      </div>
+      <div id="athleteHallSummaryStatus" class="goal-status">로그인 후 명예의 전당을 확인할 수 있습니다.</div>
+      <div id="athleteHallSummaryList" class="hall-summary-list" aria-live="polite"></div>
+    </section>
+
     <section class="section">
       <h2>내 훈련 기록 입력</h2>
       <p class="section-guide">회원님~ 입력하는 건 훈련기록 이거 하나뿐이에요~<br>나머지는 제가 다 알아서 할께요! 😊</p>
@@ -2299,9 +2448,9 @@
     </section>
 
     <section class="section">
-      <h2>이달의 선수</h2>
-      <p class="section-guide">출석 일수, 조별 마일리지 달성률, 화요 정훈 참여율, 전월 대비 성장도를 합산해 월말 공지 후보를 확인하세요.</p>
-      <div id="monthlyAthleteStatus" class="goal-status">로그인 후 이달의 선수 후보를 확인할 수 있습니다.</div>
+      <h2>이달의 선수 예상</h2>
+      <p class="section-guide">이번 달 출석 일수, 조별 마일리지 달성률, 화요 정훈 인정률, 전월 대비 성장도를 합산해 예상 순위를 확인하세요.</p>
+      <div id="monthlyAthleteStatus" class="goal-status">로그인 후 이달의 선수 예상을 확인할 수 있습니다.</div>
       <div class="table-wrap">
         <table>
           <thead>
@@ -2313,17 +2462,47 @@
               <th>마일리지</th>
               <th>정훈</th>
               <th>성장</th>
+              <th>대회</th>
             </tr>
           </thead>
           <tbody id="monthlyAthleteList"></tbody>
         </table>
       </div>
-      <div id="monthlyAthleteNotice" class="target-block target-analysis">
-        <div class="target-block-title">월말 공지용 선발 기준</div><br>
-        이달의 선수는 누적 거리만으로 선정하지 않습니다.<br>
-        월간 출석 일수 30점, 실제 조 기준 마일리지 달성률 25점, 화요 정훈 참여율 25점, 전월 대비 성장도 20점을 합산합니다.<br>
-        같은 날 여러 번 뛴 기록은 거리는 합산하되 출석은 1일로 계산합니다.<br>
-        동점자는 정훈 참여율, 출석 일수, 조별 마일리지 달성률, 성장도 순으로 정하며, 그래도 같으면 공동 수상으로 공지합니다.
+      <details id="monthlyAthleteNotice" class="target-block target-analysis criteria-details">
+        <summary class="target-block-title">이달의 선수 선발 기준</summary>
+        <div class="criteria-body">
+          이달의 선수는 누적 거리만으로 선정하지 않습니다.<br>
+          월간 출석 일수 30점, 실제 조 기준 마일리지 달성률 25점, 화요 정훈 인정률 25점, 전월 대비 성장도 20점을 합산합니다.<br>
+          정훈 당일에 참여해 입력한 기록은 100%, 같은 달 안에서 같은 정훈 계획을 선택해 다른 날 완료 입력한 보완 훈련은 70%로 인정합니다.<br>
+          같은 정훈 계획을 여러 번 입력해도 가장 높은 인정률 1개만 반영합니다.<br>
+          대회 기록 입력 시 대회명을 입력하고 실적을 저장한 달에는 도전 자체를 격려하기 위해 5점의 가점을 부여합니다. 대회 가점은 월 최대 5점입니다.<br>
+          같은 날 여러 번 뛴 기록은 거리는 합산하되 출석은 1일로 계산합니다.<br>
+          이번 달 순위는 예상으로만 보여주고, 매월 마지막 날 밤 12시가 지나 다음 달이 시작되면 명예의 전당에 확정 반영합니다.<br>
+          동점자는 정훈 인정률, 출석 일수, 조별 마일리지 달성률, 성장도, 대회 가점 순으로 정하며, 그래도 같으면 공동 수상으로 공지합니다.
+        </div>
+      </details>
+    </section>
+
+    <section class="section hall-feature-section">
+      <h2>명예의 전당</h2>
+      <p class="section-guide">2026년 4월부터 확정된 이달의 선수를 월별로 누적 관리합니다. 현재 달 수상자는 다음 달이 시작된 뒤 반영됩니다.</p>
+      <div id="athleteHallStatus" class="goal-status">로그인 후 명예의 전당을 확인할 수 있습니다.</div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>월</th>
+              <th>이달의 선수</th>
+              <th>총점</th>
+              <th>출석</th>
+              <th>마일리지</th>
+              <th>정훈</th>
+              <th>성장</th>
+              <th>대회</th>
+            </tr>
+          </thead>
+          <tbody id="athleteHallList"></tbody>
+        </table>
       </div>
     </section>
 
@@ -2413,7 +2592,7 @@
     <div id="qualityView" class="hidden">
     <section class="section">
       <h2>화요 정훈</h2>
-      <p class="section-guide">나빌러닝 정훈 계획과 조별 페이스를 확인하고 결과를 남기세요.</p>
+      <p class="section-guide">나빌러닝 정훈 계획과 조별 페이스를 확인하고 결과를 남기세요. 당일 참여는 100%, 같은 달 보완 완료는 70%로 인정됩니다.</p>
       <div id="vdotTrainingGuide" class="goal-status">VDOT 참고값을 계산할 기록이 아직 부족해요. 훈련 기록을 조금 더 입력하면 개인별 훈련 페이스를 안내해드릴게요.</div>
       <p class="vdot-guide-note">VDOT은 최근 기록을 바탕으로 현재 달리기 능력을 추정해 E/M/T/I/R 훈련 페이스를 잡는 참고값입니다. 컨디션, 날씨, 코스에 따라 여유 있게 조절해 주세요.</p>
 
@@ -2596,11 +2775,11 @@
     second.addEventListener("input", updateTime);
   </script>
 
-  <script type="module" src="app.js?v=20260419-monthly-athlete"></script>
+  <script type="module" src="app.js?v=20260419-half-pb-rounded"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
-        navigator.serviceWorker.register("service-worker.js?v=20260419-monthly-athlete").then((registration) => {
+        navigator.serviceWorker.register("service-worker.js?v=20260419-half-pb-rounded").then((registration) => {
           registration.update().catch(() => {});
         }).catch(() => {});
       });
@@ -2609,7 +2788,7 @@
     if ("caches" in window) {
       caches.keys().then((keys) => {
         keys
-          .filter((key) => key.startsWith("naviheal-runners-") && key !== "naviheal-runners-v126")
+          .filter((key) => key.startsWith("naviheal-runners-") && key !== "naviheal-runners-v133")
           .forEach((key) => caches.delete(key));
       }).catch(() => {});
     }
