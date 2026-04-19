@@ -2449,7 +2449,7 @@
 
     <section class="section">
       <h2>이달의 선수 예상</h2>
-      <p class="section-guide">이번 달 출석 일수, 조별 마일리지 달성률, 화요 정훈 인정률, 전월 대비 성장도를 합산해 예상 순위를 확인하세요.</p>
+      <p class="section-guide">이번 달 출석 일수, 조별 마일리지 달성률, 화요 정훈 인정률, 전월 대비 성장도, 배지 가점을 합산해 예상 순위를 확인하세요.</p>
       <div id="monthlyAthleteStatus" class="goal-status">로그인 후 이달의 선수 예상을 확인할 수 있습니다.</div>
       <div class="table-wrap">
         <table>
@@ -2463,6 +2463,7 @@
               <th>정훈</th>
               <th>성장</th>
               <th>대회</th>
+              <th>배지</th>
             </tr>
           </thead>
           <tbody id="monthlyAthleteList"></tbody>
@@ -2476,9 +2477,10 @@
           정훈 당일에 참여해 입력한 기록은 100%, 같은 달 안에서 같은 정훈 계획을 선택해 다른 날 완료 입력한 보완 훈련은 70%로 인정합니다.<br>
           같은 정훈 계획을 여러 번 입력해도 가장 높은 인정률 1개만 반영합니다.<br>
           대회 기록 입력 시 대회명을 입력하고 실적을 저장한 달에는 도전 자체를 격려하기 위해 5점의 가점을 부여합니다. 대회 가점은 월 최대 5점입니다.<br>
+          월간 배지 획득 수량은 참여와 기록 습관을 격려하기 위한 보조 가점으로 반영합니다. 1~2개는 1점, 3~4개는 3점, 5개 이상은 5점이며 배지 가점은 월 최대 5점입니다.<br>
           같은 날 여러 번 뛴 기록은 거리는 합산하되 출석은 1일로 계산합니다.<br>
           이번 달 순위는 예상으로만 보여주고, 매월 마지막 날 밤 12시가 지나 다음 달이 시작되면 명예의 전당에 확정 반영합니다.<br>
-          동점자는 정훈 인정률, 출석 일수, 조별 마일리지 달성률, 성장도, 대회 가점 순으로 정하며, 그래도 같으면 공동 수상으로 공지합니다.
+          동점자는 정훈 인정률, 출석 일수, 조별 마일리지 달성률, 성장도, 대회 가점, 배지 가점 순으로 정하며, 그래도 같으면 공동 수상으로 공지합니다.
         </div>
       </details>
     </section>
@@ -2499,6 +2501,7 @@
               <th>정훈</th>
               <th>성장</th>
               <th>대회</th>
+              <th>배지</th>
             </tr>
           </thead>
           <tbody id="athleteHallList"></tbody>
@@ -2775,11 +2778,11 @@
     second.addEventListener("input", updateTime);
   </script>
 
-  <script type="module" src="app.js?v=20260419-half-pb-rounded"></script>
+  <script type="module" src="app.js?v=20260419-badge-bonus"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
-        navigator.serviceWorker.register("service-worker.js?v=20260419-half-pb-rounded").then((registration) => {
+        navigator.serviceWorker.register("service-worker.js?v=20260419-badge-bonus").then((registration) => {
           registration.update().catch(() => {});
         }).catch(() => {});
       });
@@ -2788,7 +2791,7 @@
     if ("caches" in window) {
       caches.keys().then((keys) => {
         keys
-          .filter((key) => key.startsWith("naviheal-runners-") && key !== "naviheal-runners-v133")
+          .filter((key) => key.startsWith("naviheal-runners-") && key !== "naviheal-runners-v134")
           .forEach((key) => caches.delete(key));
       }).catch(() => {});
     }

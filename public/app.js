@@ -4358,7 +4358,8 @@ async function loadMonthlyAthleteCandidates(user) {
         `${entry.mileageScore}/25 (${entry.groupLabel} ${entry.mileageRate}%)`,
         `${entry.qualityScore}/25 (${formatQualityCredit(entry.qualityAttendanceDays)}/${entry.qualityWorkoutCount}회 인정)`,
         `${entry.growthScore}/20`,
-        `+${entry.raceBonus}점 (${entry.raceCount}회)`
+        `+${entry.raceBonus}점 (${entry.raceCount}회)`,
+        `+${entry.badgeBonus}점 (${entry.badgeCount}개)`
       ].forEach((value) => {
         const td = document.createElement("td");
         td.innerText = value;
@@ -4443,7 +4444,8 @@ function renderAthleteHallOfFame(memberEntries, user, currentMonthKey) {
       `${primaryWinner.mileageScore}/25 (${primaryWinner.groupLabel} ${primaryWinner.mileageRate}%)`,
       `${primaryWinner.qualityScore}/25 (${formatQualityCredit(primaryWinner.qualityAttendanceDays)}/${primaryWinner.qualityWorkoutCount}회 인정)`,
       `${primaryWinner.growthScore}/20`,
-      `+${primaryWinner.raceBonus}점 (${primaryWinner.raceCount}회)`
+      `+${primaryWinner.raceBonus}점 (${primaryWinner.raceCount}회)`,
+      `+${primaryWinner.badgeBonus}점 (${primaryWinner.badgeCount}개)`
     ].forEach((value) => {
       const td = document.createElement("td");
       td.innerText = value;
@@ -4550,7 +4552,10 @@ function calculateMonthlyAthleteScore(entry, monthKey, previousMonthKey) {
   const growthScore = getGrowthScore(currentRuns, previousRuns);
   const raceCount = currentRuns.filter(isRaceResultForMonthlyAthlete).length;
   const raceBonus = raceCount > 0 ? 5 : 0;
-  const totalScore = attendanceScore + mileageScore + qualityScore + growthScore + raceBonus;
+  const badgeAchievements = getMonthlyBadgeAchievements(currentRuns, previousRuns, qualitySummary, totalDistance);
+  const badgeCount = badgeAchievements.length;
+  const badgeBonus = getMonthlyBadgeBonus(badgeCount);
+  const totalScore = attendanceScore + mileageScore + qualityScore + growthScore + raceBonus + badgeBonus;
 
   return {
     ...entry,
@@ -4569,7 +4574,10 @@ function calculateMonthlyAthleteScore(entry, monthKey, previousMonthKey) {
     qualityScore,
     growthScore,
     raceCount,
-    raceBonus
+    raceBonus,
+    badgeCount,
+    badgeBonus,
+    badgeAchievements
   };
 }
 
@@ -4584,6 +4592,8 @@ function sortMonthlyAthleteCandidates(a, b) {
   if (b.mileageRate !== a.mileageRate) return b.mileageRate - a.mileageRate;
   if (b.growthScore !== a.growthScore) return b.growthScore - a.growthScore;
   if (b.raceBonus !== a.raceBonus) return b.raceBonus - a.raceBonus;
+  if (b.badgeBonus !== a.badgeBonus) return b.badgeBonus - a.badgeBonus;
+  if (b.badgeCount !== a.badgeCount) return b.badgeCount - a.badgeCount;
   return a.name.localeCompare(b.name, "ko");
 }
 
@@ -4749,6 +4759,33 @@ function getGrowthScore(currentRuns, previousRuns) {
   }
 
   return score;
+}
+
+function getMonthlyBadgeAchievements(currentRuns, previousRuns, qualitySummary, totalDistance) {
+  const attendanceDays = countUniqueRunDates(currentRuns);
+  const raceCount = currentRuns.filter(isRaceResultForMonthlyAthlete).length;
+  const badges = [];
+
+  if (attendanceDays >= 1) badges.push("첫 러닝");
+  if (attendanceDays >= 8) badges.push("월 8일 출석");
+  if (attendanceDays >= 12) badges.push("월 12일 출석");
+  if (attendanceDays >= 16) badges.push("월 16일 출석");
+  if (totalDistance >= 50) badges.push("월 50km");
+  if (totalDistance >= 100) badges.push("월 100km");
+  if (totalDistance >= 150) badges.push("월 150km");
+  if (qualitySummary.credit >= 1) badges.push("정훈 참여");
+  if (qualitySummary.credit >= 2) badges.push("정훈 2회 인정");
+  if (hasMonthlyPersonalBest(currentRuns, previousRuns)) badges.push("PB 갱신");
+  if (raceCount > 0) badges.push("대회 도전");
+
+  return badges;
+}
+
+function getMonthlyBadgeBonus(badgeCount) {
+  if (badgeCount >= 5) return 5;
+  if (badgeCount >= 3) return 3;
+  if (badgeCount >= 1) return 1;
+  return 0;
 }
 
 function hasMonthlyPersonalBest(currentRuns, previousRuns) {
