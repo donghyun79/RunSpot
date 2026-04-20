@@ -143,6 +143,20 @@
       color: var(--brand);
     }
 
+    .section-title-sub {
+      display: inline-flex;
+      align-items: center;
+      min-height: 26px;
+      padding: 3px 8px;
+      background: var(--accent-soft);
+      border: 1px solid #f1cc68;
+      border-radius: 8px;
+      color: var(--accent-dark);
+      font-size: 13px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
     .section {
       margin-top: 26px;
       padding: 24px 0 0;
@@ -502,7 +516,18 @@
     }
 
     .member-runs-panel {
-      margin-top: 18px;
+      padding: 10px 0 4px;
+    }
+
+    .member-row-selected td {
+      background: #f8fbff;
+      font-weight: 700;
+    }
+
+    .member-runs-row td {
+      padding: 0 12px 14px;
+      background: #f8fbff;
+      border-top: 0;
     }
 
     .admin-details {
@@ -644,6 +669,11 @@
       font-weight: 900;
     }
 
+    .quality-set-guide {
+      grid-column: 1 / -1;
+      margin: -2px 0 0;
+    }
+
     .quality-result-row {
       display: grid;
       grid-template-columns: 0.8fr 0.55fr 0.55fr 0.55fr;
@@ -663,10 +693,33 @@
 
     .quality-set-row {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       grid-column: 1 / -1;
       gap: 8px;
       align-items: end;
+    }
+
+    .quality-set-field {
+      display: grid;
+      gap: 6px;
+      padding: 8px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    .quality-set-field-title {
+      color: var(--brand-dark);
+      font-size: 0.82rem;
+      font-weight: 900;
+    }
+
+    .quality-set-field label {
+      display: grid;
+      gap: 4px;
+      color: var(--muted);
+      font-size: 0.78rem;
+      font-weight: 800;
     }
 
     .quality-set-row label {
@@ -1284,6 +1337,105 @@
       font-weight: 800;
     }
 
+    .hall-summary-section {
+      margin-top: 18px;
+      padding: 18px;
+      background:
+        linear-gradient(135deg, rgba(35, 89, 220, 0.1), rgba(245, 181, 43, 0.16)),
+        var(--surface);
+      border: 1px solid #c9d8ff;
+      border-top: 5px solid var(--accent);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+
+    .hall-summary-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 14px;
+    }
+
+    .hall-summary-head h2 {
+      margin-bottom: 6px;
+    }
+
+    .hall-summary-kicker {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      padding: 3px 9px;
+      background: var(--brand);
+      border: 1px solid var(--brand-dark);
+      border-radius: 8px;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .hall-summary-list {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .hall-summary-card {
+      display: grid;
+      gap: 7px;
+      min-height: 112px;
+      padding: 13px;
+      background: #ffffff;
+      border: 1px solid #d6e1ff;
+      border-left: 5px solid var(--brand);
+      border-radius: 8px;
+    }
+
+    .hall-summary-month {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .hall-summary-name {
+      color: var(--brand-dark);
+      font-size: 18px;
+      font-weight: 900;
+      overflow-wrap: anywhere;
+    }
+
+    .hall-summary-score {
+      align-self: end;
+      color: var(--accent-dark);
+      font-size: 13px;
+      font-weight: 900;
+    }
+
+    .hall-summary-empty {
+      grid-column: 1 / -1;
+      padding: 14px;
+      background: #ffffff;
+      border: 1px dashed #c9d8ff;
+      border-radius: 8px;
+      color: var(--muted);
+      font-weight: 800;
+    }
+
+    .hall-feature-section {
+      padding: 22px 18px 18px;
+      background:
+        linear-gradient(180deg, #ffffff 0%, #fff9e8 100%);
+      border: 1px solid #f1cc68;
+      border-top: 5px solid var(--accent);
+      border-radius: 8px;
+      box-shadow: 0 12px 28px rgba(154, 101, 0, 0.11);
+    }
+
+    .hall-feature-section .table-wrap table {
+      border-color: #f1cc68;
+    }
+
     #targetResult,
     #marathonPrediction,
     #rankingStatus,
@@ -1333,6 +1485,27 @@
       border-radius: 8px;
       color: var(--brand-dark);
       font-weight: 800;
+    }
+
+    .criteria-details {
+      margin-top: 10px;
+    }
+
+    .criteria-details summary {
+      width: fit-content;
+      cursor: pointer;
+      list-style-position: inside;
+    }
+
+    .criteria-details summary::marker {
+      color: var(--brand);
+    }
+
+    .criteria-body {
+      margin-top: 8px;
+      color: var(--text);
+      font-weight: 700;
+      line-height: 1.55;
     }
 
     .target-analysis {
@@ -1533,6 +1706,52 @@
       font-weight: 800;
     }
 
+    .update-modal-lead {
+      margin: 0 0 14px;
+      color: var(--text);
+      font-weight: 800;
+      line-height: 1.55;
+    }
+
+    .notice-section-grid {
+      display: grid;
+      gap: 10px;
+    }
+
+    .notice-section {
+      padding: 12px 13px;
+      border: 1px solid var(--line);
+      border-left: 5px solid var(--brand);
+      border-radius: 8px;
+      background: var(--brand-soft);
+    }
+
+    .notice-section strong {
+      display: block;
+      margin-bottom: 7px;
+      color: var(--brand-dark);
+      font-size: 15px;
+      font-weight: 900;
+    }
+
+    .notice-section ul {
+      display: grid;
+      gap: 4px;
+      margin: 0;
+      padding-left: 18px;
+      color: var(--text);
+      font-weight: 800;
+    }
+
+    .notice-section-accent {
+      border-left-color: var(--accent);
+      background: var(--accent-soft);
+    }
+
+    .notice-section-accent strong {
+      color: var(--accent-dark);
+    }
+
     .update-modal-note {
       margin: 14px 0 0;
       color: var(--muted);
@@ -1541,28 +1760,10 @@
     }
 
     .update-modal-actions {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
-      gap: 10px;
+      display: flex;
+      justify-content: flex-end;
       align-items: center;
       margin-top: 18px;
-    }
-
-    .update-modal-check {
-      display: inline-flex;
-      flex-direction: row;
-      align-items: center;
-      gap: 8px;
-      min-width: 0;
-      color: var(--muted);
-      font-size: 13px;
-      font-weight: 800;
-    }
-
-    .update-modal-check input {
-      width: 18px;
-      min-width: 18px;
-      min-height: 18px;
     }
 
     @media (max-width: 760px) {
@@ -1572,10 +1773,6 @@
 
       .update-modal-title {
         font-size: 21px;
-      }
-
-      .update-modal-actions {
-        grid-template-columns: 1fr;
       }
 
       .auth-view {
@@ -1694,7 +1891,7 @@
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
       .quality-set-row {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-columns: repeat(2, minmax(0, 1fr));
       }
       .quality-review-row .quality-reflection-field {
         grid-column: 1 / -1;
@@ -1705,6 +1902,23 @@
       }
       .engagement-grid {
         grid-template-columns: 1fr;
+      }
+      .hall-summary-section {
+        margin-top: 16px;
+        padding: 14px;
+      }
+      .hall-summary-head {
+        display: grid;
+        gap: 8px;
+      }
+      .hall-summary-kicker {
+        width: fit-content;
+      }
+      .hall-summary-list {
+        grid-template-columns: 1fr;
+      }
+      .hall-feature-section {
+        padding: 18px 14px 14px;
       }
       .pb-list {
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1856,6 +2070,10 @@
     }
 
     @media (max-width: 480px) {
+      .quality-set-row {
+        grid-template-columns: 1fr;
+      }
+
       .page {
         width: min(100% - 20px, 1180px);
         padding-top: 10px;
@@ -2001,20 +2219,52 @@
 <body>
   <div id="updateModal" class="update-modal hidden" role="dialog" aria-modal="true" aria-labelledby="updateModalTitle">
     <section class="update-modal-panel">
-      <p class="update-modal-kicker">업데이트 안내</p>
-      <h2 id="updateModalTitle" class="update-modal-title">변경사항을 확인해 주세요</h2>
-      <p class="update-modal-date">2026년 4월 18일 반영</p>
-      <ul class="update-modal-list">
-        <li>화요 정훈 화면에서 나빌러닝 조별 기준표와 훈련 계획을 더 쉽게 확인할 수 있어요.</li>
-        <li>조편성 조정 안내 문구를 추가해 필요한 경우 코치와 상의할 수 있게 했어요.</li>
-        <li>앱 첫 화면에 변경사항 알림창을 추가했어요.</li>
-      </ul>
-      <p class="update-modal-note">이 안내는 같은 업데이트 버전에서는 한 번만 표시됩니다.</p>
+      <p class="update-modal-kicker">기록 입력 안내</p>
+      <h2 id="updateModalTitle" class="update-modal-title">나빌러닝 기록 입력 안내</h2>
+      <p class="update-modal-date">이달의 선수 · 명예의 전당 · PB 기록 · 조별 마일리지 반영</p>
+      <p class="update-modal-lead">안녕하세요. 회원님들의 훈련 데이터를 함께 공유하고, 주요 기록에 정확히 반영하기 위해 아래 입력을 부탁드립니다.</p>
+      <div class="notice-section-grid">
+        <section class="notice-section">
+          <strong>1. 훈련 / 대회 기록</strong>
+          <ul>
+            <li>러닝 후 마이트레이닝 화면에서 입력</li>
+            <li>운동 날짜, 구분, 거리, 시간 입력</li>
+            <li>대회 참가 시 대회명 입력</li>
+          </ul>
+        </section>
+        <section class="notice-section">
+          <strong>2. 화요 정훈 기록</strong>
+          <ul>
+            <li>화요 정훈 화면에서 입력</li>
+            <li>정훈일 참여 기록 입력</li>
+            <li>같은 달 보강훈련 완료 기록 입력</li>
+          </ul>
+        </section>
+        <section class="notice-section">
+          <strong>3. 월간 목표 거리</strong>
+          <ul>
+            <li>매월 초 월간 목표 거리 입력</li>
+          </ul>
+        </section>
+        <section class="notice-section notice-section-accent">
+          <strong>자동 반영 항목</strong>
+          <ul>
+            <li>개인 PB 기록, 주간 챌린지</li>
+            <li>이달의 선수 예상 순위, 명예의 전당</li>
+            <li>예상 마라톤 기록</li>
+          </ul>
+        </section>
+        <section class="notice-section notice-section-accent">
+          <strong>꼭 확인해주세요</strong>
+          <ul>
+            <li>실제 운동 날짜 입력</li>
+            <li>대회는 대회명 입력</li>
+            <li>같은 날 여러 번 뛰어도 출석은 1일 인정</li>
+          </ul>
+        </section>
+      </div>
+      <p class="update-modal-note"><strong>기록은 성장의 시작입니다.</strong><br>꾸준한 입력 부탁드립니다.</p>
       <div class="update-modal-actions">
-        <label class="update-modal-check">
-          <input id="hideUpdateNotice" type="checkbox" checked>
-          오늘 이후 이 업데이트 안내 숨기기
-        </label>
         <button id="closeUpdateModal" type="button">확인</button>
       </div>
     </section>
@@ -2100,6 +2350,18 @@
       <button id="suggestionTab" class="app-tab" type="button">제안</button>
     </nav>
     <div id="trainingView">
+    <section class="hall-summary-section" aria-labelledby="athleteHallSummaryTitle">
+      <div class="hall-summary-head">
+        <div>
+          <h2 id="athleteHallSummaryTitle">명예의 전당</h2>
+          <p class="section-guide">최근 확정된 이달의 선수를 먼저 확인하고 오늘의 훈련을 시작하세요.</p>
+        </div>
+        <div class="hall-summary-kicker">월간 수상자</div>
+      </div>
+      <div id="athleteHallSummaryStatus" class="goal-status">로그인 후 명예의 전당을 확인할 수 있습니다.</div>
+      <div id="athleteHallSummaryList" class="hall-summary-list" aria-live="polite"></div>
+    </section>
+
     <section class="section">
       <h2>내 훈련 기록 입력</h2>
       <p class="section-guide">회원님~ 입력하는 건 훈련기록 이거 하나뿐이에요~<br>나머지는 제가 다 알아서 할께요! 😊</p>
@@ -2158,8 +2420,8 @@
           </div>
         </div>
         <div class="engagement-panel">
-          <div class="engagement-title">오늘의 추천 러닝</div>
-          <div id="dailyRecommendation" class="engagement-text">오늘 몸에 맞는 러닝을 살짝 골라드릴게요.</div>
+          <div class="engagement-title">오늘의 추천</div>
+          <div id="dailyRecommendation" class="engagement-text">오늘 몸에 맞는 러닝과 회복을 살짝 골라드릴게요.</div>
         </div>
       </div>
 
@@ -2252,8 +2514,8 @@
           <option value="42.195">Full</option>
         </select>
         <select id="rankingType">
-          <option value="race">대회 기록만</option>
           <option value="all">전체 기록</option>
+          <option value="race">대회 기록만</option>
         </select>
         <button id="loadRanking">랭킹 보기</button>
       </div>
@@ -2279,8 +2541,8 @@
     </section>
 
     <section class="section">
-      <h2>주간 챌린지 랭킹</h2>
-      <p class="section-guide">최근 7일 동안의 누적 거리와 출석 횟수로 함께 달리는 분위기를 확인하세요.</p>
+      <h2>주간 챌린지 랭킹 <span id="weeklyRankingWeekLabel" class="section-title-sub">-</span></h2>
+      <p class="section-guide">최근 7일 동안의 누적 거리와 출석 일수로 함께 달리는 분위기를 확인하세요.</p>
       <div id="weeklyRankingStatus">로그인 후 주간 챌린지 랭킹을 확인할 수 있습니다.</div>
       <div class="table-wrap">
         <table>
@@ -2289,11 +2551,73 @@
               <th>순위</th>
               <th>이름</th>
               <th>누적 거리</th>
-              <th>출석</th>
+              <th>출석 일수</th>
               <th>평균 페이스</th>
             </tr>
           </thead>
           <tbody id="weeklyRankingList"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>이달의 선수 예상</h2>
+      <p class="section-guide">이번 달 출석 일수, 조별 마일리지 달성률, 화요 정훈 인정률, 전월 대비 성장도, 배지 가점을 합산해 예상 순위를 확인하세요.</p>
+      <div id="monthlyAthleteStatus" class="goal-status">로그인 후 이달의 선수 예상을 확인할 수 있습니다.</div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>순위</th>
+              <th>이름</th>
+              <th>총점</th>
+              <th>출석</th>
+              <th>마일리지</th>
+              <th>정훈</th>
+              <th>성장</th>
+              <th>대회</th>
+              <th>배지</th>
+            </tr>
+          </thead>
+          <tbody id="monthlyAthleteList"></tbody>
+        </table>
+      </div>
+      <details id="monthlyAthleteNotice" class="target-block target-analysis criteria-details">
+        <summary class="target-block-title">이달의 선수 선발 기준</summary>
+        <div class="criteria-body">
+          이달의 선수는 누적 거리만으로 선정하지 않습니다.<br>
+          월간 출석 일수 30점, 실제 조 기준 마일리지 달성률 25점, 화요 정훈 인정률 25점, 전월 대비 성장도 20점을 합산합니다.<br>
+          정훈 당일에 참여해 입력한 기록은 100%, 같은 달 안에서 같은 정훈 계획을 선택해 다른 날 완료 입력한 보완 훈련은 70%로 인정합니다.<br>
+          같은 정훈 계획을 여러 번 입력해도 가장 높은 인정률 1개만 반영합니다.<br>
+          대회 기록 입력 시 대회명을 입력하고 실적을 저장한 달에는 도전 자체를 격려하기 위해 5점의 가점을 부여합니다. 대회 가점은 월 최대 5점입니다.<br>
+          월간 배지 획득 수량은 참여와 기록 습관을 격려하기 위한 보조 가점으로 반영합니다. 1~2개는 1점, 3~4개는 3점, 5개 이상은 5점이며 배지 가점은 월 최대 5점입니다.<br>
+          같은 날 여러 번 뛴 기록은 거리는 합산하되 출석은 1일로 계산합니다.<br>
+          이번 달 순위는 예상으로만 보여주고, 매월 마지막 날 밤 12시가 지나 다음 달이 시작되면 명예의 전당에 확정 반영합니다.<br>
+          동점자는 정훈 인정률, 출석 일수, 조별 마일리지 달성률, 성장도, 대회 가점, 배지 가점 순으로 정하며, 그래도 같으면 공동 수상으로 공지합니다.
+        </div>
+      </details>
+    </section>
+
+    <section class="section hall-feature-section">
+      <h2>명예의 전당</h2>
+      <p class="section-guide">2026년 4월부터 확정된 이달의 선수를 월별로 누적 관리합니다. 현재 달 수상자는 다음 달이 시작된 뒤 반영됩니다.</p>
+      <div id="athleteHallStatus" class="goal-status">로그인 후 명예의 전당을 확인할 수 있습니다.</div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>월</th>
+              <th>이달의 선수</th>
+              <th>총점</th>
+              <th>출석</th>
+              <th>마일리지</th>
+              <th>정훈</th>
+              <th>성장</th>
+              <th>대회</th>
+              <th>배지</th>
+            </tr>
+          </thead>
+          <tbody id="athleteHallList"></tbody>
         </table>
       </div>
     </section>
@@ -2357,26 +2681,6 @@
             <tbody id="memberList"></tbody>
           </table>
         </div>
-        <div id="memberRunsPanel" class="member-runs-panel hidden">
-          <h3 id="memberRunsTitle">회원 기록</h3>
-          <div id="memberRunsStatus" class="goal-status">회원을 선택하면 기록을 확인할 수 있습니다.</div>
-          <div class="table-wrap">
-            <table class="run-record-table">
-              <thead>
-                <tr>
-                  <th>운동일</th>
-                  <th>구분</th>
-                  <th>거리</th>
-                  <th>시간</th>
-                  <th>페이스</th>
-                  <th>훈련내용/대회명</th>
-                  <th>관리</th>
-                </tr>
-              </thead>
-              <tbody id="memberRunsList"></tbody>
-            </table>
-          </div>
-        </div>
       </details>
     </section>
     </div>
@@ -2384,9 +2688,9 @@
     <div id="qualityView" class="hidden">
     <section class="section">
       <h2>화요 정훈</h2>
-      <p class="section-guide">나빌러닝 정훈 계획과 조별 페이스를 확인하고 결과를 남기세요.</p>
+      <p class="section-guide">나빌러닝 정훈 내용(훈련 프로그램, 조별 페이스)을 확인하시고 결과를 입력해 보세요.</p>
       <div id="vdotTrainingGuide" class="goal-status">VDOT 참고값을 계산할 기록이 아직 부족해요. 훈련 기록을 조금 더 입력하면 개인별 훈련 페이스를 안내해드릴게요.</div>
-      <p class="vdot-guide-note">VDOT은 최근 기록을 바탕으로 현재 달리기 능력을 추정해 E/M/T/I/R 훈련 페이스를 잡는 참고값입니다. 컨디션, 날씨, 코스에 따라 여유 있게 조절해 주세요.</p>
+      <p class="vdot-guide-note">VDOT은 최근 기록을 바탕으로 현재 달리기 능력을 추정해 훈련 페이스를 잡는 참고값입니다. E는 이지, M은 마라톤, T는 템포, I는 인터벌, R은 반복 훈련 페이스를 뜻합니다. 컨디션, 날씨, 코스에 따라 여유 있게 조절해 주세요.</p>
 
       <div class="group-standard-header">
         <h3>나빌러닝 조별 기준표</h3>
@@ -2438,24 +2742,25 @@
               </select>
             </label>
             <label class="quality-detail-field">훈련 계획
-              <textarea id="qualityPlannedWorkout" maxlength="500" placeholder="예: 1000m x 4 / E,S 3"></textarea>
+              <textarea id="qualityPlannedWorkout" maxlength="500" placeholder="예: 1000m x 4 (E조, S조: 3세트)"></textarea>
             </label>
 
             <div class="quality-form-section">결과 입력</div>
-            <div class="quality-result-row">
-              <label>총 거리 <input id="qualityDistance" type="number" step="0.01" placeholder="km"></label>
-              <label>시간 <input id="qualityHour" type="number" placeholder="h"></label>
-              <label>분 <input id="qualityMinute" type="number" placeholder="m" max="59"></label>
-              <label>초 <input id="qualitySecond" type="number" placeholder="s" max="59"></label>
-            </div>
-            <div class="quality-set-row">
+            <p id="qualitySetGuide" class="vdot-guide-note quality-set-guide">훈련 프로그램을 선택하면 세트 입력 칸이 자동으로 맞춰집니다.</p>
+            <div id="qualitySetInputs" class="quality-set-row">
               <label>1세트 <input class="quality-set-input" placeholder="4:13"></label>
               <label>2세트 <input class="quality-set-input" placeholder="4:14"></label>
               <label>3세트 <input class="quality-set-input" placeholder="4:10"></label>
               <label>4세트 <input class="quality-set-input" placeholder="4:07"></label>
               <label>5세트 <input class="quality-set-input" placeholder="-"></label>
               <label>6세트 <input class="quality-set-input" placeholder="-"></label>
-              <label>리커버리 <input id="qualitySetMemo" maxlength="160" placeholder="R: 1:15"></label>
+            </div>
+            <p class="vdot-guide-note quality-set-guide">총 거리와 총 시간은 세트 기록과 리커버리 시간을 기준으로 자동 계산됩니다. 별도로 입력하지 않아도 됩니다.</p>
+            <div class="quality-result-row">
+              <label>자동 총 거리 <input id="qualityDistance" type="number" step="0.01" placeholder="km" readonly></label>
+              <label>자동 시간 <input id="qualityHour" type="number" placeholder="h" readonly></label>
+              <label>자동 분 <input id="qualityMinute" type="number" placeholder="m" max="59" readonly></label>
+              <label>자동 초 <input id="qualitySecond" type="number" placeholder="s" max="59" readonly></label>
             </div>
             <input id="qualitySetResults" type="hidden">
 
@@ -2567,11 +2872,11 @@
     second.addEventListener("input", updateTime);
   </script>
 
-  <script type="module" src="app.js?v=20260418-update-notice"></script>
+  <script type="module" src="app.js?v=20260420-monthly-athlete-load"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
-        navigator.serviceWorker.register("service-worker.js?v=20260418-update-notice").then((registration) => {
+        navigator.serviceWorker.register("service-worker.js?v=20260420-monthly-athlete-load").then((registration) => {
           registration.update().catch(() => {});
         }).catch(() => {});
       });
@@ -2580,7 +2885,7 @@
     if ("caches" in window) {
       caches.keys().then((keys) => {
         keys
-          .filter((key) => key.startsWith("naviheal-runners-") && key !== "naviheal-runners-v122")
+          .filter((key) => key.startsWith("naviheal-runners-") && key !== "naviheal-runners-v158")
           .forEach((key) => caches.delete(key));
       }).catch(() => {});
     }
