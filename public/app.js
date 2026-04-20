@@ -58,6 +58,7 @@ const HOST_EMAIL = "dhseo@skku.edu";
 const HOST_NAME = "서동현";
 const MONTHLY_ATHLETE_START_MONTH = "2026-04";
 const MONTHLY_GROWTH_SCORE_START_MONTH = "2026-05";
+const MONTHLY_MILEAGE_OVER_TARGET_BONUS_MAX = 5;
 const NOWON_COORDINATES = {
   latitude: 37.6543,
   longitude: 127.0568
@@ -5444,7 +5445,7 @@ function calculateMonthlyAthleteScore(entry, monthKey, previousMonthKey) {
     groupLabel: getMonthlyMileageGroupLabel(entry.name, groupTarget),
     mileageRate,
     mileageScore,
-    mileageMaxScore: scoreWeights.mileage + 3,
+    mileageMaxScore: scoreWeights.mileage + MONTHLY_MILEAGE_OVER_TARGET_BONUS_MAX,
     projectedMileageRate,
     projectedMileageScore,
     qualityWorkoutCount,
@@ -5541,9 +5542,11 @@ function getAttendanceScore(attendanceDays, maxScore = 25, useLinear = false) {
 
 function getMileageScore(mileageRate, maxScore = 25, useLinear = false) {
   const baseScore = getLinearScore(Math.min(mileageRate, 100), 100, maxScore);
-  const overTargetBonus = mileageRate > 100 ? Math.min(3, Math.floor((mileageRate - 100) / 10) * 0.5) : 0;
+  const overTargetBonus = mileageRate > 100
+    ? Math.min(MONTHLY_MILEAGE_OVER_TARGET_BONUS_MAX, Math.floor((mileageRate - 100) / 10) * 0.5)
+    : 0;
 
-  return clampScore(baseScore + overTargetBonus, maxScore + 3, 1);
+  return clampScore(baseScore + overTargetBonus, maxScore + MONTHLY_MILEAGE_OVER_TARGET_BONUS_MAX, 1);
 }
 
 function getQualityAttendanceScore(qualityRate, maxScore = 25, useLinear = false) {

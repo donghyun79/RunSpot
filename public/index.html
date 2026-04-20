@@ -2628,9 +2628,9 @@
         <summary class="target-block-title">이달의 선수 선발 기준</summary>
         <div class="criteria-body">
           이달의 선수는 누적 거리만으로 선정하지 않습니다.<br>
-          2026년 4월은 전월 비교 기준이 충분하지 않아 성장 점수를 제외하고, 월간 출석 일수 30점, 실제 조 기준 마일리지 달성률 30점과 초과 보너스 최대 3점, 화요 정훈 인정률 30점, 대회 가점 5점, 배지 가점 5점을 합산해 100점 만점으로 반영합니다.<br>
-          2026년 5월부터는 월간 출석 일수 25점, 실제 조 기준 마일리지 달성률 25점과 초과 보너스 최대 3점, 화요 정훈 인정률 25점, 전월 대비 성장도 15점, 대회 가점 5점, 배지 가점 5점 기준으로 성장 항목을 함께 반영합니다.<br>
-          출석은 16일 만점을 기준으로 하루 단위로 세분화하고, 마일리지는 목표 100%까지 비례 반영한 뒤 100% 초과분 10%마다 0.5점씩 최대 3점을 추가합니다.<br>
+          2026년 4월은 전월 비교 기준이 충분하지 않아 성장 점수를 제외하고, 월간 출석 일수 30점, 실제 조 기준 마일리지 달성률 30점과 초과 보너스 최대 5점, 화요 정훈 인정률 30점, 대회 가점 5점, 배지 가점 5점을 합산해 100점 만점으로 반영합니다.<br>
+          2026년 5월부터는 월간 출석 일수 25점, 실제 조 기준 마일리지 달성률 25점과 초과 보너스 최대 5점, 화요 정훈 인정률 25점, 전월 대비 성장도 15점, 대회 가점 5점, 배지 가점 5점 기준으로 성장 항목을 함께 반영합니다.<br>
+          출석은 16일 만점을 기준으로 하루 단위로 세분화하고, 마일리지는 목표 100%까지 비례 반영한 뒤 100% 초과분 10%마다 0.5점씩 최대 5점을 추가합니다.<br>
           월중에는 전체 점수에 한해 현재 페이스를 월말까지 환산한 예상 점수와 오늘까지 실제 반영된 확정 점수를 함께 보여주며, 예상 점수는 변별력을 위해 소수 1자리까지 계산합니다.<br>
           정훈 당일에 참여해 입력한 기록은 100%, 같은 달 안에서 같은 정훈 계획을 선택해 다른 날 완료 입력한 보완 훈련은 70%로 인정합니다.<br>
           같은 정훈 계획을 여러 번 입력해도 가장 높은 인정률 1개만 반영합니다.<br>
@@ -2917,11 +2917,11 @@
     second.addEventListener("input", updateTime);
   </script>
 
-  <script type="module" src="app.js?v=20260421-growth-may-score"></script>
+  <script type="module" src="app.js?v=20260421-mileage-bonus-5"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
-        navigator.serviceWorker.register("service-worker.js?v=20260421-growth-may-score").then((registration) => {
+        navigator.serviceWorker.register("service-worker.js?v=20260421-mileage-bonus-5").then((registration) => {
           registration.update().catch(() => {});
         }).catch(() => {});
       });
@@ -2930,7 +2930,7 @@
     if ("caches" in window) {
       caches.keys().then((keys) => {
         keys
-          .filter((key) => key.startsWith("naviheal-runners-") && key !== "naviheal-runners-v169")
+          .filter((key) => key.startsWith("naviheal-runners-") && key !== "naviheal-runners-v170")
           .forEach((key) => caches.delete(key));
       }).catch(() => {});
     }
