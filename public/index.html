@@ -516,7 +516,18 @@
     }
 
     .member-runs-panel {
-      margin-top: 18px;
+      padding: 10px 0 4px;
+    }
+
+    .member-row-selected td {
+      background: #f8fbff;
+      font-weight: 700;
+    }
+
+    .member-runs-row td {
+      padding: 0 12px 14px;
+      background: #f8fbff;
+      border-top: 0;
     }
 
     .admin-details {
@@ -2670,26 +2681,6 @@
             <tbody id="memberList"></tbody>
           </table>
         </div>
-        <div id="memberRunsPanel" class="member-runs-panel hidden">
-          <h3 id="memberRunsTitle">회원 기록</h3>
-          <div id="memberRunsStatus" class="goal-status">회원을 선택하면 기록을 확인할 수 있습니다.</div>
-          <div class="table-wrap">
-            <table class="run-record-table">
-              <thead>
-                <tr>
-                  <th>운동일</th>
-                  <th>구분</th>
-                  <th>거리</th>
-                  <th>시간</th>
-                  <th>페이스</th>
-                  <th>훈련내용/대회명</th>
-                  <th>관리</th>
-                </tr>
-              </thead>
-              <tbody id="memberRunsList"></tbody>
-            </table>
-          </div>
-        </div>
       </details>
     </section>
     </div>
@@ -2881,11 +2872,11 @@
     second.addEventListener("input", updateTime);
   </script>
 
-  <script type="module" src="app.js?v=20260419-quality-auto-total-note"></script>
+  <script type="module" src="app.js?v=20260420-monthly-athlete-load"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
-        navigator.serviceWorker.register("service-worker.js?v=20260419-quality-auto-total-note").then((registration) => {
+        navigator.serviceWorker.register("service-worker.js?v=20260420-monthly-athlete-load").then((registration) => {
           registration.update().catch(() => {});
         }).catch(() => {});
       });
@@ -2894,7 +2885,7 @@
     if ("caches" in window) {
       caches.keys().then((keys) => {
         keys
-          .filter((key) => key.startsWith("naviheal-runners-") && key !== "naviheal-runners-v156")
+          .filter((key) => key.startsWith("naviheal-runners-") && key !== "naviheal-runners-v158")
           .forEach((key) => caches.delete(key));
       }).catch(() => {});
     }

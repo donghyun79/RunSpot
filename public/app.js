@@ -48,6 +48,7 @@ let visibleRunCount = INITIAL_VISIBLE_RUN_COUNT;
 let signupInProgress = false;
 let selectedAdminMember = null;
 let selectedAdminRuns = [];
+let memberRunsLoadId = 0;
 let editingRun = null;
 let editingQualityRun = null;
 let latestSuggestions = [];
@@ -338,10 +339,12 @@ function showDashboardLoadError(error) {
   const recordListStatus = document.getElementById("recordListStatus");
   const rankingStatus = document.getElementById("rankingStatus");
   const monthlyGoalStatus = document.getElementById("monthlyGoalStatus");
+  const monthlyAthleteStatus = document.getElementById("monthlyAthleteStatus");
 
   if (recordListStatus) recordListStatus.innerText = message;
   if (rankingStatus) rankingStatus.innerText = message;
   if (monthlyGoalStatus) monthlyGoalStatus.innerText = message;
+  if (monthlyAthleteStatus) monthlyAthleteStatus.innerText = message;
 }
 
 async function loadUserProfileNames() {
@@ -2108,19 +2111,14 @@ document.addEventListener("DOMContentLoaded", () => {
           return;
         }
 
-        try {
-          setActiveAppView("training");
-          await loadMonthlyGoal(user);
-          await loadRunningGroupStandards(user);
-          await loadMyRuns(user);
-          await loadMonthlyAthleteCandidates(user);
-        } catch (e) {
-          showDashboardLoadError(e);
-        }
-
-        await loadClubRanking(user);
-        await loadWeeklyRanking(user);
-        await loadSuggestions(user);
+        setActiveAppView("training");
+        await loadMonthlyGoal(user).catch(showDashboardLoadError);
+        await loadRunningGroupStandards(user).catch(showDashboardLoadError);
+        await loadMyRuns(user).catch(showDashboardLoadError);
+        await loadMonthlyAthleteCandidates(user).catch(showDashboardLoadError);
+        await loadClubRanking(user).catch(showDashboardLoadError);
+        await loadWeeklyRanking(user).catch(showDashboardLoadError);
+        await loadSuggestions(user).catch(showDashboardLoadError);
 
       } catch (e) {
         showDashboardLoadError(e);
@@ -3635,6 +3633,7 @@ async function loadMembers() {
 
     members.forEach((member) => {
       const tr = document.createElement("tr");
+      tr.dataset.memberUserId = member.userId;
       const isHostMember = member.email.toLowerCase() === HOST_EMAIL;
       const memberStatusText = isHostMember
         ? "호스트"
@@ -3674,7 +3673,7 @@ async function loadMembers() {
       recordsBtn.className = "table-action";
       recordsBtn.innerText = "기록 보기";
       recordsBtn.addEventListener("click", () => {
-        loadMemberRuns(member);
+        loadMemberRuns(member, tr);
       });
       actionWrap.appendChild(recordsBtn);
 
@@ -3726,12 +3725,20 @@ async function loadMembers() {
 function clearMemberRunsPanel() {
   selectedAdminMember = null;
   selectedAdminRuns = [];
+  memberRunsLoadId += 1;
   editingRun = null;
 
   const panel = document.getElementById("memberRunsPanel");
   const title = document.getElementById("memberRunsTitle");
   const status = document.getElementById("memberRunsStatus");
   const list = document.getElementById("memberRunsList");
+
+  document.querySelectorAll(".member-row-selected").forEach((row) => {
+    row.classList.remove("member-row-selected");
+  });
+  document.querySelectorAll(".member-runs-row").forEach((row) => {
+    row.remove();
+  });
 
   if (panel) panel.classList.add("hidden");
   if (title) title.innerText = "회원 기록";
@@ -3740,9 +3747,72 @@ function clearMemberRunsPanel() {
   updateRunFormMode();
 }
 
-async function loadMemberRuns(member) {
+function getMemberRunsPanel() {
+  let panel = document.getElementById("memberRunsPanel");
+
+  if (panel) return panel;
+
+  panel = document.createElement("div");
+  panel.id = "memberRunsPanel";
+  panel.className = "member-runs-panel hidden";
+  panel.innerHTML = `
+    <h3 id="memberRunsTitle">회원 기록</h3>
+    <div id="memberRunsStatus" class="goal-status">회원을 선택하면 기록을 확인할 수 있습니다.</div>
+    <div class="table-wrap">
+      <table class="run-record-table">
+        <thead>
+          <tr>
+            <th>운동일</th>
+            <th>구분</th>
+            <th>거리</th>
+            <th>시간</th>
+            <th>페이스</th>
+            <th>훈련내용/대회명</th>
+            <th>관리</th>
+          </tr>
+        </thead>
+        <tbody id="memberRunsList"></tbody>
+      </table>
+    </div>
+  `;
+
+  return panel;
+}
+
+function moveMemberRunsPanelBelow(member, memberRow = null) {
+  const memberList = document.getElementById("memberList");
+  const panel = getMemberRunsPanel();
+
+  if (!memberList || !panel) return panel;
+
+  const targetRow = memberRow || Array.from(memberList.querySelectorAll("tr[data-member-user-id]"))
+    .find((row) => row.dataset.memberUserId === member.userId);
+
+  document.querySelectorAll(".member-row-selected").forEach((row) => {
+    row.classList.remove("member-row-selected");
+  });
+  document.querySelectorAll(".member-runs-row").forEach((row) => {
+    row.remove();
+  });
+
+  if (!targetRow) return panel;
+
+  targetRow.classList.add("member-row-selected");
+
+  const detailRow = document.createElement("tr");
+  detailRow.className = "member-runs-row";
+  const detailCell = document.createElement("td");
+  detailCell.colSpan = targetRow.children.length || 4;
+  detailCell.appendChild(panel);
+  detailRow.appendChild(detailCell);
+  targetRow.insertAdjacentElement("afterend", detailRow);
+
+  return panel;
+}
+
+async function loadMemberRuns(member, memberRow = null) {
   const user = auth.currentUser;
-  const panel = document.getElementById("memberRunsPanel");
+  const panel = moveMemberRunsPanelBelow(member, memberRow);
   const title = document.getElementById("memberRunsTitle");
   const status = document.getElementById("memberRunsStatus");
   const list = document.getElementById("memberRunsList");
@@ -3756,6 +3826,7 @@ async function loadMemberRuns(member) {
 
   selectedAdminMember = member;
   selectedAdminRuns = [];
+  const requestId = ++memberRunsLoadId;
   panel.classList.remove("hidden");
   title.innerText = `${member.name} 회원 기록`;
   status.innerText = "회원 기록을 불러오는 중입니다...";
@@ -3787,6 +3858,8 @@ async function loadMemberRuns(member) {
         selectedAdminRuns.push(buildRunRecord(snapshotDoc.id, snapshotDoc.data(), member));
       });
     }
+
+    if (requestId !== memberRunsLoadId) return;
 
     selectedAdminRuns.sort((a, b) => (b.runDate || "").localeCompare(a.runDate || ""));
     renderMemberRuns();
@@ -4746,13 +4819,14 @@ async function loadClubRanking(user) {
 async function loadWeeklyRanking(user) {
   const weeklyRankingList = document.getElementById("weeklyRankingList");
   const weeklyRankingStatus = document.getElementById("weeklyRankingStatus");
+  const weeklyPeriodText = getPeriodRangeText("week");
 
   if (!weeklyRankingList || !weeklyRankingStatus) return;
 
   weeklyRankingList.innerHTML = "";
 
   if (!user) {
-    weeklyRankingStatus.innerText = "로그인 후 주간 챌린지 랭킹을 확인할 수 있습니다.";
+    weeklyRankingStatus.innerText = `로그인 후 주간 챌린지 랭킹을 확인할 수 있습니다. 집계 기간: ${weeklyPeriodText}`;
     return;
   }
 
@@ -4807,7 +4881,7 @@ async function loadWeeklyRanking(user) {
       });
 
     if (!rankings.length) {
-      weeklyRankingStatus.innerText = "최근 7일 주간 챌린지 기록이 아직 없습니다.";
+      weeklyRankingStatus.innerText = `${weeklyPeriodText} 주간 챌린지 기록이 아직 없습니다.`;
       return;
     }
 
@@ -4838,9 +4912,9 @@ async function loadWeeklyRanking(user) {
 
     if (myRankIndex >= 0) {
       const myEntry = rankings[myRankIndex];
-      weeklyRankingStatus.innerText = `내 주간 순위: ${myRankIndex + 1}위 / ${rankings.length}명, ${formatMileage(myEntry.totalDistance)} · ${myEntry.count}일 출석`;
+      weeklyRankingStatus.innerText = `${weeklyPeriodText} 기준 내 순위: ${myRankIndex + 1}위 / ${rankings.length}명, ${formatMileage(myEntry.totalDistance)} · ${myEntry.count}일 출석`;
     } else {
-      weeklyRankingStatus.innerText = `최근 7일 기준 ${rankings.length}명이 챌린지에 참여 중입니다. 이번 주 첫 기록을 남겨보세요.`;
+      weeklyRankingStatus.innerText = `${weeklyPeriodText} 기준 ${rankings.length}명이 챌린지에 참여 중입니다. 첫 기록을 남겨보세요.`;
     }
   } catch (e) {
     console.error(e);
@@ -5468,7 +5542,7 @@ function clearDashboard() {
   document.getElementById("rankingList").innerHTML = "";
   document.getElementById("rankingStatus").innerText = "";
   document.getElementById("weeklyRankingList").innerHTML = "";
-  document.getElementById("weeklyRankingStatus").innerText = "로그인 후 주간 챌린지 랭킹을 확인할 수 있습니다.";
+  document.getElementById("weeklyRankingStatus").innerText = `로그인 후 주간 챌린지 랭킹을 확인할 수 있습니다. 집계 기간: ${getPeriodRangeText("week")}`;
   document.getElementById("monthlyAthleteList").innerHTML = "";
   document.getElementById("monthlyAthleteStatus").innerText = "로그인 후 이달의 선수 예상을 확인할 수 있습니다.";
   document.getElementById("athleteHallSummaryList").innerHTML = "";
