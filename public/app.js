@@ -4692,17 +4692,36 @@ function updatePersonalBest(distance, time, sourceRun = {}) {
 }
 
 function updatePersonalBestView() {
-  document.getElementById("pb5k").innerText =
-    pb["5K"] ? `${formatTime(pb["5K"].time)} (${formatPace(pb["5K"].pace)})` : "-";
+  renderPersonalBestItem("pb5k", pb["5K"]);
+  renderPersonalBestItem("pb10k", pb["10K"]);
+  renderPersonalBestItem("pbHalf", pb["HALF"]);
+  renderPersonalBestItem("pbFull", pb["FULL"]);
+}
 
-  document.getElementById("pb10k").innerText =
-    pb["10K"] ? `${formatTime(pb["10K"].time)} (${formatPace(pb["10K"].pace)})` : "-";
+function renderPersonalBestItem(elementId, record) {
+  const element = document.getElementById(elementId);
 
-  document.getElementById("pbHalf").innerText =
-    pb["HALF"] ? `${formatTime(pb["HALF"].time)} (${formatPace(pb["HALF"].pace)})` : "-";
+  if (!element) return;
 
-  document.getElementById("pbFull").innerText =
-    pb["FULL"] ? `${formatTime(pb["FULL"].time)} (${formatPace(pb["FULL"].pace)})` : "-";
+  if (!record) {
+    element.innerText = "-";
+    return;
+  }
+
+  const dateText = record.runDate ? `${formatKoreanDate(record.runDate)} 달성` : "달성일 미기록";
+
+  element.innerHTML = [
+    `<span class="pb-record">${formatTime(record.time)} (${formatPace(record.pace)})</span>`,
+    `<span class="pb-date">${dateText}</span>`
+  ].join("");
+}
+
+function formatKoreanDate(dateString) {
+  const date = parseInputDate(dateString);
+
+  if (!date) return dateString;
+
+  return `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일`;
 }
 
 async function loadClubRanking(user) {
@@ -5050,11 +5069,11 @@ async function loadMonthlyAthleteCandidates(user) {
       [
         `${index + 1}${isMe ? " (나)" : ""}`,
         entry.name,
-        `${entry.totalScore}점`,
-        `${entry.attendanceScore}/30 (${entry.attendanceDays}일)`,
-        `${entry.mileageScore}/25 (${entry.groupLabel} ${entry.mileageRate}%)`,
-        `${entry.qualityScore}/25 (${formatQualityCredit(entry.qualityAttendanceDays)}/${entry.qualityWorkoutCount}회 인정)`,
-        `${entry.growthScore}/20`,
+        `예상 ${formatAthleteScore(entry.totalScore)}점 / 확정 ${formatAthleteScore(entry.confirmedScore)}점`,
+        `${formatAthleteScore(entry.attendanceScore)}/25 (${entry.attendanceDays}일)`,
+        `${formatAthleteScore(entry.mileageScore)}/28 (${entry.groupLabel} ${entry.mileageRate}%)`,
+        `${formatAthleteScore(entry.qualityScore)}/25 (${formatQualityCredit(entry.qualityAttendanceDays)}/${entry.qualityWorkoutCount}회 인정)`,
+        `${formatAthleteScore(entry.growthScore)}/15`,
         `+${entry.raceBonus}점 (${entry.raceCount}회)`,
         `+${entry.badgeBonus}점 (${entry.badgeCount}개)`
       ].forEach((value) => {
@@ -5074,7 +5093,7 @@ async function loadMonthlyAthleteCandidates(user) {
       ? `${leaders.map((entry) => entry.name).join(", ")} 공동 1위`
       : `${leader.name} 1위`;
 
-    monthlyAthleteStatus.innerText = `${formatMonthLabel(monthKey)} 이달의 선수 예상 ${leaderText}: ${leader.totalScore}점.${myRankText} 월이 끝난 뒤 명예의 전당에 반영됩니다.`;
+    monthlyAthleteStatus.innerText = `${formatMonthLabel(monthKey)} 이달의 선수 예상 ${leaderText}: 예상 ${formatAthleteScore(leader.totalScore)}점, 현재 확정 ${formatAthleteScore(leader.confirmedScore)}점.${myRankText} 월이 끝난 뒤 명예의 전당에 반영됩니다.`;
     renderAthleteHallOfFame(memberEntries, user, finalizedMonthKey);
   } catch (e) {
     console.error(e);
@@ -5136,11 +5155,11 @@ function renderAthleteHallOfFame(memberEntries, user, currentMonthKey) {
     [
       formatMonthLabel(monthKey),
       winners.map((winner) => `${winner.name}${winner.userId === user.uid || winner.email === user.email ? " (나)" : ""}`).join(", "),
-      `${primaryWinner.totalScore}점`,
-      `${primaryWinner.attendanceScore}/30 (${primaryWinner.attendanceDays}일)`,
-      `${primaryWinner.mileageScore}/25 (${primaryWinner.groupLabel} ${primaryWinner.mileageRate}%)`,
-      `${primaryWinner.qualityScore}/25 (${formatQualityCredit(primaryWinner.qualityAttendanceDays)}/${primaryWinner.qualityWorkoutCount}회 인정)`,
-      `${primaryWinner.growthScore}/20`,
+      `${formatAthleteScore(primaryWinner.totalScore)}점`,
+      `${formatAthleteScore(primaryWinner.attendanceScore)}/25 (${primaryWinner.attendanceDays}일)`,
+      `${formatAthleteScore(primaryWinner.mileageScore)}/28 (${primaryWinner.groupLabel} ${primaryWinner.mileageRate}%)`,
+      `${formatAthleteScore(primaryWinner.qualityScore)}/25 (${formatQualityCredit(primaryWinner.qualityAttendanceDays)}/${primaryWinner.qualityWorkoutCount}회 인정)`,
+      `${formatAthleteScore(primaryWinner.growthScore)}/15`,
       `+${primaryWinner.raceBonus}점 (${primaryWinner.raceCount}회)`,
       `+${primaryWinner.badgeBonus}점 (${primaryWinner.badgeCount}개)`
     ].forEach((value) => {
@@ -5190,7 +5209,7 @@ function renderAthleteHallSummary(hallEntries, user) {
     name.className = "hall-summary-name";
     name.innerText = winners.map((winner) => `${winner.name}${winner.userId === user.uid || winner.email === user.email ? " (나)" : ""}`).join(", ");
     score.className = "hall-summary-score";
-    score.innerText = `${primaryWinner.totalScore}점 · 정훈 ${formatQualityCredit(primaryWinner.qualityAttendanceDays)}/${primaryWinner.qualityWorkoutCount}회 인정`;
+    score.innerText = `${formatAthleteScore(primaryWinner.totalScore)}점 · 정훈 ${formatQualityCredit(primaryWinner.qualityAttendanceDays)}/${primaryWinner.qualityWorkoutCount}회 인정`;
 
     card.append(month, name, score);
     athleteHallSummaryList.appendChild(card);
@@ -5205,6 +5224,7 @@ function formatQualityCredit(value) {
 
 function isSameMonthlyAthleteAwardScore(candidate, winner) {
   return candidate.totalScore === winner.totalScore
+    && candidate.confirmedScore === winner.confirmedScore
     && candidate.qualityRate === winner.qualityRate
     && candidate.attendanceDays === winner.attendanceDays
     && candidate.mileageRate === winner.mileageRate
@@ -5232,49 +5252,132 @@ function formatMonthLabel(monthKey) {
   return `${year}년 ${Number(month)}월`;
 }
 
+function clampScore(score, maxScore = 100, precision = 0) {
+  const factor = 10 ** precision;
+  const clamped = Math.min(maxScore, Math.max(0, score));
+
+  return Math.round(clamped * factor) / factor;
+}
+
+function formatAthleteScore(score) {
+  return Number.isInteger(score) ? `${score}` : score.toFixed(1);
+}
+
+function getLinearScore(value, maxValue, maxScore) {
+  if (!Number.isFinite(value) || !Number.isFinite(maxValue) || maxValue <= 0) return 0;
+
+  return clampScore((value / maxValue) * maxScore, maxScore, 1);
+}
+
+function getMonthProgressInfo(monthKey) {
+  const [year, month] = monthKey.split("-").map(Number);
+  const totalDays = new Date(year, month, 0).getDate();
+  const currentMonthKey = getCurrentMonthKey();
+
+  if (monthKey !== currentMonthKey) {
+    return {
+      totalDays,
+      elapsedDays: totalDays,
+      isCurrentMonth: false
+    };
+  }
+
+  const today = new Date();
+
+  return {
+    totalDays,
+    elapsedDays: Math.max(1, Math.min(today.getDate(), totalDays)),
+    isCurrentMonth: true
+  };
+}
+
+function projectMonthlyValue(value, monthKey) {
+  const progress = getMonthProgressInfo(monthKey);
+
+  if (!progress.isCurrentMonth) return value;
+
+  return (value / progress.elapsedDays) * progress.totalDays;
+}
+
 function calculateMonthlyAthleteScore(entry, monthKey, previousMonthKey) {
   const currentRuns = entry.runs.filter((run) => isRunInMonth(run, monthKey));
   const previousRuns = entry.runs.filter((run) => isRunInMonth(run, previousMonthKey));
   const attendanceDays = countUniqueRunDates(currentRuns);
   const totalDistance = currentRuns.reduce((total, run) => total + run.distance, 0);
   const groupTarget = getMonthlyMileageTarget(entry.name);
-  const mileageRate = groupTarget ? Math.round((totalDistance / groupTarget) * 100) : 0;
-  const qualitySummary = getQualityWorkoutCompletionSummary(entry.runs, monthKey);
+  const mileageRate = groupTarget ? clampScore((totalDistance / groupTarget) * 100, 999, 1) : 0;
+  const qualitySummary = getQualityWorkoutCompletionSummary(entry.runs, monthKey, true);
+  const elapsedQualitySummary = getQualityWorkoutCompletionSummary(entry.runs, monthKey);
   const qualityWorkoutCount = qualitySummary.workoutCount;
   const qualityAttendanceDays = qualitySummary.credit;
   const qualityRate = qualityWorkoutCount ? qualityAttendanceDays / qualityWorkoutCount : 0;
-  const attendanceScore = getAttendanceScore(attendanceDays);
-  const mileageScore = getMileageScore(mileageRate);
-  const qualityScore = getQualityAttendanceScore(qualityRate);
-  const growthScore = getGrowthScore(currentRuns, previousRuns);
+  const attendanceScore = getAttendanceScore(attendanceDays, 25);
+  const mileageScore = getMileageScore(mileageRate, 25);
+  const qualityScore = getQualityAttendanceScore(qualityRate, 25);
+  const growthScore = getGrowthScore(currentRuns, previousRuns, 15);
   const raceCount = currentRuns.filter(isRaceResultForMonthlyAthlete).length;
   const raceBonus = raceCount > 0 ? 5 : 0;
   const badgeAchievements = getMonthlyBadgeAchievements(currentRuns, previousRuns, qualitySummary, totalDistance);
   const badgeCount = badgeAchievements.length;
   const badgeBonus = getMonthlyBadgeBonus(badgeCount);
-  const totalScore = attendanceScore + mileageScore + qualityScore + growthScore + raceBonus + badgeBonus;
+  const projectedAttendanceDays = Math.min(getMonthProgressInfo(monthKey).totalDays, Math.round(projectMonthlyValue(attendanceDays, monthKey)));
+  const projectedDistance = projectMonthlyValue(totalDistance, monthKey);
+  const projectedMileageRate = groupTarget ? clampScore((projectedDistance / groupTarget) * 100, 999, 1) : 0;
+  const projectedQualityWorkoutCount = qualitySummary.workoutCount;
+  const projectedQualityRate = elapsedQualitySummary.workoutCount
+    ? Math.min(1, elapsedQualitySummary.credit / elapsedQualitySummary.workoutCount)
+    : qualityRate;
+  const projectedQualityAttendanceDays = projectedQualityWorkoutCount
+    ? Math.min(projectedQualityWorkoutCount, projectedQualityRate * projectedQualityWorkoutCount)
+    : qualityAttendanceDays;
+  const projectedAttendanceScore = getAttendanceScore(projectedAttendanceDays, 25, true);
+  const projectedMileageScore = getMileageScore(projectedMileageRate, 25);
+  const projectedQualityScore = getQualityAttendanceScore(projectedQualityWorkoutCount ? projectedQualityAttendanceDays / projectedQualityWorkoutCount : 0, 25, true);
+  const projectedBadgeAchievements = getMonthlyBadgeAchievementsFromMetrics({
+    attendanceDays: projectedAttendanceDays,
+    totalDistance: projectedDistance,
+    qualityCredit: projectedQualityAttendanceDays,
+    raceCount,
+    hasPersonalBest: hasMonthlyPersonalBest(currentRuns, previousRuns)
+  });
+  const projectedBadgeCount = projectedBadgeAchievements.length;
+  const projectedBadgeBonus = getMonthlyBadgeBonus(projectedBadgeCount);
+  const confirmedScore = clampScore(attendanceScore + mileageScore + qualityScore + growthScore + raceBonus + badgeBonus, 100, 1);
+  const totalScore = clampScore(projectedAttendanceScore + projectedMileageScore + projectedQualityScore + growthScore + raceBonus + projectedBadgeBonus, 100, 1);
 
   return {
     ...entry,
     totalScore,
+    confirmedScore,
     attendanceDays,
     attendanceScore,
+    projectedAttendanceDays,
+    projectedAttendanceScore,
     totalDistance,
+    projectedDistance,
     groupLabel: getMonthlyMileageGroupLabel(entry.name, groupTarget),
     mileageRate,
     mileageScore,
+    projectedMileageRate,
+    projectedMileageScore,
     qualityWorkoutCount,
     qualityAttendanceDays,
+    projectedQualityAttendanceDays,
     qualityOnDayCount: qualitySummary.onDayCount,
     qualityMakeupCount: qualitySummary.makeupCount,
     qualityRate,
     qualityScore,
+    projectedQualityRate,
+    projectedQualityScore,
     growthScore,
     raceCount,
     raceBonus,
     badgeCount,
     badgeBonus,
-    badgeAchievements
+    badgeAchievements,
+    projectedBadgeCount,
+    projectedBadgeBonus,
+    projectedBadgeAchievements
   };
 }
 
@@ -5284,6 +5387,7 @@ function isRaceResultForMonthlyAthlete(run) {
 
 function sortMonthlyAthleteCandidates(a, b) {
   if (b.totalScore !== a.totalScore) return b.totalScore - a.totalScore;
+  if (b.confirmedScore !== a.confirmedScore) return b.confirmedScore - a.confirmedScore;
   if (b.qualityRate !== a.qualityRate) return b.qualityRate - a.qualityRate;
   if (b.attendanceDays !== a.attendanceDays) return b.attendanceDays - a.attendanceDays;
   if (b.mileageRate !== a.mileageRate) return b.mileageRate - a.mileageRate;
@@ -5298,29 +5402,23 @@ function countUniqueRunDates(runs) {
   return new Set(runs.map((run) => getDateKey(run.runDate)).filter(Boolean)).size;
 }
 
-function getAttendanceScore(attendanceDays) {
-  if (attendanceDays >= 16) return 30;
-  if (attendanceDays >= 12) return 25;
-  if (attendanceDays >= 8) return 18;
-  if (attendanceDays >= 4) return 10;
-  if (attendanceDays >= 1) return 5;
-  return 0;
+function getAttendanceScore(attendanceDays, maxScore = 25, useLinear = false) {
+  return getLinearScore(attendanceDays, 16, maxScore);
 }
 
-function getMileageScore(mileageRate) {
-  if (mileageRate >= 100) return 25;
-  if (mileageRate >= 80) return 20;
-  if (mileageRate >= 60) return 15;
-  if (mileageRate >= 40) return 10;
-  if (mileageRate >= 20) return 5;
-  return 0;
+function getMileageScore(mileageRate, maxScore = 25, useLinear = false) {
+  const baseScore = getLinearScore(Math.min(mileageRate, 100), 100, maxScore);
+  const overTargetBonus = mileageRate > 100 ? Math.min(3, Math.floor((mileageRate - 100) / 10) * 0.5) : 0;
+
+  return clampScore(baseScore + overTargetBonus, maxScore + 3, 1);
 }
 
-function getQualityAttendanceScore(qualityRate) {
-  if (qualityRate >= 0.9) return 25;
-  if (qualityRate >= 0.7) return 20;
-  if (qualityRate >= 0.5) return 14;
-  if (qualityRate >= 0.25) return 7;
+function getQualityAttendanceScore(qualityRate, maxScore = 25, useLinear = false) {
+  if (useLinear) return getLinearScore(qualityRate, 1, maxScore);
+  if (qualityRate >= 0.9) return maxScore;
+  if (qualityRate >= 0.7) return clampScore(maxScore * 0.8, maxScore, 1);
+  if (qualityRate >= 0.5) return clampScore(maxScore * 0.56, maxScore, 1);
+  if (qualityRate >= 0.25) return clampScore(maxScore * 0.28, maxScore, 1);
   return 0;
 }
 
@@ -5337,7 +5435,7 @@ function getMonthlyMileageGroupLabel(memberName, targetKm) {
   return group ? `${group.group}조 기준 ${targetKm}km` : `기본 기준 ${targetKm}km`;
 }
 
-function getCountedQualityWorkoutsForMonth(monthKey) {
+function getCountedQualityWorkoutsForMonth(monthKey, includeFuture = false) {
   const [year, month] = monthKey.split("-").map(Number);
   const scheduledWorkouts = QUALITY_MONTHLY_SCHEDULE[month]?.workouts || [];
   const currentMonthKey = getCurrentMonthKey();
@@ -5351,16 +5449,17 @@ function getCountedQualityWorkoutsForMonth(monthKey) {
     }))
     .filter((workout) => {
       if (!workout.officialDate || workout.officialDate.getMonth() !== month - 1) return false;
+      if (includeFuture) return true;
 
       return monthKey === currentMonthKey ? workout.officialDate <= today : true;
     });
 }
 
-function getQualityWorkoutCompletionSummary(runs, monthKey) {
-  const countedWorkouts = getCountedQualityWorkoutsForMonth(monthKey);
+function getQualityWorkoutCompletionSummary(runs, monthKey, includeFuture = false) {
+  const countedWorkouts = getCountedQualityWorkoutsForMonth(monthKey, includeFuture);
 
   if (!countedWorkouts.length) {
-    const workoutCount = getMonthlyQualityWorkoutCount(monthKey);
+    const workoutCount = getMonthlyQualityWorkoutCount(monthKey, includeFuture);
     const credit = Math.min(countUniqueRunDates(runs.filter((run) => isRunInMonth(run, monthKey) && isQualityWorkout(run))), workoutCount);
 
     return {
@@ -5405,10 +5504,10 @@ function getQualityWorkoutCompletionSummary(runs, monthKey) {
   };
 }
 
-function getMonthlyQualityWorkoutCount(monthKey) {
+function getMonthlyQualityWorkoutCount(monthKey, includeFuture = false) {
   const [, month] = monthKey.split("-").map(Number);
   const scheduledWorkouts = QUALITY_MONTHLY_SCHEDULE[month]?.workouts || [];
-  const countedWorkouts = getCountedQualityWorkoutsForMonth(monthKey);
+  const countedWorkouts = getCountedQualityWorkoutsForMonth(monthKey, includeFuture);
 
   if (scheduledWorkouts.length) {
     return countedWorkouts.length;
@@ -5418,7 +5517,7 @@ function getMonthlyQualityWorkoutCount(monthKey) {
   const today = new Date();
   today.setHours(23, 59, 59, 999);
 
-  return countWeekdaysInMonth(monthKey, 2, monthKey === currentMonthKey ? today : null);
+  return countWeekdaysInMonth(monthKey, 2, !includeFuture && monthKey === currentMonthKey ? today : null);
 }
 
 function countWeekdaysInMonth(monthKey, weekday, maxDate = null) {
@@ -5435,7 +5534,9 @@ function countWeekdaysInMonth(monthKey, weekday, maxDate = null) {
   return count;
 }
 
-function getGrowthScore(currentRuns, previousRuns) {
+function getGrowthScore(currentRuns, previousRuns, maxScore = 15) {
+  const unit = maxScore / 4;
+
   if (!previousRuns.length) return currentRuns.length ? 10 : 0;
 
   const currentStats = calculateRunStats(currentRuns);
@@ -5444,23 +5545,35 @@ function getGrowthScore(currentRuns, previousRuns) {
   const previousAttendance = countUniqueRunDates(previousRuns);
   let score = 0;
 
-  if (currentAttendance > previousAttendance) score += 5;
-  if (currentStats.totalDistance > previousStats.totalDistance) score += 5;
-  if (hasMonthlyPersonalBest(currentRuns, previousRuns)) score += 5;
+  if (currentAttendance > previousAttendance) score += unit;
+  if (currentStats.totalDistance > previousStats.totalDistance) score += unit;
+  if (hasMonthlyPersonalBest(currentRuns, previousRuns)) score += unit;
 
   const keptTrainingVolume = currentStats.totalDistance >= previousStats.totalDistance * 0.8
     || currentAttendance >= previousAttendance * 0.8;
 
   if (keptTrainingVolume && currentStats.averagePace && previousStats.averagePace && currentStats.averagePace < previousStats.averagePace) {
-    score += 5;
+    score += unit;
   }
 
-  return score;
+  return clampScore(score, maxScore, 1);
 }
 
 function getMonthlyBadgeAchievements(currentRuns, previousRuns, qualitySummary, totalDistance) {
   const attendanceDays = countUniqueRunDates(currentRuns);
   const raceCount = currentRuns.filter(isRaceResultForMonthlyAthlete).length;
+  const hasPersonalBest = hasMonthlyPersonalBest(currentRuns, previousRuns);
+
+  return getMonthlyBadgeAchievementsFromMetrics({
+    attendanceDays,
+    totalDistance,
+    qualityCredit: qualitySummary.credit,
+    raceCount,
+    hasPersonalBest
+  });
+}
+
+function getMonthlyBadgeAchievementsFromMetrics({ attendanceDays, totalDistance, qualityCredit, raceCount, hasPersonalBest }) {
   const badges = [];
 
   if (attendanceDays >= 1) badges.push("첫 러닝");
@@ -5470,9 +5583,9 @@ function getMonthlyBadgeAchievements(currentRuns, previousRuns, qualitySummary, 
   if (totalDistance >= 50) badges.push("월 50km");
   if (totalDistance >= 100) badges.push("월 100km");
   if (totalDistance >= 150) badges.push("월 150km");
-  if (qualitySummary.credit >= 1) badges.push("정훈 참여");
-  if (qualitySummary.credit >= 2) badges.push("정훈 2회 인정");
-  if (hasMonthlyPersonalBest(currentRuns, previousRuns)) badges.push("PB 갱신");
+  if (qualityCredit >= 1) badges.push("정훈 참여");
+  if (qualityCredit >= 2) badges.push("정훈 2회 인정");
+  if (hasPersonalBest) badges.push("PB 갱신");
   if (raceCount > 0) badges.push("대회 도전");
 
   return badges;
