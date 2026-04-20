@@ -9,6 +9,30 @@
 3. Firebase Hosting을 배포합니다.
 4. 클럽 회원에게 사이트 주소와 가입코드를 공유합니다.
 
+## Git 작업 기준
+
+이 저장소의 기본 작업 브랜치는 `main`입니다. 다른 PC에서 작업하더라도 먼저 `main`을 최신 상태로 맞춘 뒤 수정하고, 완료 후 `main`으로 커밋/푸시합니다.
+
+작업을 시작할 때:
+
+```bash
+git checkout main
+git pull origin main
+git status
+```
+
+수정 후 저장할 때:
+
+```bash
+git status
+git diff --check
+git add public/app.js public/index.html public/service-worker.js
+git commit -m "변경 내용 요약"
+git push origin main
+```
+
+큰 기능 변경, 데이터 저장 구조 변경, 로그인/Firestore 권한 변경처럼 위험도가 큰 작업만 별도 브랜치에서 진행합니다. 일반적인 문구 수정, 화면 조정, 점수 산식 변경, 캐시 버전 업데이트는 `main`에서 바로 관리합니다.
+
 ## 배포 명령
 
 Firebase CLI가 없다면 먼저 설치하고 로그인합니다.
