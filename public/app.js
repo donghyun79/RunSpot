@@ -4487,6 +4487,57 @@ function getWeatherLimitedRecommendation(environmentLevel) {
   return "";
 }
 
+function getQualityWorkoutForDate(date = new Date()) {
+  const year = date.getFullYear();
+  const month = date.getMonth() + 1;
+  const dateKey = getDateKey(dateToInputValue(date));
+  const workouts = QUALITY_MONTHLY_SCHEDULE[month]?.workouts || [];
+
+  return workouts.find((workout) => {
+    const workoutDate = parseQualityWorkoutDate(workout.date, year);
+    return workoutDate && getDateKey(workoutDate) === dateKey;
+  }) || null;
+}
+
+function getQualityDayRecommendation(workout, environmentLevel) {
+  if (!workout) return "";
+
+  const workoutText = formatQualityWorkoutPlanText(workout.text);
+  const isTimeTrial = isQualityTimeTrialPlan(workout.text);
+  const qualityGuide = isTimeTrial
+    ? getQualityTimeTrialPaceGuide(workout.text)
+    : "목표 페이스보다 5~10초/km 여유 있게 시작하고, 세트 사이 리커버리를 충분히 가져가세요.";
+  const hasDust = String(environmentLevel.reason || "").includes("미세먼지");
+  const hasRain = String(environmentLevel.reason || "").includes("비");
+  const safetyNotes = [
+    hasDust ? "미세먼지가 좋지 않으면 마스크 착용을 권장합니다." : "",
+    hasRain ? "비가 오거나 노면이 젖어 있으면 미끄럼과 시야를 먼저 확인해 주세요." : "",
+    "호흡 답답함, 목 따가움, 기침, 가슴 불편감, 두통이 있으면 즉시 강도를 낮추거나 중단해 주세요."
+  ].filter(Boolean).join(" ");
+
+  if (environmentLevel.level === "avoid") {
+    return getFriendlyMessage([
+      `오늘은 화요 정훈일입니다. ${workoutText} 예정이지만 ${environmentLevel.reason} 영향이 있어요. 정훈 참여 의지는 존중하되, ${qualityGuide} 컨디션이 불편하면 세트 수를 1~2개 줄여도 됩니다. ${safetyNotes}`,
+      `정훈은 지키되 안전장치를 넣는 날입니다. 오늘 프로그램은 ${workoutText}이고, ${environmentLevel.reason} 때문에 초반부터 무리하지 않는 쪽이 좋겠습니다. ${qualityGuide} 불편 신호가 있으면 이지런이나 회복으로 전환해 주세요. ${safetyNotes}`,
+      `오늘 정훈 ${workoutText}는 진행하더라도 평소보다 보수적으로 잡아주세요. ${environmentLevel.reason} 조건에서는 기록 욕심보다 완주와 안전이 우선입니다. ${qualityGuide} ${safetyNotes}`
+    ], `daily-quality-avoid-${workout.date}-${environmentLevel.reason}`);
+  }
+
+  if (environmentLevel.level === "caution") {
+    return getFriendlyMessage([
+      `오늘은 화요 정훈일입니다. ${workoutText}를 진행하되 ${environmentLevel.reason}을 고려해 워밍업을 길게 하고 초반 강도를 낮춰 주세요. ${qualityGuide}`,
+      `정훈 참여하기 좋은 마음은 살리고, 조건은 조금 조절해요. 오늘은 ${workoutText}, ${environmentLevel.reason}이 있으니 리커버리를 넉넉히 가져가면 좋겠습니다.`,
+      `오늘 정훈은 ${workoutText}입니다. ${environmentLevel.reason}이 있어 평소보다 한 단계 여유 있게 시작하고, 몸 상태가 괜찮을 때만 후반에 올려주세요.`
+    ], `daily-quality-caution-${workout.date}-${environmentLevel.reason}`);
+  }
+
+  return getFriendlyMessage([
+    `오늘은 화요 정훈일입니다. ${workoutText}를 중심 훈련으로 가져가세요. ${qualityGuide}`,
+    `오늘의 핵심은 정훈입니다. ${workoutText}를 안정적으로 수행하고, 끝나면 쿨다운과 수분 보충까지 챙겨주세요.`,
+    `정훈날입니다. ${workoutText}를 무리 없이 소화하는 걸 목표로 잡고, 첫 세트는 여유 있게 들어가세요.`
+  ], `daily-quality-${workout.date}`);
+}
+
 function updateDailyRecommendation(runs) {
   const dailyRecommendation = document.getElementById("dailyRecommendation");
 
@@ -4497,10 +4548,17 @@ function updateDailyRecommendation(runs) {
   const hasQualityToday = todayRuns.some(isQualityWorkout);
   const hasEnoughToday = todayStats.totalDistance >= 5 || todayStats.totalTime >= 30 || hasQualityToday;
   const environmentLevel = getEnvironmentRecommendationLevel();
+  const todayQualityWorkout = getQualityWorkoutForDate();
+  const qualityDayRecommendation = getQualityDayRecommendation(todayQualityWorkout, environmentLevel);
   const weatherRecommendation = getWeatherLimitedRecommendation(environmentLevel);
 
   if (hasEnoughToday) {
     dailyRecommendation.innerText = getRecoveryRecommendation(todayStats, hasQualityToday);
+    return;
+  }
+
+  if (qualityDayRecommendation) {
+    dailyRecommendation.innerText = qualityDayRecommendation;
     return;
   }
 

@@ -2916,11 +2916,11 @@
     second.addEventListener("input", updateTime);
   </script>
 
-  <script type="module" src="app.js?v=20260420-pb-date-block"></script>
+  <script type="module" src="app.js?v=20260421-quality-safe-recommendation"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
-        navigator.serviceWorker.register("service-worker.js?v=20260420-pb-date-block").then((registration) => {
+        navigator.serviceWorker.register("service-worker.js?v=20260421-quality-safe-recommendation").then((registration) => {
           registration.update().catch(() => {});
         }).catch(() => {});
       });
@@ -2929,7 +2929,7 @@
     if ("caches" in window) {
       caches.keys().then((keys) => {
         keys
-          .filter((key) => key.startsWith("naviheal-runners-") && key !== "naviheal-runners-v166")
+          .filter((key) => key.startsWith("naviheal-runners-") && key !== "naviheal-runners-v167")
           .forEach((key) => caches.delete(key));
       }).catch(() => {});
     }
