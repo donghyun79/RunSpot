@@ -1617,6 +1617,15 @@
       min-width: 130px;
     }
 
+    .challenge-filter-bar {
+      margin-bottom: 12px;
+    }
+
+    .challenge-filter-bar label {
+      width: auto;
+      min-width: 160px;
+    }
+
     .run-record-table {
       min-width: 640px;
     }
@@ -2249,7 +2258,7 @@
         <section class="notice-section notice-section-accent">
           <strong>자동 반영 항목</strong>
           <ul>
-            <li>개인 PB 기록, 주간 챌린지</li>
+            <li>개인 PB 기록, 월간 조별 챌린지</li>
             <li>이달의 선수 예상 순위, 명예의 전당</li>
             <li>예상 마라톤 기록</li>
           </ul>
@@ -2541,15 +2550,30 @@
     </section>
 
     <section class="section">
-      <h2>주간 챌린지 랭킹 <span id="weeklyRankingWeekLabel" class="section-title-sub">-</span></h2>
-      <p class="section-guide">최근 7일 동안의 누적 거리와 출석 일수로 함께 달리는 분위기를 확인하세요.</p>
-      <div id="weeklyRankingStatus">로그인 후 주간 챌린지 랭킹을 확인할 수 있습니다.</div>
+      <h2>월간 조별 챌린지 랭킹 <span id="monthlyChallengeMonthLabel" class="section-title-sub">-</span></h2>
+      <p class="section-guide">이번 달 누적 거리와 출석 일수를 전체 또는 조별로 확인하세요.</p>
+      <div class="filter-bar challenge-filter-bar">
+        <label>챌린지 조
+          <select id="monthlyChallengeGroup">
+            <option value="all">전체</option>
+            <option value="A">A조</option>
+            <option value="B">B조</option>
+            <option value="C">C조</option>
+            <option value="D">D조</option>
+            <option value="E">E조</option>
+            <option value="S">S조</option>
+            <option value="unassigned">미배정</option>
+          </select>
+        </label>
+      </div>
+      <div id="weeklyRankingStatus">로그인 후 월간 조별 챌린지 랭킹을 확인할 수 있습니다.</div>
       <div class="table-wrap">
         <table>
           <thead>
             <tr>
               <th>순위</th>
               <th>이름</th>
+              <th>조</th>
               <th>누적 거리</th>
               <th>출석 일수</th>
               <th>평균 페이스</th>
@@ -2872,11 +2896,11 @@
     second.addEventListener("input", updateTime);
   </script>
 
-  <script type="module" src="app.js?v=20260420-monthly-athlete-load"></script>
+  <script type="module" src="app.js?v=20260420-monthly-group-challenge"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
-        navigator.serviceWorker.register("service-worker.js?v=20260420-monthly-athlete-load").then((registration) => {
+        navigator.serviceWorker.register("service-worker.js?v=20260420-monthly-group-challenge").then((registration) => {
           registration.update().catch(() => {});
         }).catch(() => {});
       });
@@ -2885,7 +2909,7 @@
     if ("caches" in window) {
       caches.keys().then((keys) => {
         keys
-          .filter((key) => key.startsWith("naviheal-runners-") && key !== "naviheal-runners-v158")
+          .filter((key) => key.startsWith("naviheal-runners-") && key !== "naviheal-runners-v159")
           .forEach((key) => caches.delete(key));
       }).catch(() => {});
     }

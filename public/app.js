@@ -1103,16 +1103,17 @@ function getCurrentMonthKey() {
   return getTodayDateString().slice(0, 7);
 }
 
-function getMonthWeekLabel(date = new Date()) {
-  return `${date.getMonth() + 1}월 ${Math.ceil(date.getDate() / 7)}주차`;
+function getMonthChallengeLabel(monthKey = getCurrentMonthKey()) {
+  const [, month] = monthKey.split("-");
+  return `${Number(month)}월 챌린지`;
 }
 
-function updateWeeklyRankingWeekLabel() {
-  const weeklyRankingWeekLabel = document.getElementById("weeklyRankingWeekLabel");
+function updateMonthlyChallengeMonthLabel() {
+  const monthlyChallengeMonthLabel = document.getElementById("monthlyChallengeMonthLabel");
 
-  if (!weeklyRankingWeekLabel) return;
+  if (!monthlyChallengeMonthLabel) return;
 
-  weeklyRankingWeekLabel.innerText = getMonthWeekLabel();
+  monthlyChallengeMonthLabel.innerText = getMonthChallengeLabel();
 }
 
 function getLatestFinalizedMonthKey() {
@@ -1761,6 +1762,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const loadRankingBtn = document.getElementById("loadRanking");
   const rankingDistance = document.getElementById("rankingDistance");
   const rankingType = document.getElementById("rankingType");
+  const monthlyChallengeGroup = document.getElementById("monthlyChallengeGroup");
   const monthlyGoalInput = document.getElementById("monthlyGoal");
   const saveMonthlyGoalBtn = document.getElementById("saveMonthlyGoal");
   const memberManagement = document.getElementById("memberManagement");
@@ -1806,7 +1808,7 @@ document.addEventListener("DOMContentLoaded", () => {
   runDateInput.value = getTodayDateString();
   qualityDateInput.value = getTodayDateString();
   fillQualitySetInputs("");
-  updateWeeklyRankingWeekLabel();
+  updateMonthlyChallengeMonthLabel();
 
   function isUpdateNoticeVisiblePeriod() {
     const visibleUntil = new Date(UPDATE_NOTICE_VISIBLE_UNTIL);
@@ -2440,6 +2442,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
   rankingType.addEventListener("change", () => {
     loadClubRanking(auth.currentUser);
+  });
+
+  monthlyChallengeGroup?.addEventListener("change", () => {
+    loadWeeklyRanking(auth.currentUser);
   });
 
   saveMonthlyGoalBtn.addEventListener("click", async () => {
@@ -4641,6 +4647,32 @@ function getPeriodRangeText(period) {
   return `${formatChartDate(dateToInputValue(startDate))}~${formatChartDate(dateToInputValue(endDate))}`;
 }
 
+function getMonthChallengeRangeText(monthKey = getCurrentMonthKey()) {
+  const [year, month] = monthKey.split("-").map(Number);
+  const startDate = new Date(year, month - 1, 1);
+  const endDate = new Date();
+
+  endDate.setHours(23, 59, 59, 999);
+
+  return `${formatChartDate(dateToInputValue(startDate))}~${formatChartDate(dateToInputValue(endDate))}`;
+}
+
+function getMemberChallengeGroup(name) {
+  const group = getRunningGroupByMemberName(name);
+
+  return group?.group || "미배정";
+}
+
+function getSelectedChallengeGroup() {
+  return document.getElementById("monthlyChallengeGroup")?.value || "all";
+}
+
+function getChallengeGroupLabel(groupValue) {
+  if (!groupValue || groupValue === "all") return "전체";
+  if (groupValue === "unassigned") return "미배정";
+  return `${groupValue}조`;
+}
+
 function updatePersonalBest(distance, time, sourceRun = {}) {
   PB_CATEGORIES.forEach((category) => {
     const courseRecord = getCourseRecordForDistance(distance, time, category.distance);
@@ -4819,23 +4851,27 @@ async function loadClubRanking(user) {
 async function loadWeeklyRanking(user) {
   const weeklyRankingList = document.getElementById("weeklyRankingList");
   const weeklyRankingStatus = document.getElementById("weeklyRankingStatus");
-  const weeklyPeriodText = getPeriodRangeText("week");
+  const monthKey = getCurrentMonthKey();
+  const monthlyPeriodText = getMonthChallengeRangeText(monthKey);
+  const selectedGroup = getSelectedChallengeGroup();
+  const selectedGroupLabel = getChallengeGroupLabel(selectedGroup);
 
   if (!weeklyRankingList || !weeklyRankingStatus) return;
 
   weeklyRankingList.innerHTML = "";
 
   if (!user) {
-    weeklyRankingStatus.innerText = `로그인 후 주간 챌린지 랭킹을 확인할 수 있습니다. 집계 기간: ${weeklyPeriodText}`;
+    weeklyRankingStatus.innerText = `로그인 후 월간 조별 챌린지 랭킹을 확인할 수 있습니다. 집계 기간: ${monthlyPeriodText}`;
     return;
   }
 
-  weeklyRankingStatus.innerText = "주간 챌린지 랭킹을 불러오는 중입니다...";
+  weeklyRankingStatus.innerText = "월간 조별 챌린지 랭킹을 불러오는 중입니다...";
 
   try {
     const profileNames = await loadUserProfileNames();
     const querySnapshot = await getDocsFromServer(collection(db, "runs"));
-    const startDate = getPeriodStartDate("week");
+    const [year, month] = monthKey.split("-").map(Number);
+    const startDate = new Date(year, month - 1, 1);
     const endDate = new Date();
     endDate.setHours(23, 59, 59, 999);
     const rankingsByUser = new Map();
@@ -4857,6 +4893,7 @@ async function loadWeeklyRanking(user) {
         userId,
         email: isCurrentUserRecord ? user.email || data.email || "" : data.email || "",
         name: isCurrentUserRecord ? getUserName(user) : getRankingName(data, profileNames),
+        group: getMemberChallengeGroup(isCurrentUserRecord ? getUserName(user) : getRankingName(data, profileNames)),
         totalDistance: 0,
         totalTime: 0,
         runDates: new Set()
@@ -4874,6 +4911,11 @@ async function loadWeeklyRanking(user) {
         count: entry.runDates.size,
         averagePace: entry.totalDistance ? entry.totalTime / entry.totalDistance : 0
       }))
+      .filter((entry) => {
+        if (selectedGroup === "all") return true;
+        if (selectedGroup === "unassigned") return entry.group === "미배정";
+        return entry.group === selectedGroup;
+      })
       .sort((a, b) => {
         if (b.totalDistance !== a.totalDistance) return b.totalDistance - a.totalDistance;
         if (b.count !== a.count) return b.count - a.count;
@@ -4881,7 +4923,7 @@ async function loadWeeklyRanking(user) {
       });
 
     if (!rankings.length) {
-      weeklyRankingStatus.innerText = `${weeklyPeriodText} 주간 챌린지 기록이 아직 없습니다.`;
+      weeklyRankingStatus.innerText = `${monthlyPeriodText} ${selectedGroupLabel} 월간 챌린지 기록이 아직 없습니다.`;
       return;
     }
 
@@ -4896,6 +4938,7 @@ async function loadWeeklyRanking(user) {
       [
         `${index + 1}${isMe ? " (나)" : ""}`,
         entry.name,
+        entry.group === "미배정" ? "미배정" : `${entry.group}조`,
         formatMileage(entry.totalDistance),
         `${entry.count}일`,
         entry.averagePace ? formatPace(entry.averagePace) : "-"
@@ -4912,13 +4955,13 @@ async function loadWeeklyRanking(user) {
 
     if (myRankIndex >= 0) {
       const myEntry = rankings[myRankIndex];
-      weeklyRankingStatus.innerText = `${weeklyPeriodText} 기준 내 순위: ${myRankIndex + 1}위 / ${rankings.length}명, ${formatMileage(myEntry.totalDistance)} · ${myEntry.count}일 출석`;
+      weeklyRankingStatus.innerText = `${monthlyPeriodText} ${selectedGroupLabel} 기준 내 순위: ${myRankIndex + 1}위 / ${rankings.length}명, ${formatMileage(myEntry.totalDistance)} · ${myEntry.count}일 출석`;
     } else {
-      weeklyRankingStatus.innerText = `${weeklyPeriodText} 기준 ${rankings.length}명이 챌린지에 참여 중입니다. 첫 기록을 남겨보세요.`;
+      weeklyRankingStatus.innerText = `${monthlyPeriodText} ${selectedGroupLabel} 기준 ${rankings.length}명이 챌린지에 참여 중입니다. 이번 달 첫 기록을 남겨보세요.`;
     }
   } catch (e) {
     console.error(e);
-    weeklyRankingStatus.innerText = "주간 챌린지 랭킹을 불러오지 못했습니다. Firestore 보안 규칙에서 전체 기록 읽기가 허용되어 있는지 확인해주세요.";
+    weeklyRankingStatus.innerText = "월간 조별 챌린지 랭킹을 불러오지 못했습니다. Firestore 보안 규칙에서 전체 기록 읽기가 허용되어 있는지 확인해주세요.";
   }
 }
 
@@ -5542,7 +5585,7 @@ function clearDashboard() {
   document.getElementById("rankingList").innerHTML = "";
   document.getElementById("rankingStatus").innerText = "";
   document.getElementById("weeklyRankingList").innerHTML = "";
-  document.getElementById("weeklyRankingStatus").innerText = `로그인 후 주간 챌린지 랭킹을 확인할 수 있습니다. 집계 기간: ${getPeriodRangeText("week")}`;
+  document.getElementById("weeklyRankingStatus").innerText = `로그인 후 월간 조별 챌린지 랭킹을 확인할 수 있습니다. 집계 기간: ${getMonthChallengeRangeText()}`;
   document.getElementById("monthlyAthleteList").innerHTML = "";
   document.getElementById("monthlyAthleteStatus").innerText = "로그인 후 이달의 선수 예상을 확인할 수 있습니다.";
   document.getElementById("athleteHallSummaryList").innerHTML = "";
