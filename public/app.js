@@ -124,8 +124,6 @@ const RUNNING_GROUP_STANDARD_XLSX_PATH = "assets/나빌러닝 조별기준.xlsx"
 const RUNNING_GROUP_STANDARD_NOTE = "조편성 조정을 원하시면 코치와 상의해 주세요.";
 const OFFICIAL_TRAINING_LABEL = "나빌러닝 정훈";
 const QUALITY_MAKEUP_CREDIT = 0.7;
-const UPDATE_NOTICE_VERSION = "20260419-record-input-notice-week";
-const UPDATE_NOTICE_VISIBLE_UNTIL = "2026-04-26T23:59:59+09:00";
 let runningGroupStandardsLoadedFromXlsx = false;
 const QUALITY_MONTHLY_SCHEDULE = {
   4: {
@@ -1743,6 +1741,7 @@ function resetPersonalBest() {
 document.addEventListener("DOMContentLoaded", () => {
   const updateModal = document.getElementById("updateModal");
   const closeUpdateModalBtn = document.getElementById("closeUpdateModal");
+  const openUpdateModalBtn = document.getElementById("openUpdateModal");
   const email = document.getElementById("email");
   const name = document.getElementById("name");
   const password = document.getElementById("password");
@@ -1812,14 +1811,8 @@ document.addEventListener("DOMContentLoaded", () => {
   fillQualitySetInputs("");
   updateMonthlyChallengeMonthLabel();
 
-  function isUpdateNoticeVisiblePeriod() {
-    const visibleUntil = new Date(UPDATE_NOTICE_VISIBLE_UNTIL);
-
-    return !Number.isNaN(visibleUntil.getTime()) && new Date() <= visibleUntil;
-  }
-
-  function showUpdateNotice() {
-    if (!updateModal || !isUpdateNoticeVisiblePeriod()) return;
+  function openUpdateNotice() {
+    if (!updateModal) return;
 
     updateModal.classList.remove("hidden");
     closeUpdateModalBtn?.focus();
@@ -1832,6 +1825,13 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   closeUpdateModalBtn?.addEventListener("click", closeUpdateNotice);
+  openUpdateModalBtn?.addEventListener("click", openUpdateNotice);
+  document.addEventListener("click", (event) => {
+    if (event.target.closest?.("#openUpdateModal")) {
+      event.preventDefault();
+      openUpdateNotice();
+    }
+  });
   updateModal?.addEventListener("click", (event) => {
     if (event.target === updateModal) closeUpdateNotice();
   });
@@ -1840,7 +1840,6 @@ document.addEventListener("DOMContentLoaded", () => {
       closeUpdateNotice();
     }
   });
-  showUpdateNotice();
 
   function setAuthenticatedView(isLoggedIn) {
     document.body.classList.toggle("is-authenticated", isLoggedIn);
@@ -2008,6 +2007,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     resultDiv.classList.add("hidden");
     resultDiv.innerHTML = "";
+    drawChart(latestRuns);
   });
 
   signupBtn.addEventListener("click", async () => {
@@ -6447,6 +6447,128 @@ function generateTrainingPlan(pb, targetTime, required10K, requiredHalf) {
   return { lines, weeklyMileage };
 }
 
+function getRollingAverageData(values, windowSize = 5) {
+  return values.map((value, index) => {
+    if (!Number.isFinite(value)) return null;
+
+    const start = Math.max(0, index - windowSize + 1);
+    const slice = values.slice(start, index + 1).filter(Number.isFinite);
+
+    if (!slice.length) return null;
+
+    return Number((slice.reduce((total, item) => total + item, 0) / slice.length).toFixed(2));
+  });
+}
+
+function getPaceTrendText(dailyChartData) {
+  if (dailyChartData.length < 3) {
+    return "기록이 조금 더 쌓이면 페이스 흐름을 더 정확히 읽을 수 있습니다.";
+  }
+
+  const recent = dailyChartData.slice(-3);
+  const previous = dailyChartData.slice(Math.max(0, dailyChartData.length - 6), -3);
+
+  if (!previous.length) {
+    return "최근 기록을 기준으로 페이스 기준선을 만들어가는 중입니다.";
+  }
+
+  const recentPace = recent.reduce((total, day) => total + day.pace, 0) / recent.length;
+  const previousPace = previous.reduce((total, day) => total + day.pace, 0) / previous.length;
+  const diffSeconds = Math.round((recentPace - previousPace) * 60);
+
+  if (diffSeconds <= -10) {
+    return `최근 3회 평균이 이전 흐름보다 ${Math.abs(diffSeconds)}초/km 빨라졌습니다. 좋은 상승 흐름입니다.`;
+  }
+
+  if (diffSeconds >= 15) {
+    return `최근 3회 평균이 이전 흐름보다 ${diffSeconds}초/km 느려졌습니다. 거리 증가나 피로 누적 여부를 확인해 주세요.`;
+  }
+
+  return "최근 페이스는 큰 흔들림 없이 유지되고 있습니다. 거리와 회복 리듬을 함께 관리해 주세요.";
+}
+
+function getChartCoachNote(dailyChartData, averagePace, totalDistance) {
+  if (!dailyChartData.length) {
+    return "";
+  }
+
+  const trendText = getPaceTrendText(dailyChartData);
+  const recentDistance = dailyChartData.slice(-7).reduce((total, day) => total + day.distance, 0);
+  const lastDay = dailyChartData[dailyChartData.length - 1];
+  const notes = [trendText];
+
+  if (monthlyGoalKm) {
+    const monthMileage = sumMileageByMonth(latestRuns, getCurrentMonthKey());
+    const progress = Math.round((monthMileage / monthlyGoalKm) * 100);
+
+    if (progress >= 100) {
+      notes.push("월간 목표는 이미 달성했습니다. 남은 기간은 무리보다 유지와 회복이 더 중요합니다.");
+    } else if (progress < 50 && new Date().getDate() >= 16) {
+      notes.push("월 중반 이후 목표 대비 누적 거리가 낮습니다. 짧은 조깅을 자주 넣는 전략이 좋습니다.");
+    }
+  }
+
+  if (dailyChartData.length >= 2 && lastDay.distance >= 20 && lastDay.pace > averagePace + 0.25) {
+    notes.push("최근 장거리 후 페이스가 느려진 흐름이 보여 회복주를 한 번 넣으면 좋겠습니다.");
+  } else if (recentDistance >= 60) {
+    notes.push("최근 누적 거리가 높은 편입니다. 컨디션이 무겁다면 강도보다 회복을 우선해 주세요.");
+  } else if (totalDistance < 20 && dailyChartData.length >= 2) {
+    notes.push("기록 빈도를 조금만 더 늘리면 추세선의 신뢰도가 좋아집니다.");
+  }
+
+  return notes.join(" ");
+}
+
+function renderChartSummary(dailyChartData, averagePace, targetPace) {
+  const summary = document.getElementById("chartSummary");
+  const coachNote = document.getElementById("chartCoachNote");
+
+  if (!summary) return;
+
+  if (!dailyChartData.length) {
+    summary.innerHTML = "";
+    coachNote?.classList.add("hidden");
+    if (coachNote) coachNote.innerText = "";
+    return;
+  }
+
+  const totalDistance = dailyChartData.reduce((total, day) => total + day.run.distance, 0);
+  const recent = dailyChartData.slice(-5);
+  const recentDistance = recent.reduce((total, day) => total + day.run.distance, 0);
+  const recentTime = recent.reduce((total, day) => total + day.run.time, 0);
+  const recentPace = recentDistance > 0 ? recentTime / recentDistance : 0;
+  const monthMileage = sumMileageByMonth(latestRuns, getCurrentMonthKey());
+  const goalText = monthlyGoalKm
+    ? `${Math.min(Math.round((monthMileage / monthlyGoalKm) * 100), 999)}%`
+    : "목표 없음";
+  const goalHint = monthlyGoalKm
+    ? `${formatMileage(monthMileage)} / ${formatMileage(monthlyGoalKm)}`
+    : "월간 목표를 입력하면 진행률 표시";
+  const targetText = targetPace ? formatPace(targetPace) : "목표 없음";
+  const targetHint = targetPace ? "마라톤 목표 페이스" : "목표 설정에서 선택 가능";
+
+  const cards = [
+    { label: "선택 기록", value: formatMileage(totalDistance), hint: `${dailyChartData.length}일 운동` },
+    { label: "평균 페이스", value: formatPace(averagePace), hint: "선택 기간 전체" },
+    { label: "최근 5회", value: recentPace ? formatPace(recentPace) : "-", hint: `최근 ${formatMileage(recentDistance)}` },
+    { label: "목표 페이스", value: targetText, hint: targetHint },
+    { label: "월 목표", value: goalText, hint: goalHint }
+  ];
+
+  summary.innerHTML = cards.map((card) => `
+    <div class="chart-summary-card">
+      <div class="chart-summary-label">${card.label}</div>
+      <div class="chart-summary-value">${card.value}</div>
+      <div class="chart-summary-hint">${card.hint}</div>
+    </div>
+  `).join("");
+
+  if (coachNote) {
+    coachNote.innerText = getChartCoachNote(dailyChartData, averagePace, totalDistance);
+    coachNote.classList.remove("hidden");
+  }
+}
+
 function drawChart(runs) {
   const filtered = runs.filter((run) => {
     const matchesDistance = !filterDistance
@@ -6489,14 +6611,19 @@ function drawChart(runs) {
   const totalTime = dailyChartData.reduce((total, day) => total + day.run.time, 0);
   const averagePace = totalDistance > 0 ? totalTime / totalDistance : 0;
   const averagePaceData = dailyChartData.map(() => Number(averagePace.toFixed(2)));
+  const rollingPaceData = getRollingAverageData(paceData, 5);
+  const selectedTargetTime = Number(document.getElementById("targetTime")?.value) || 0;
+  const targetPace = selectedTargetTime ? getMarathonPace(selectedTargetTime) : 0;
+  const targetPaceData = targetPace ? dailyChartData.map(() => Number(targetPace.toFixed(2))) : [];
   const ctx = document.getElementById("runChart");
   const chartEmpty = document.getElementById("chartEmpty");
   const isMobileChart = window.matchMedia("(max-width: 520px)").matches;
 
-  if (!ctx || !window.Chart) return;
   if (chartEmpty) {
     chartEmpty.classList.toggle("hidden", dailyChartData.length > 0);
   }
+  renderChartSummary(dailyChartData, averagePace, targetPace);
+  if (!ctx || !window.Chart) return;
   if (chart) chart.destroy();
 
   chart = new Chart(ctx, {
@@ -6533,8 +6660,31 @@ function drawChart(runs) {
           borderWidth: 2,
           pointRadius: 0,
           pointHoverRadius: 0
+        },
+        {
+          type: "line",
+          label: "최근 5회 평균",
+          data: rollingPaceData,
+          yAxisID: "pace",
+          borderColor: "rgba(42, 138, 78, 0.95)",
+          borderWidth: 2,
+          pointRadius: 0,
+          pointHoverRadius: 0,
+          tension: 0.2
+        },
+        {
+          type: "line",
+          label: "목표 페이스",
+          data: targetPaceData,
+          yAxisID: "pace",
+          borderColor: "rgba(127, 86, 217, 0.9)",
+          borderDash: [3, 5],
+          borderWidth: 2,
+          pointRadius: 0,
+          pointHoverRadius: 0,
+          hidden: !targetPace
         }
-      ]
+      ].filter((dataset) => dataset.label !== "목표 페이스" || targetPace)
     },
     options: {
       interaction: {
@@ -6629,6 +6779,14 @@ function drawChart(runs) {
 
               if (context.dataset.label === "평균페이스") {
                 return `평균 페이스: ${formatPace(averagePace)}`;
+              }
+
+              if (context.dataset.label === "최근 5회 평균") {
+                return `최근 5회 평균: ${formatPace(context.parsed.y)}`;
+              }
+
+              if (context.dataset.label === "목표 페이스") {
+                return `목표 페이스: ${formatPace(targetPace)}`;
               }
 
               return `페이스: ${formatPace(run.time / run.distance)}`;

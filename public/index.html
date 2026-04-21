@@ -564,6 +564,26 @@
       grid-column: 1 / -1;
     }
 
+    .suggestion-guide-panel {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+      margin: 12px 0;
+      background: var(--brand-soft);
+    }
+
+    .suggestion-guide-panel p {
+      margin: 0;
+      color: var(--brand-dark);
+      font-weight: 800;
+    }
+
+    .suggestion-guide-panel button {
+      flex: 0 0 auto;
+    }
+
     .quality-grid {
       display: grid;
       grid-template-columns: minmax(0, 1fr) minmax(280px, 0.9fr);
@@ -1654,6 +1674,56 @@
       padding: 10px;
     }
 
+    .chart-summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .chart-summary-card {
+      min-width: 0;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-left: 4px solid var(--brand);
+      border-radius: 8px;
+      background: var(--surface);
+    }
+
+    .chart-summary-label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .chart-summary-value {
+      margin-top: 4px;
+      color: var(--brand-dark);
+      font-size: 18px;
+      font-weight: 900;
+      line-height: 1.2;
+    }
+
+    .chart-summary-hint {
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1.3;
+    }
+
+    .chart-coach-note {
+      margin: 12px 0 0;
+      padding: 12px;
+      border: 1px solid #f1cc68;
+      border-left: 4px solid var(--accent);
+      border-radius: 8px;
+      background: var(--accent-soft);
+      color: var(--accent-dark);
+      font-weight: 800;
+      line-height: 1.45;
+    }
+
     .chart-empty {
       margin: 10px 0 0;
       color: var(--muted);
@@ -1667,24 +1737,24 @@
       z-index: 1000;
       display: grid;
       place-items: center;
-      padding: 18px;
+      padding: 8px;
       background: rgba(23, 32, 51, 0.46);
     }
 
     .update-modal-panel {
-      width: min(520px, 100%);
-      max-height: min(720px, calc(100svh - 36px));
-      overflow-y: auto;
-      padding: 22px;
+      width: min(700px, 100%);
+      max-height: calc(100svh - 16px);
+      overflow: hidden;
+      padding: 18px 20px;
       border: 1px solid var(--line);
-      border-top: 5px solid var(--accent);
+      border-top: 4px solid var(--accent);
       border-radius: 8px;
       background: var(--surface);
       box-shadow: 0 24px 60px rgba(23, 32, 51, 0.22);
     }
 
     .update-modal-kicker {
-      margin: 0 0 6px;
+      margin: 0 0 4px;
       color: var(--accent-dark);
       font-size: 13px;
       font-weight: 900;
@@ -1698,6 +1768,7 @@
       color: var(--brand-dark);
       font-size: 24px;
       font-weight: 900;
+      line-height: 1.15;
     }
 
     .update-modal-title::before,
@@ -1706,10 +1777,11 @@
     }
 
     .update-modal-date {
-      margin: 7px 0 16px;
+      margin: 6px 0 11px;
       color: var(--muted);
       font-size: 13px;
       font-weight: 800;
+      line-height: 1.25;
     }
 
     .update-modal-list {
@@ -1731,40 +1803,45 @@
     }
 
     .update-modal-lead {
-      margin: 0 0 14px;
+      margin: 0 0 12px;
       color: var(--text);
+      font-size: 14px;
       font-weight: 800;
-      line-height: 1.55;
+      line-height: 1.42;
     }
 
     .notice-section-grid {
       display: grid;
-      gap: 10px;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 9px;
     }
 
     .notice-section {
-      padding: 12px 13px;
+      padding: 10px 11px;
       border: 1px solid var(--line);
-      border-left: 5px solid var(--brand);
+      border-left: 4px solid var(--brand);
       border-radius: 8px;
       background: var(--brand-soft);
     }
 
     .notice-section strong {
       display: block;
-      margin-bottom: 7px;
+      margin-bottom: 5px;
       color: var(--brand-dark);
-      font-size: 15px;
+      font-size: 14px;
       font-weight: 900;
+      line-height: 1.2;
     }
 
     .notice-section ul {
       display: grid;
-      gap: 4px;
+      gap: 3px;
       margin: 0;
-      padding-left: 18px;
+      padding-left: 17px;
       color: var(--text);
+      font-size: 13px;
       font-weight: 800;
+      line-height: 1.34;
     }
 
     .notice-section-accent {
@@ -1777,26 +1854,116 @@
     }
 
     .update-modal-note {
-      margin: 14px 0 0;
+      margin: 11px 0 0;
       color: var(--muted);
       font-size: 13px;
       font-weight: 700;
+      line-height: 1.35;
     }
 
     .update-modal-actions {
       display: flex;
       justify-content: flex-end;
       align-items: center;
-      margin-top: 18px;
+      margin-top: 12px;
+    }
+
+    .update-modal-actions button {
+      min-height: 34px;
+      padding: 7px 16px;
+      font-size: 14px;
     }
 
     @media (max-width: 760px) {
       .update-modal-panel {
-        padding: 18px;
+        width: min(430px, 100%);
+        padding: 10px;
       }
 
       .update-modal-title {
-        font-size: 21px;
+        font-size: 17px;
+      }
+
+      .notice-section-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 5px;
+      }
+
+      .update-modal-date {
+        margin-bottom: 5px;
+      }
+
+      .update-modal-lead {
+        margin-bottom: 6px;
+        font-size: 11px;
+      }
+
+      .notice-section {
+        padding: 6px 7px;
+      }
+
+      .notice-section strong,
+      .notice-section ul {
+        font-size: 10px;
+        line-height: 1.22;
+      }
+
+      .update-modal-note {
+        margin-top: 5px;
+      }
+
+      .update-modal-actions {
+        margin-top: 5px;
+      }
+
+      @media (max-height: 680px) {
+        .update-modal {
+          padding: 6px;
+        }
+
+        .update-modal-panel {
+          max-height: calc(100svh - 12px);
+          padding: 8px;
+          border-top-width: 4px;
+        }
+
+        .update-modal-kicker {
+          margin-bottom: 2px;
+          font-size: 11px;
+        }
+
+        .update-modal-title {
+          font-size: 16px;
+        }
+
+        .update-modal-date,
+        .update-modal-lead,
+        .update-modal-note {
+          font-size: 11px;
+        }
+
+        .notice-section-grid {
+          gap: 4px;
+        }
+
+        .notice-section {
+          padding: 5px 6px;
+        }
+
+        .notice-section strong,
+        .notice-section ul {
+          font-size: 9px;
+          line-height: 1.18;
+        }
+
+        .notice-section strong {
+          margin-bottom: 2px;
+        }
+
+        .update-modal-actions button {
+          min-height: 26px;
+          padding: 3px 10px;
+        }
       }
 
       .auth-view {
@@ -2080,6 +2247,17 @@
       #runChart {
         padding: 6px;
       }
+      .chart-summary-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+      }
+      .chart-summary-card,
+      .chart-coach-note {
+        padding: 10px;
+      }
+      .chart-summary-value {
+        font-size: 16px;
+      }
       .member-action-cell {
         min-width: 96px;
       }
@@ -2248,49 +2426,45 @@
     <section class="update-modal-panel">
       <p class="update-modal-kicker">기록 입력 안내</p>
       <h2 id="updateModalTitle" class="update-modal-title">나빌러닝 기록 입력 안내</h2>
-      <p class="update-modal-date">이달의 선수 · 명예의 전당 · PB 기록 · 조별 마일리지 반영</p>
-      <p class="update-modal-lead">안녕하세요. 회원님들의 훈련 데이터를 함께 공유하고, 주요 기록에 정확히 반영하기 위해 아래 입력을 부탁드립니다.</p>
+      <p class="update-modal-date">이달의 선수 · PB · 명예의 전당 · 조별 마일리지 반영</p>
+      <p class="update-modal-lead">주요 기록에 정확히 반영되도록 아래 항목 입력을 부탁드립니다.</p>
       <div class="notice-section-grid">
         <section class="notice-section">
-          <strong>1. 훈련 / 대회 기록</strong>
+          <strong>훈련 / 대회</strong>
           <ul>
-            <li>러닝 후 마이트레이닝 화면에서 입력</li>
-            <li>운동 날짜, 구분, 거리, 시간 입력</li>
-            <li>대회 참가 시 대회명 입력</li>
+            <li>날짜, 구분, 거리, 시간 입력</li>
+            <li>대회명 입력</li>
           </ul>
         </section>
         <section class="notice-section">
-          <strong>2. 화요 정훈 기록</strong>
+          <strong>화요 정훈</strong>
           <ul>
-            <li>화요 정훈 화면에서 입력</li>
-            <li>정훈일 참여 기록 입력</li>
-            <li>같은 달 보강훈련 완료 기록 입력</li>
+            <li>참여 기록 입력</li>
+            <li>보강훈련 완료 입력</li>
           </ul>
         </section>
         <section class="notice-section">
-          <strong>3. 월간 목표 거리</strong>
+          <strong>월간 목표</strong>
           <ul>
-            <li>매월 초 월간 목표 거리 입력</li>
+            <li>매월 초 목표 거리 입력</li>
           </ul>
         </section>
         <section class="notice-section notice-section-accent">
-          <strong>자동 반영 항목</strong>
+          <strong>자동 반영</strong>
           <ul>
-            <li>개인 PB 기록, 월간 조별 챌린지</li>
-            <li>이달의 선수 예상 순위, 명예의 전당</li>
-            <li>예상 마라톤 기록</li>
+            <li>PB, 조별 챌린지</li>
+            <li>이달의 선수, 명예의 전당</li>
           </ul>
         </section>
         <section class="notice-section notice-section-accent">
-          <strong>꼭 확인해주세요</strong>
+          <strong>확인 사항</strong>
           <ul>
-            <li>실제 운동 날짜 입력</li>
-            <li>대회는 대회명 입력</li>
-            <li>같은 날 여러 번 뛰어도 출석은 1일 인정</li>
+            <li>실제 운동 날짜, 대회명 필수</li>
+            <li>같은 날 출석은 1일 인정</li>
           </ul>
         </section>
       </div>
-      <p class="update-modal-note"><strong>기록은 성장의 시작입니다.</strong><br>꾸준한 입력 부탁드립니다.</p>
+      <p class="update-modal-note"><strong>기록은 성장의 시작입니다.</strong> 꾸준한 입력 부탁드립니다.</p>
       <div class="update-modal-actions">
         <button id="closeUpdateModal" type="button">확인</button>
       </div>
@@ -2701,7 +2875,9 @@
           <option value="42.195">Full</option>
         </select>
       </div>
+      <div id="chartSummary" class="chart-summary-grid"></div>
       <canvas id="runChart" width="400" height="200"></canvas>
+      <p id="chartCoachNote" class="chart-coach-note hidden"></p>
       <p id="chartEmpty" class="chart-empty hidden">선택한 조건의 기록이 없습니다.</p>
     </section>
 
@@ -2861,6 +3037,10 @@
     <section id="suggestionSection" class="section">
       <h2>제안</h2>
       <p class="section-guide">나빌 회원님의 소중한 의견은 페이서에게 파워젤과 같은 에너지가 됩니다! 😊</p>
+      <div class="form-panel suggestion-guide-panel">
+        <p>기록 입력 방법이 궁금하시면 안내 팝업을 다시 확인할 수 있습니다.</p>
+        <button id="openUpdateModal" type="button" class="button-secondary">입력방법 보기</button>
+      </div>
       <div class="form-panel suggestion-form">
         <label>유형
           <select id="suggestionType">
@@ -2917,11 +3097,11 @@
     second.addEventListener("input", updateTime);
   </script>
 
-  <script type="module" src="app.js?v=20260421-mileage-bonus-5"></script>
+  <script type="module" src="app.js?v=20260421-chart-coach-summary"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
-        navigator.serviceWorker.register("service-worker.js?v=20260421-mileage-bonus-5").then((registration) => {
+        navigator.serviceWorker.register("service-worker.js?v=20260421-chart-coach-summary").then((registration) => {
           registration.update().catch(() => {});
         }).catch(() => {});
       });
@@ -2930,7 +3110,7 @@
     if ("caches" in window) {
       caches.keys().then((keys) => {
         keys
-          .filter((key) => key.startsWith("naviheal-runners-") && key !== "naviheal-runners-v170")
+          .filter((key) => key.startsWith("naviheal-runners-") && key !== "naviheal-runners-v173")
           .forEach((key) => caches.delete(key));
       }).catch(() => {});
     }
