@@ -129,6 +129,11 @@ const RUNNING_GROUP_STANDARD_NOTE = "조편성 조정을 원하시면 코치와 
 const OFFICIAL_TRAINING_LABEL = "나빌러닝 정훈";
 const QUALITY_MAKEUP_CREDIT = 0.7;
 let runningGroupStandardsLoadedFromXlsx = false;
+const QUALITY_NOTICE_VOTE_OPTIONS = [
+  { value: "attend", label: "훈련 참석" },
+  { value: "absent", label: "불참" },
+  { value: "meal", label: "참석(훈련 후 식사 포함)" }
+];
 const QUALITY_MONTHLY_SCHEDULE = {
   4: {
     title: "4월 정훈 - 기초 지구력 + 페이스 적응",
@@ -2993,9 +2998,9 @@ function getQualityNoticeWorkout(referenceDate = new Date()) {
     const noticeStart = new Date(workout.sortDate);
     const noticeEnd = new Date(workout.sortDate);
 
-    noticeStart.setDate(noticeStart.getDate() - 6);
-    noticeStart.setHours(0, 0, 0, 0);
-    noticeEnd.setHours(23, 59, 59, 999);
+    noticeStart.setDate(noticeStart.getDate() - 7);
+    noticeStart.setHours(20, 30, 0, 0);
+    noticeEnd.setHours(20, 29, 59, 999);
 
     return now >= noticeStart && now <= noticeEnd;
   }) || null;
@@ -3024,8 +3029,135 @@ function createQualityNoticeArticle(workout, userGroup) {
     '<div class="quality-plan-meta">준비물: 러닝화, 개인 음료, 워치. 워밍업 후 첫 세트는 무리하지 않고 들어가 주세요.</div>',
     '<div class="quality-plan-meta">참석이 어려우면 같은 달 안에 같은 프로그램으로 보완 입력할 수 있습니다.</div>'
   ].filter(Boolean).join("");
+  appendQualityNoticeVotePanel(article, workout);
 
   return article;
+}
+
+function getQualityWorkoutKey(workout) {
+  const workoutDate = workout?.sortDate || parseQualityWorkoutDate(workout?.date);
+
+  return workoutDate ? dateToInputValue(workoutDate) : String(workout?.date || "").replace(/[^0-9]/g, "");
+}
+
+function appendQualityNoticeVotePanel(article, workout) {
+  const panel = document.createElement("div");
+  const actions = document.createElement("div");
+  const result = document.createElement("div");
+
+  panel.className = "quality-vote-panel";
+  actions.className = "quality-vote-actions";
+  result.className = "quality-vote-result";
+  result.innerText = "참여 현황을 불러오는 중입니다.";
+
+  QUALITY_NOTICE_VOTE_OPTIONS.forEach((option) => {
+    const button = document.createElement("button");
+
+    button.type = "button";
+    button.className = "quality-vote-button";
+    button.dataset.vote = option.value;
+    button.innerText = option.label;
+    button.addEventListener("click", () => saveQualityNoticeVote(workout, option.value, article));
+    actions.appendChild(button);
+  });
+
+  panel.append(actions, result);
+  article.appendChild(panel);
+  loadQualityNoticeVotes(workout, article);
+}
+
+async function saveQualityNoticeVote(workout, voteValue, article) {
+  const user = auth.currentUser;
+
+  if (!user) {
+    alert("로그인 후 참석 여부를 선택할 수 있습니다.");
+    return;
+  }
+
+  const voteOption = QUALITY_NOTICE_VOTE_OPTIONS.find((option) => option.value === voteValue);
+
+  if (!voteOption) return;
+
+  const workoutKey = getQualityWorkoutKey(workout);
+
+  try {
+    await setDoc(doc(db, "qualityVotes", `${workoutKey}_${user.uid}`), {
+      workoutKey,
+      workoutDate: workoutKey,
+      workoutLabel: `${workout.date} ${formatQualityWorkoutPlanText(workout.text)}`,
+      vote: voteValue,
+      voteLabel: voteOption.label,
+      userId: user.uid,
+      name: getUserName(user),
+      email: user.email || "",
+      updatedAt: new Date()
+    }, { merge: true });
+
+    await loadQualityNoticeVotes(workout, article);
+  } catch (e) {
+    console.error(e);
+    alert("참석 여부 저장에 실패했습니다. Firestore 권한을 확인해주세요.");
+  }
+}
+
+async function loadQualityNoticeVotes(workout, article) {
+  const result = article.querySelector(".quality-vote-result");
+  const buttons = Array.from(article.querySelectorAll(".quality-vote-button"));
+  const user = auth.currentUser;
+
+  if (!result) return;
+
+  const workoutKey = getQualityWorkoutKey(workout);
+
+  try {
+    const voteQuery = query(collection(db, "qualityVotes"), where("workoutKey", "==", workoutKey));
+    const querySnapshot = await getDocsFromServer(voteQuery);
+    const votes = [];
+
+    querySnapshot.forEach((snapshotDoc) => {
+      const data = snapshotDoc.data();
+      votes.push({
+        vote: data.vote || "",
+        name: data.name || data.email || "이름 없음",
+        userId: data.userId || "",
+        updatedAt: data.updatedAt || null
+      });
+    });
+
+    const myVote = user ? votes.find((vote) => vote.userId === user.uid) : null;
+
+    buttons.forEach((button) => {
+      button.classList.toggle("active", button.dataset.vote === myVote?.vote);
+    });
+
+    renderQualityNoticeVoteResult(result, votes);
+  } catch (e) {
+    console.error(e);
+    result.innerText = "참여 현황을 불러오지 못했습니다. Firestore 권한을 확인해주세요.";
+  }
+}
+
+function renderQualityNoticeVoteResult(result, votes) {
+  result.innerHTML = "";
+
+  const summary = document.createElement("div");
+  const summaryStrong = document.createElement("strong");
+
+  summaryStrong.innerText = "참여 현황";
+  summary.append(summaryStrong, ` 총 ${votes.length}명 응답`);
+  result.appendChild(summary);
+
+  QUALITY_NOTICE_VOTE_OPTIONS.forEach((option) => {
+    const names = votes
+      .filter((vote) => vote.vote === option.value)
+      .map((vote) => vote.name);
+    const row = document.createElement("div");
+    const title = document.createElement("strong");
+
+    title.innerText = option.label;
+    row.append(title, ` ${names.length}명${names.length ? `: ${names.join(", ")}` : ""}`);
+    result.appendChild(row);
+  });
 }
 
 function normalizeMemberName(name) {

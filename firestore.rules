@@ -213,6 +213,40 @@ service cloud.firestore {
       && request.resource.data.updatedBy == request.auth.token.email;
     }
 
+    function validQualityVoteShape() {
+      return request.resource.data.keys().hasOnly([
+        "workoutKey",
+        "workoutDate",
+        "workoutLabel",
+        "vote",
+        "voteLabel",
+        "userId",
+        "name",
+        "email",
+        "updatedAt"
+      ])
+      && request.resource.data.workoutKey is string
+      && request.resource.data.workoutKey.size() >= 8
+      && request.resource.data.workoutKey.size() <= 10
+      && request.resource.data.workoutDate is string
+      && request.resource.data.workoutLabel is string
+      && request.resource.data.workoutLabel.size() > 0
+      && request.resource.data.workoutLabel.size() <= 80
+      && request.resource.data.vote in ["attend", "absent", "meal"]
+      && request.resource.data.voteLabel in ["훈련 참석", "불참", "참석(훈련 후 식사 포함)"]
+      && request.resource.data.userId is string
+      && request.resource.data.name is string
+      && request.resource.data.name.size() > 0
+      && request.resource.data.name.size() <= 40
+      && request.resource.data.email is string;
+    }
+
+    function validQualityVoteData() {
+      return validQualityVoteShape()
+      && request.resource.data.userId == request.auth.uid
+      && request.resource.data.email == request.auth.token.email;
+    }
+
     match /settings/runningGroupStandards {
       allow read: if approvedUser();
       allow create, update: if isHost() && validRunningGroupStandardsData();
@@ -244,6 +278,15 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    match /qualityVotes/{voteId} {
+      allow read: if approvedUser();
+      allow create: if approvedUser() && validQualityVoteData();
+      allow update: if approvedUser()
+        && resource.data.userId == request.auth.uid
+        && validQualityVoteData();
+      allow delete: if false;
+    }
+
     match /users/{userId} {
       allow get: if isOwner(userId) || isHost() || approvedUser();
       allow list: if isHost() || approvedUser();
@@ -260,4 +303,3 @@ service cloud.firestore {
     }
   }
 }
-

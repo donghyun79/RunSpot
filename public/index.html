@@ -658,6 +658,43 @@
       background: #fff8de;
     }
 
+    .quality-vote-panel {
+      display: grid;
+      gap: 8px;
+      margin-top: 11px;
+      padding-top: 10px;
+      border-top: 1px solid rgba(151, 111, 22, 0.24);
+    }
+
+    .quality-vote-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .quality-vote-button {
+      min-height: 34px;
+      padding: 7px 10px;
+      border-radius: 8px;
+      background: var(--surface);
+      color: var(--text);
+      box-shadow: none;
+      font-size: 13px;
+    }
+
+    .quality-vote-button.active {
+      background: var(--brand);
+      color: #fff;
+    }
+
+    .quality-vote-result {
+      display: grid;
+      gap: 4px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
     .quality-plan-title {
       margin-bottom: 5px;
       color: var(--brand-dark);
@@ -3108,11 +3145,11 @@
     second.addEventListener("input", updateTime);
   </script>
 
-  <script type="module" src="app.js?v=20260421-quality-notice"></script>
+  <script type="module" src="app.js?v=20260421-quality-notice-time"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
-        navigator.serviceWorker.register("service-worker.js?v=20260421-quality-notice").then((registration) => {
+        navigator.serviceWorker.register("service-worker.js?v=20260421-quality-notice-time").then((registration) => {
           registration.update().catch(() => {});
         }).catch(() => {});
       });
@@ -3121,7 +3158,7 @@
     if ("caches" in window) {
       caches.keys().then((keys) => {
         keys
-          .filter((key) => key.startsWith("naviheal-runners-") && key !== "naviheal-runners-v177")
+          .filter((key) => key.startsWith("naviheal-runners-") && key !== "naviheal-runners-v179")
           .forEach((key) => caches.delete(key));
       }).catch(() => {});
     }
