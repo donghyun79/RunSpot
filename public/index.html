@@ -652,6 +652,12 @@
       background: #f7fbff;
     }
 
+    .quality-notice {
+      border-color: #f2c14e;
+      border-left-color: #f2b21b;
+      background: #fff8de;
+    }
+
     .quality-plan-title {
       margin-bottom: 5px;
       color: var(--brand-dark);
@@ -3102,11 +3108,11 @@
     second.addEventListener("input", updateTime);
   </script>
 
-  <script type="module" src="app.js?v=20260421-tt-ranking"></script>
+  <script type="module" src="app.js?v=20260421-quality-notice"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
-        navigator.serviceWorker.register("service-worker.js?v=20260421-tt-ranking").then((registration) => {
+        navigator.serviceWorker.register("service-worker.js?v=20260421-quality-notice").then((registration) => {
           registration.update().catch(() => {});
         }).catch(() => {});
       });
@@ -3115,7 +3121,7 @@
     if ("caches" in window) {
       caches.keys().then((keys) => {
         keys
-          .filter((key) => key.startsWith("naviheal-runners-") && key !== "naviheal-runners-v176")
+          .filter((key) => key.startsWith("naviheal-runners-") && key !== "naviheal-runners-v177")
           .forEach((key) => caches.delete(key));
       }).catch(() => {});
     }

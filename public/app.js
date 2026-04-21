@@ -2839,6 +2839,7 @@ function renderQualityMonthlyPlan() {
   const qualityMonthlyPlan = document.getElementById("qualityMonthlyPlan");
   const qualityPlanSelect = document.getElementById("qualityPlanSelect");
   const upcomingWorkout = getUpcomingQualityWorkout();
+  const noticeWorkout = getQualityNoticeWorkout();
   const userGroup = getCurrentUserRunningGroup(getMarathonPredictionBasis()?.predictedTime);
   const upcomingPaceGuide = upcomingWorkout && isQualityTimeTrialPlan(upcomingWorkout.text)
     ? getQualityTimeTrialPaceGuide(upcomingWorkout.text)
@@ -2857,6 +2858,10 @@ function renderQualityMonthlyPlan() {
   const schedule = QUALITY_MONTHLY_SCHEDULE[currentMonth];
 
   if (!schedule) {
+    if (noticeWorkout) {
+      qualityMonthlyPlan.appendChild(createQualityNoticeArticle(noticeWorkout, userGroup));
+    }
+
     const empty = document.createElement("article");
     empty.className = "quality-plan-item";
     empty.innerHTML = [
@@ -2866,6 +2871,10 @@ function renderQualityMonthlyPlan() {
     ].join("");
     qualityMonthlyPlan.appendChild(empty);
     return;
+  }
+
+  if (noticeWorkout) {
+    qualityMonthlyPlan.appendChild(createQualityNoticeArticle(noticeWorkout, userGroup));
   }
 
   const summary = document.createElement("article");
@@ -2956,19 +2965,67 @@ function parseQualityWorkoutDate(workoutDate, year = new Date().getFullYear()) {
   return new Date(year, Number(match[1]) - 1, Number(match[2]));
 }
 
+function getQualityWorkoutEntries(year = new Date().getFullYear()) {
+  return Object.values(QUALITY_MONTHLY_SCHEDULE)
+    .flatMap((schedule) => schedule.workouts.map((workout) => ({
+      ...workout,
+      schedule,
+      sortDate: parseQualityWorkoutDate(workout.date, year)
+    })))
+    .filter((workout) => workout.sortDate)
+    .sort((a, b) => a.sortDate - b.sortDate);
+}
+
 function getUpcomingQualityWorkout(referenceDate = new Date()) {
   const currentYear = referenceDate.getFullYear();
   const today = new Date(currentYear, referenceDate.getMonth(), referenceDate.getDate());
-  const workouts = Object.values(QUALITY_MONTHLY_SCHEDULE)
-    .flatMap((schedule) => schedule.workouts)
-    .map((workout) => ({
-      ...workout,
-      sortDate: parseQualityWorkoutDate(workout.date, currentYear)
-    }))
+  const workouts = getQualityWorkoutEntries(currentYear)
     .filter((workout) => workout.sortDate && workout.sortDate >= today)
-    .sort((a, b) => a.sortDate - b.sortDate);
 
   return workouts[0] || null;
+}
+
+function getQualityNoticeWorkout(referenceDate = new Date()) {
+  const currentYear = referenceDate.getFullYear();
+  const now = new Date(referenceDate);
+
+  return getQualityWorkoutEntries(currentYear).find((workout) => {
+    const noticeStart = new Date(workout.sortDate);
+    const noticeEnd = new Date(workout.sortDate);
+
+    noticeStart.setDate(noticeStart.getDate() - 6);
+    noticeStart.setHours(0, 0, 0, 0);
+    noticeEnd.setHours(23, 59, 59, 999);
+
+    return now >= noticeStart && now <= noticeEnd;
+  }) || null;
+}
+
+function createQualityNoticeArticle(workout, userGroup) {
+  const article = document.createElement("article");
+  const isTimeTrial = isQualityTimeTrialPlan(workout.text);
+  const recoveryDistanceLabel = !isTimeTrial ? getQualityRecoveryDistanceLabelFromPlan(workout.text) : "";
+  const groupSetLabel = formatQualityGroupSetNote(workout.text);
+  const paceGuide = isTimeTrial
+    ? getQualityTimeTrialPaceGuide(workout.text)
+    : userGroup
+      ? `${userGroup.group}조 기준: 인터벌 ${userGroup.intervalPace} / 리커버리 ${userGroup.recoveryPace}`
+      : "조별 기준표에서 내 조 페이스를 확인해 주세요.";
+
+  article.className = "quality-plan-item quality-notice";
+  article.innerHTML = [
+    '<div class="quality-plan-title">다음 주 화요 정훈 공지</div>',
+    `<div>${workout.date} ${formatQualityWorkoutPlanText(workout.text)}</div>`,
+    workout.schedule?.purpose ? `<div class="quality-plan-meta">훈련 목적: ${workout.schedule.purpose}</div>` : "",
+    `<div class="quality-plan-meta">${paceGuide}</div>`,
+    isTimeTrial ? '<div class="quality-plan-meta">TT는 리커버리 없이 5K 또는 10K를 연속으로 달려 기록을 측정합니다.</div>' : "",
+    recoveryDistanceLabel ? `<div class="quality-plan-meta">세트 후 리커버리: ${recoveryDistanceLabel} 조깅</div>` : "",
+    groupSetLabel ? `<div class="quality-plan-meta">세트 조정: ${groupSetLabel}</div>` : "",
+    '<div class="quality-plan-meta">준비물: 러닝화, 개인 음료, 워치. 워밍업 후 첫 세트는 무리하지 않고 들어가 주세요.</div>',
+    '<div class="quality-plan-meta">참석이 어려우면 같은 달 안에 같은 프로그램으로 보완 입력할 수 있습니다.</div>'
+  ].filter(Boolean).join("");
+
+  return article;
 }
 
 function normalizeMemberName(name) {
