@@ -3,6 +3,7 @@ import {
   getAuth,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
+  sendPasswordResetEmail,
   signOut,
   onAuthStateChanged,
   updateProfile
@@ -56,6 +57,9 @@ let latestEnvironment = null;
 const CLUB_INVITE_CODE = "NAVIHEAL";
 const HOST_EMAIL = "dhseo@skku.edu";
 const HOST_NAME = "서동현";
+const PRE_APPROVED_MEMBERS = [
+  { name: "김성균", email: "skyskim@naver.com" }
+];
 const MONTHLY_ATHLETE_START_MONTH = "2026-04";
 const MONTHLY_GROWTH_SCORE_START_MONTH = "2026-05";
 const MONTHLY_MILEAGE_OVER_TARGET_BONUS_MAX = 5;
@@ -241,6 +245,7 @@ function getAuthErrorMessage(error, mode) {
     return [
       "이미 가입 신청 또는 가입 완료된 이메일입니다.",
       "회원 가입이 아니라 로그인 버튼을 눌러주세요.",
+      "비밀번호가 기억나지 않으면 비밀번호 재설정 버튼을 눌러주세요.",
       `승인 대기 중이거나 로그인이 안 되면 ${contact}`
     ].join("\n");
   }
@@ -256,6 +261,7 @@ function getAuthErrorMessage(error, mode) {
   if (error?.code === "auth/invalid-credential" || error?.code === "auth/wrong-password" || error?.code === "auth/user-not-found") {
     return [
       "이메일 또는 비밀번호를 확인해주세요.",
+      "이미 가입된 회원이라면 비밀번호 재설정 버튼으로 새 비밀번호를 설정해주세요.",
       mode === "login" ? "아직 회원 가입을 하지 않았다면 회원 가입을 먼저 진행해주세요." : "",
       contact
     ].filter(Boolean).join("\n");
@@ -266,11 +272,26 @@ function getAuthErrorMessage(error, mode) {
 
 function isApprovedProfile(user, profile) {
   if (isHostUser(user)) return true;
+  if (isPreApprovedMember(user, profile?.name)) return true;
   return profile?.approved !== false;
 }
 
 function isHostUser(user) {
-  return user?.email?.toLowerCase() === HOST_EMAIL;
+  return getNormalizedEmail(user?.email) === HOST_EMAIL;
+}
+
+function getNormalizedEmail(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function isPreApprovedMember(user, displayName = "") {
+  const email = getNormalizedEmail(user?.email);
+  const name = String(displayName || user?.displayName || "").trim();
+
+  return PRE_APPROVED_MEMBERS.some((member) => (
+    getNormalizedEmail(member.email) === email
+    || (member.name === name && getNormalizedEmail(member.email) === email)
+  ));
 }
 
 function getRegisteredName(user) {
@@ -294,11 +315,13 @@ async function saveUserProfile(user, displayName = "") {
 }
 
 async function createPendingUserProfile(user, displayName) {
+  const approved = isHostUser(user) || isPreApprovedMember(user, displayName);
+
   await setDoc(doc(db, "users", user.uid), {
     userId: user.uid,
     email: user.email,
     name: displayName,
-    approved: isHostUser(user),
+    approved,
     disabled: false,
     updatedAt: new Date()
   }, { merge: true });
@@ -315,13 +338,23 @@ async function ensureUserProfile(user) {
   const profile = await loadUserProfile(user);
 
   if (profile) {
-    return isHostUser(user)
-      ? {
-          ...profile,
-          approved: true,
-          disabled: false
-        }
-      : profile;
+    if (isHostUser(user) || isPreApprovedMember(user, profile.name)) {
+      const approvedProfile = {
+        ...profile,
+        approved: true,
+        disabled: false
+      };
+
+      await setDoc(doc(db, "users", user.uid), {
+        approved: true,
+        disabled: false,
+        updatedAt: new Date()
+      }, { merge: true });
+
+      return approvedProfile;
+    }
+
+    return profile;
   }
 
   await saveUserProfile(user);
@@ -1748,6 +1781,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const inviteCode = document.getElementById("inviteCode");
   const signupBtn = document.getElementById("signup");
   const loginBtn = document.getElementById("login");
+  const resetPasswordBtn = document.getElementById("resetPassword");
   const logoutBtn = document.getElementById("logout");
   const saveBtn = document.getElementById("saveRun");
   const status = document.getElementById("status");
@@ -2028,7 +2062,7 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
-      const userCredential = await createUserWithEmailAndPassword(auth, email.value, password.value);
+      const userCredential = await createUserWithEmailAndPassword(auth, email.value.trim(), password.value);
       await updateProfile(userCredential.user, {
         displayName
       });
@@ -2046,7 +2080,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   loginBtn.addEventListener("click", async () => {
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email.value, password.value);
+      const userCredential = await signInWithEmailAndPassword(auth, email.value.trim(), password.value);
       const profile = await ensureUserProfile(userCredential.user);
 
       if (!profile && !isHostUser(userCredential.user)) {
@@ -2072,6 +2106,22 @@ document.addEventListener("DOMContentLoaded", () => {
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (e) {
       alert(getAuthErrorMessage(e, "login"));
+    }
+  });
+
+  resetPasswordBtn.addEventListener("click", async () => {
+    const targetEmail = email.value.trim();
+
+    if (!targetEmail) {
+      alert("비밀번호 재설정을 받을 이메일을 입력해주세요.");
+      return;
+    }
+
+    try {
+      await sendPasswordResetEmail(auth, targetEmail);
+      alert("비밀번호 재설정 메일을 보냈습니다. 메일함에서 새 비밀번호를 설정한 뒤 로그인해주세요.");
+    } catch (e) {
+      alert(getAuthErrorMessage(e, "reset"));
     }
   });
 

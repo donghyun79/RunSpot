@@ -2501,6 +2501,7 @@
         <div class="auth-actions">
           <button id="login">로그인</button>
           <button id="signup" class="button-secondary">회원 가입</button>
+          <button id="resetPassword" class="button-secondary" type="button">비밀번호 재설정</button>
         </div>
         <div class="auth-guide-box">
           <div class="auth-guide-title">[가입/로그인 방법]</div>
@@ -2512,6 +2513,10 @@
             <div class="auth-guide-row">
               <span class="auth-guide-label">로그인</span>
               <span>이메일/비밀번호 입력</span>
+            </div>
+            <div class="auth-guide-row">
+              <span class="auth-guide-label">비밀번호</span>
+              <span>로그인이 안 되면 이메일 입력 후 비밀번호 재설정</span>
             </div>
             <div class="auth-guide-row">
               <span class="auth-guide-label">문의</span>
@@ -3097,11 +3102,11 @@
     second.addEventListener("input", updateTime);
   </script>
 
-  <script type="module" src="app.js?v=20260421-chart-coach-summary"></script>
+  <script type="module" src="app.js?v=20260421-password-reset"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
-        navigator.serviceWorker.register("service-worker.js?v=20260421-chart-coach-summary").then((registration) => {
+        navigator.serviceWorker.register("service-worker.js?v=20260421-password-reset").then((registration) => {
           registration.update().catch(() => {});
         }).catch(() => {});
       });
@@ -3110,7 +3115,7 @@
     if ("caches" in window) {
       caches.keys().then((keys) => {
         keys
-          .filter((key) => key.startsWith("naviheal-runners-") && key !== "naviheal-runners-v173")
+          .filter((key) => key.startsWith("naviheal-runners-") && key !== "naviheal-runners-v175")
           .forEach((key) => caches.delete(key));
       }).catch(() => {});
     }
