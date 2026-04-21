@@ -693,9 +693,8 @@ function getRunDetailDisplay(run) {
 
   const label = getWorkoutTypeLabel(run.workoutType || "steady");
   const detail = run.workoutDetail ? ` - ${run.workoutDetail}` : "";
-  const rankingText = run.rankingEligible === false ? " · 랭킹 제외" : "";
 
-  return `${label}${detail}${rankingText}`;
+  return `${label}${detail}`;
 }
 
 function parseQualityDetailText(detail = "") {
@@ -1168,6 +1167,12 @@ function getQualityWorkoutTypeFromPlan(planText = "") {
 
 function isQualityTimeTrialPlan(planText = "") {
   return /TT/i.test(String(planText || ""));
+}
+
+function isRankingEligibleQualityTimeTrial(planText = "") {
+  const distance = getQualityTimeTrialDistance(planText);
+
+  return isQualityTimeTrialPlan(planText) && (Math.abs(distance - 5) < 0.01 || Math.abs(distance - 10) < 0.01);
 }
 
 function estimateTimeForVdotDistance(vdot, distanceKm) {
@@ -2377,7 +2382,7 @@ document.addEventListener("DOMContentLoaded", () => {
         qualitySetResults: setResults,
         qualitySelfRating: selfRating,
         qualityReflection: reflection,
-        rankingEligible: false,
+        rankingEligible: isRankingEligibleQualityTimeTrial(plannedWorkout),
         time,
         updatedAt: new Date()
       };
@@ -3944,7 +3949,7 @@ function buildRunRecord(id, data, fallbackMember = null) {
     qualitySetResults: data.qualitySetResults || "",
     qualitySelfRating: data.qualitySelfRating || "",
     qualityReflection: data.qualityReflection || "",
-    rankingEligible: data.rankingEligible !== false,
+    rankingEligible: getSavedRankingEligibility(data),
     raceName: data.raceName || "",
     raceDate: data.raceDate || "",
     userId: data.userId || fallbackMember?.userId || "",
@@ -4881,7 +4886,7 @@ async function loadClubRanking(user) {
       if (!Number.isFinite(distance) || !Number.isFinite(time)) return;
       if (!courseRecord) return;
       if (onlyRace && data.type !== "race") return;
-      if (data.rankingEligible === false) return;
+      if (!getSavedRankingEligibility(data)) return;
 
       const userId = data.userId || data.email;
       const existing = rankingsByUser.get(userId);
@@ -5153,7 +5158,7 @@ async function loadMonthlyAthleteCandidates(user) {
         workoutType: data.workoutType || (data.type === "training" && String(data.raceName || "").startsWith("[고강도]") ? "other" : "steady"),
         qualityPlanDate: data.qualityPlanDate || "",
         raceName: data.raceName || "",
-        rankingEligible: data.rankingEligible !== false
+        rankingEligible: getSavedRankingEligibility(data)
       });
       runsByUser.set(userId, entry);
     });
@@ -5799,6 +5804,12 @@ function getBestCategoryTime(runs, distance) {
   if (!categoryRuns.length) return Infinity;
 
   return categoryRuns.reduce((best, run) => Math.min(best, run.time), Infinity);
+}
+
+function getSavedRankingEligibility(data) {
+  if (isRankingEligibleQualityTimeTrial(data.qualityPlannedWorkout || "")) return true;
+
+  return data.rankingEligible !== false;
 }
 
 function isSameDistanceCategory(distance, selectedDistance) {
