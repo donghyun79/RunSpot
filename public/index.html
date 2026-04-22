@@ -1476,11 +1476,33 @@
       font-weight: 800;
     }
 
+    .hall-month-star {
+      display: inline-flex;
+      align-items: center;
+      min-height: 22px;
+      margin-left: 6px;
+      padding: 2px 7px;
+      background: #fff7d6;
+      border: 1px solid #f1cc68;
+      border-radius: 999px;
+      color: var(--accent-dark);
+      font-size: 11px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
     .hall-summary-name {
       color: var(--brand-dark);
       font-size: 18px;
       font-weight: 900;
       overflow-wrap: anywhere;
+    }
+
+    .hall-summary-achievement {
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 800;
+      line-height: 1.45;
     }
 
     .hall-summary-score {
@@ -2875,6 +2897,7 @@
             <tr>
               <th>월</th>
               <th>이달의 선수</th>
+              <th>성과 요약</th>
               <th>총점</th>
               <th>출석</th>
               <th>마일리지</th>
@@ -3145,11 +3168,11 @@
     second.addEventListener("input", updateTime);
   </script>
 
-  <script type="module" src="app.js?v=20260421-quality-notice-time"></script>
+  <script type="module" src="app.js?v=20260422-hall-achievement"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
-        navigator.serviceWorker.register("service-worker.js?v=20260421-quality-notice-time").then((registration) => {
+        navigator.serviceWorker.register("service-worker.js?v=20260422-hall-achievement").then((registration) => {
           registration.update().catch(() => {});
         }).catch(() => {});
       });
@@ -3158,7 +3181,7 @@
     if ("caches" in window) {
       caches.keys().then((keys) => {
         keys
-          .filter((key) => key.startsWith("naviheal-runners-") && key !== "naviheal-runners-v179")
+          .filter((key) => key.startsWith("naviheal-runners-") && key !== "naviheal-runners-v181")
           .forEach((key) => caches.delete(key));
       }).catch(() => {});
     }

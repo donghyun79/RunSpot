@@ -2887,9 +2887,7 @@ function renderQualityMonthlyPlan() {
   summary.innerHTML = [
     `<div class="quality-plan-title">${schedule.title}</div>`,
     `<div>월별 목적: ${schedule.purpose}</div>`,
-    upcomingWorkout ? `<div>다가오는 정훈: ${upcomingWorkout.date} ${formatQualityWorkoutPlanText(upcomingWorkout.text)}</div>` : "",
-    upcomingWorkout && upcomingPaceGuide ? `<div class="quality-plan-meta">${upcomingPaceGuide}</div>` : "",
-    upcomingWorkout && !upcomingPaceGuide ? '<div class="quality-plan-meta">조별 기준표에서 내 조 페이스를 확인해 주세요.</div>' : "",
+    '<div class="quality-plan-meta">기초 지구력을 유지하면서 LT 강도에 적응해 안정적인 페이스 감각을 만드는 달입니다.</div>',
     schedule.note ? `<div class="quality-plan-meta">${schedule.note}</div>` : ""
   ].filter(Boolean).join("");
   qualityMonthlyPlan.appendChild(summary);
@@ -2909,10 +2907,11 @@ function renderQualityMonthlyPlan() {
         : userGroup
         ? `<div>${userGroup.group}조 기준: 인터벌 ${userGroup.intervalPace} / 리커버리 ${userGroup.recoveryPace}</div>`
         : '<div>조별 기준표에서 내 조 페이스를 확인해 주세요.</div>',
-      isTimeTrial ? '<div class="quality-plan-meta">TT는 세트 사이 리커버리 없이 5K를 연속으로 달려 기록을 측정합니다.</div>' : "",
       recoveryDistanceLabel ? `<div class="quality-plan-meta">세트 후 리커버리: ${recoveryDistanceLabel} 조깅</div>` : "",
       groupSetLabel ? `<div class="quality-plan-meta">세트 조정: ${groupSetLabel}</div>` : "",
       !isTimeTrial && userGroup?.source === "prediction" ? '<div class="quality-plan-meta">조별 명단에 이름이 없어 최근 기록 기반 예상 조로 안내합니다.</div>' : "",
+      '<div class="quality-plan-meta">본 훈련 전 조깅, 질주, 스트레칭으로 충분히 몸을 풀고 진행해 주세요.</div>',
+      '<div class="quality-plan-meta">정훈 당일 참석이 어려운 경우 같은 달 안에 해당 프로그램으로 보완 입력할 수 있습니다.</div>',
       '<div class="quality-plan-meta">날짜를 누르면 이 프로그램이 정훈 결과 입력에도 자동으로 들어갑니다.</div>'
     ].filter(Boolean).join("");
   };
@@ -3019,15 +3018,14 @@ function createQualityNoticeArticle(workout, userGroup) {
 
   article.className = "quality-plan-item quality-notice";
   article.innerHTML = [
-    '<div class="quality-plan-title">다음 주 화요 정훈 공지</div>',
+    '<div class="quality-plan-title">다음 정훈 공지</div>',
     `<div>${workout.date} ${formatQualityWorkoutPlanText(workout.text)}</div>`,
     workout.schedule?.purpose ? `<div class="quality-plan-meta">훈련 목적: ${workout.schedule.purpose}</div>` : "",
     `<div class="quality-plan-meta">${paceGuide}</div>`,
-    isTimeTrial ? '<div class="quality-plan-meta">TT는 리커버리 없이 5K 또는 10K를 연속으로 달려 기록을 측정합니다.</div>' : "",
     recoveryDistanceLabel ? `<div class="quality-plan-meta">세트 후 리커버리: ${recoveryDistanceLabel} 조깅</div>` : "",
     groupSetLabel ? `<div class="quality-plan-meta">세트 조정: ${groupSetLabel}</div>` : "",
-    '<div class="quality-plan-meta">준비물: 러닝화, 개인 음료, 워치. 워밍업 후 첫 세트는 무리하지 않고 들어가 주세요.</div>',
-    '<div class="quality-plan-meta">참석이 어려우면 같은 달 안에 같은 프로그램으로 보완 입력할 수 있습니다.</div>'
+    '<div class="quality-plan-meta">본 훈련 전 조깅, 질주, 스트레칭으로 충분히 몸을 풀고 진행해 주세요.</div>',
+    '<div class="quality-plan-meta">정훈 당일 참석이 어려운 경우 같은 달 안에 해당 프로그램으로 보완 입력할 수 있습니다.</div>'
   ].filter(Boolean).join("");
   appendQualityNoticeVotePanel(article, workout);
 
@@ -5457,8 +5455,9 @@ function renderAthleteHallOfFame(memberEntries, user, currentMonthKey) {
     }
 
     [
-      formatMonthLabel(monthKey),
+      getAthleteHallMonthLabel(monthKey),
       winners.map((winner) => `${winner.name}${winner.userId === user.uid || winner.email === user.email ? " (나)" : ""}`).join(", "),
+      getAthleteHallAchievementSummary(primaryWinner),
       `${formatAthleteScore(primaryWinner.totalScore)}점`,
       `${formatAthleteScore(primaryWinner.attendanceScore)}/${primaryWinner.attendanceMaxScore} (${primaryWinner.attendanceDays}일)`,
       `${formatAthleteScore(primaryWinner.mileageScore)}/${primaryWinner.mileageMaxScore} (${primaryWinner.groupLabel} ${primaryWinner.mileageRate}%)`,
@@ -5466,9 +5465,13 @@ function renderAthleteHallOfFame(memberEntries, user, currentMonthKey) {
       formatMonthlyGrowthScore(primaryWinner),
       `+${formatAthleteScore(primaryWinner.raceBonus)}점 (${primaryWinner.raceBonusLabel})`,
       `+${primaryWinner.badgeBonus}점 (${primaryWinner.badgeCount}개)`
-    ].forEach((value) => {
+    ].forEach((value, cellIndex) => {
       const td = document.createElement("td");
-      td.innerText = value;
+      if (cellIndex === 0) {
+        td.innerHTML = value;
+      } else {
+        td.innerText = value;
+      }
       tr.appendChild(td);
     });
 
@@ -5502,6 +5505,7 @@ function renderAthleteHallSummary(hallEntries, user) {
     const month = document.createElement("div");
     const name = document.createElement("div");
     const score = document.createElement("div");
+    const achievement = document.createElement("div");
 
     card.className = "hall-summary-card";
     if (isMe) {
@@ -5509,15 +5513,37 @@ function renderAthleteHallSummary(hallEntries, user) {
     }
 
     month.className = "hall-summary-month";
-    month.innerText = formatMonthLabel(monthKey);
+    month.innerHTML = getAthleteHallMonthLabel(monthKey);
     name.className = "hall-summary-name";
     name.innerText = winners.map((winner) => `${winner.name}${winner.userId === user.uid || winner.email === user.email ? " (나)" : ""}`).join(", ");
+    achievement.className = "hall-summary-achievement";
+    achievement.innerText = getAthleteHallAchievementSummary(primaryWinner);
     score.className = "hall-summary-score";
     score.innerText = `${formatAthleteScore(primaryWinner.totalScore)}점 · 정훈 ${formatQualityCredit(primaryWinner.qualityAttendanceDays)}/${primaryWinner.qualityWorkoutCount}회 인정`;
 
-    card.append(month, name, score);
+    card.append(month, name, achievement, score);
     athleteHallSummaryList.appendChild(card);
   });
+}
+
+function getAthleteHallMonthLabel(monthKey) {
+  return `${formatMonthLabel(monthKey)} <span class="hall-month-star">★ ${Number(monthKey.split("-")[1])}월 왕별</span>`;
+}
+
+function getAthleteHallAchievementSummary(entry) {
+  const highlights = [
+    `출석 ${entry.attendanceDays}일`,
+    formatMileage(entry.totalDistance),
+    `정훈 ${formatQualityCredit(entry.qualityAttendanceDays)}/${entry.qualityWorkoutCount}회`
+  ];
+
+  if (entry.raceBonus) {
+    highlights.push(`대회 +${formatAthleteScore(entry.raceBonus)}점`);
+  } else if (entry.badgeCount) {
+    highlights.push(`배지 ${entry.badgeCount}개`);
+  }
+
+  return highlights.join(" · ");
 }
 
 function formatQualityCredit(value) {
