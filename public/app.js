@@ -43,8 +43,15 @@ let latestRuns = [];
 let monthlyGoalKm = 0;
 let monthlyGoalLocked = false;
 let rankingLoadId = 0;
+const INITIAL_VISIBLE_RANKING_COUNT = 5;
 const INITIAL_VISIBLE_RUN_COUNT = 7;
 const RUN_LOAD_MORE_COUNT = 7;
+let visibleClubRankingCount = INITIAL_VISIBLE_RANKING_COUNT;
+let visibleChallengeRankingCount = INITIAL_VISIBLE_RANKING_COUNT;
+let latestClubRankings = [];
+let latestClubRankingMeta = null;
+let latestChallengeRankings = [];
+let latestChallengeRankingMeta = null;
 let visibleRunCount = INITIAL_VISIBLE_RUN_COUNT;
 let signupInProgress = false;
 let selectedAdminMember = null;
@@ -1805,9 +1812,11 @@ document.addEventListener("DOMContentLoaded", () => {
   const raceNameInput = document.getElementById("raceName");
   const raceDateInput = document.getElementById("raceDate");
   const loadRankingBtn = document.getElementById("loadRanking");
+  const loadMoreRankingBtn = document.getElementById("loadMoreRanking");
   const rankingDistance = document.getElementById("rankingDistance");
   const rankingType = document.getElementById("rankingType");
   const monthlyChallengeGroup = document.getElementById("monthlyChallengeGroup");
+  const loadMoreWeeklyRankingBtn = document.getElementById("loadMoreWeeklyRanking");
   const monthlyGoalInput = document.getElementById("monthlyGoal");
   const saveMonthlyGoalBtn = document.getElementById("saveMonthlyGoal");
   const memberManagement = document.getElementById("memberManagement");
@@ -2495,19 +2504,33 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   loadRankingBtn.addEventListener("click", () => {
+    visibleClubRankingCount = INITIAL_VISIBLE_RANKING_COUNT;
     loadClubRanking(auth.currentUser);
   });
 
   rankingDistance.addEventListener("change", () => {
+    visibleClubRankingCount = INITIAL_VISIBLE_RANKING_COUNT;
     loadClubRanking(auth.currentUser);
   });
 
   rankingType.addEventListener("change", () => {
+    visibleClubRankingCount = INITIAL_VISIBLE_RANKING_COUNT;
     loadClubRanking(auth.currentUser);
   });
 
+  loadMoreRankingBtn?.addEventListener("click", () => {
+    visibleClubRankingCount = latestClubRankings.length;
+    renderClubRankingList(auth.currentUser);
+  });
+
   monthlyChallengeGroup?.addEventListener("change", () => {
+    visibleChallengeRankingCount = INITIAL_VISIBLE_RANKING_COUNT;
     loadWeeklyRanking(auth.currentUser);
+  });
+
+  loadMoreWeeklyRankingBtn?.addEventListener("click", () => {
+    visibleChallengeRankingCount = latestChallengeRankings.length;
+    renderWeeklyRankingList(auth.currentUser);
   });
 
   saveMonthlyGoalBtn.addEventListener("click", async () => {
@@ -5034,10 +5057,12 @@ async function loadClubRanking(user) {
   const rankingType = document.getElementById("rankingType");
   const rankingTypeColumns = document.querySelectorAll(".ranking-type-col");
   const rankingAdminColumns = document.querySelectorAll(".ranking-admin-col");
+  const loadMoreRankingBtn = document.getElementById("loadMoreRanking");
 
   if (!rankingList || !rankingStatus || !rankingDistance || !rankingType) return;
 
   rankingList.innerHTML = "";
+  loadMoreRankingBtn?.classList.add("hidden");
   rankingTypeColumns.forEach((column) => {
     column.classList.toggle("hidden", rankingType.value === "race");
   });
@@ -5046,6 +5071,8 @@ async function loadClubRanking(user) {
   });
 
   if (!user) {
+    latestClubRankings = [];
+    latestClubRankingMeta = null;
     rankingStatus.innerText = "로그인 후 나빌러닝 PB 랭킹을 확인할 수 있습니다.";
     return;
   }
@@ -5104,74 +5131,105 @@ async function loadClubRanking(user) {
     rankingList.innerHTML = "";
 
     if (rankings.length === 0) {
+      latestClubRankings = [];
+      latestClubRankingMeta = null;
       rankingStatus.innerText = "아직 조건에 맞는 기록이 없습니다.";
       return;
     }
 
-    rankings.forEach((entry, index) => {
-      const tr = document.createElement("tr");
-      const isMe = entry.userId === user.uid || entry.email === user.email;
-
-      if (isMe) {
-        tr.classList.add("my-rank");
-      }
-
-      const cells = [
-        `${index + 1}${isMe ? " (나)" : ""}`,
-        entry.name,
-        entry.isAdjusted
-          ? `${formatTime(entry.time)} (${entry.originalDistance}km 기준)`
-          : formatTime(entry.time),
-        formatPace(entry.pace),
-        entry.runDate || "-",
-        entry.type === "대회" ? entry.raceName || "-" : "-"
-      ];
-
-      if (!onlyRace) {
-        cells.push(entry.type);
-      }
-
-      cells.forEach((value) => {
-        const td = document.createElement("td");
-        td.innerText = value;
-        tr.appendChild(td);
-      });
-
-      if (isHostUser(user)) {
-        const actionTd = document.createElement("td");
-        const deleteBtn = document.createElement("button");
-        deleteBtn.type = "button";
-        deleteBtn.className = "button-danger table-action";
-        deleteBtn.innerText = "기록 삭제";
-        deleteBtn.addEventListener("click", () => {
-          deleteRankingRecord(entry);
-        });
-        actionTd.appendChild(deleteBtn);
-        tr.appendChild(actionTd);
-      }
-
-      rankingList.appendChild(tr);
-    });
-
-    const myRankIndex = rankings.findIndex((entry) => entry.userId === user.uid || entry.email === user.email);
-    const distanceLabel = getDistanceLabel(selectedDistance);
-    const typeLabel = onlyRace ? "대회 기록" : "전체 기록";
-
-    if (myRankIndex >= 0) {
-      const percentile = Math.round(((myRankIndex + 1) / rankings.length) * 100);
-      rankingStatus.innerText = `${distanceLabel} ${typeLabel} 기준 내 순위: ${myRankIndex + 1}위 / ${rankings.length}명, 상위 ${percentile}%`;
-    } else {
-      rankingStatus.innerText = `${distanceLabel} ${typeLabel} 기준 랭킹입니다. 아직 내 기록은 없습니다.`;
-    }
+    latestClubRankings = rankings;
+    latestClubRankingMeta = {
+      selectedDistance,
+      onlyRace
+    };
+    renderClubRankingList(user);
   } catch (e) {
     console.error(e);
+    latestClubRankings = [];
+    latestClubRankingMeta = null;
+    loadMoreRankingBtn?.classList.add("hidden");
     rankingStatus.innerText = "나빌러닝 PB 랭킹을 불러오지 못했습니다. Firestore 보안 규칙에서 전체 기록 읽기가 허용되어 있는지 확인해주세요.";
   }
+}
+
+function renderClubRankingList(user) {
+  const rankingList = document.getElementById("rankingList");
+  const rankingStatus = document.getElementById("rankingStatus");
+  const loadMoreRankingBtn = document.getElementById("loadMoreRanking");
+
+  if (!rankingList || !rankingStatus || !latestClubRankingMeta) return;
+
+  const { selectedDistance, onlyRace } = latestClubRankingMeta;
+  const visibleRankings = latestClubRankings.slice(0, visibleClubRankingCount);
+  rankingList.innerHTML = "";
+
+  visibleRankings.forEach((entry, index) => {
+    const tr = document.createElement("tr");
+    const isMe = entry.userId === user?.uid || entry.email === user?.email;
+
+    if (isMe) {
+      tr.classList.add("my-rank");
+    }
+
+    const cells = [
+      `${index + 1}${isMe ? " (나)" : ""}`,
+      entry.name,
+      entry.isAdjusted
+        ? `${formatTime(entry.time)} (${entry.originalDistance}km 기준)`
+        : formatTime(entry.time),
+      formatPace(entry.pace),
+      entry.runDate || "-",
+      entry.type === "대회" ? entry.raceName || "-" : "-"
+    ];
+
+    if (!onlyRace) {
+      cells.push(entry.type);
+    }
+
+    cells.forEach((value) => {
+      const td = document.createElement("td");
+      td.innerText = value;
+      tr.appendChild(td);
+    });
+
+    if (isHostUser(user)) {
+      const actionTd = document.createElement("td");
+      const deleteBtn = document.createElement("button");
+      deleteBtn.type = "button";
+      deleteBtn.className = "button-danger table-action";
+      deleteBtn.innerText = "기록 삭제";
+      deleteBtn.addEventListener("click", () => {
+        deleteRankingRecord(entry);
+      });
+      actionTd.appendChild(deleteBtn);
+      tr.appendChild(actionTd);
+    }
+
+    rankingList.appendChild(tr);
+  });
+
+  const myRankIndex = latestClubRankings.findIndex((entry) => entry.userId === user?.uid || entry.email === user?.email);
+  const distanceLabel = getDistanceLabel(selectedDistance);
+  const typeLabel = onlyRace ? "대회 기록" : "전체 기록";
+  const visibleCount = Math.min(visibleClubRankingCount, latestClubRankings.length);
+  const visibleText = latestClubRankings.length > INITIAL_VISIBLE_RANKING_COUNT
+    ? ` · ${visibleCount}/${latestClubRankings.length}명 표시`
+    : "";
+
+  if (myRankIndex >= 0) {
+    const percentile = Math.round(((myRankIndex + 1) / latestClubRankings.length) * 100);
+    rankingStatus.innerText = `${distanceLabel} ${typeLabel} 기준 내 순위: ${myRankIndex + 1}위 / ${latestClubRankings.length}명, 상위 ${percentile}%${visibleText}`;
+  } else {
+    rankingStatus.innerText = `${distanceLabel} ${typeLabel} 기준 랭킹입니다. 아직 내 기록은 없습니다.${visibleText}`;
+  }
+
+  loadMoreRankingBtn?.classList.toggle("hidden", visibleCount >= latestClubRankings.length);
 }
 
 async function loadWeeklyRanking(user) {
   const weeklyRankingList = document.getElementById("weeklyRankingList");
   const weeklyRankingStatus = document.getElementById("weeklyRankingStatus");
+  const loadMoreWeeklyRankingBtn = document.getElementById("loadMoreWeeklyRanking");
   const monthKey = getCurrentMonthKey();
   const monthlyPeriodText = getMonthChallengeRangeText(monthKey);
   const selectedGroup = getSelectedChallengeGroup();
@@ -5180,8 +5238,11 @@ async function loadWeeklyRanking(user) {
   if (!weeklyRankingList || !weeklyRankingStatus) return;
 
   weeklyRankingList.innerHTML = "";
+  loadMoreWeeklyRankingBtn?.classList.add("hidden");
 
   if (!user) {
+    latestChallengeRankings = [];
+    latestChallengeRankingMeta = null;
     weeklyRankingStatus.innerText = `로그인 후 월간 조별 챌린지 랭킹을 확인할 수 있습니다. 집계 기간: ${monthlyPeriodText}`;
     return;
   }
@@ -5244,46 +5305,76 @@ async function loadWeeklyRanking(user) {
       });
 
     if (!rankings.length) {
+      latestChallengeRankings = [];
+      latestChallengeRankingMeta = null;
       weeklyRankingStatus.innerText = `${monthlyPeriodText} ${selectedGroupLabel} 월간 챌린지 기록이 아직 없습니다.`;
       return;
     }
 
-    rankings.slice(0, 10).forEach((entry, index) => {
-      const tr = document.createElement("tr");
-      const isMe = isCurrentUserRankingEntry(entry, user);
-
-      if (isMe) {
-        tr.classList.add("my-rank");
-      }
-
-      [
-        `${index + 1}${isMe ? " (나)" : ""}`,
-        entry.name,
-        entry.group === "미배정" ? "미배정" : `${entry.group}조`,
-        formatMileage(entry.totalDistance),
-        `${entry.count}일`,
-        entry.averagePace ? formatPace(entry.averagePace) : "-"
-      ].forEach((value) => {
-        const td = document.createElement("td");
-        td.innerText = value;
-        tr.appendChild(td);
-      });
-
-      weeklyRankingList.appendChild(tr);
-    });
-
-    const myRankIndex = rankings.findIndex((entry) => isCurrentUserRankingEntry(entry, user));
-
-    if (myRankIndex >= 0) {
-      const myEntry = rankings[myRankIndex];
-      weeklyRankingStatus.innerText = `${monthlyPeriodText} ${selectedGroupLabel} 기준 내 순위: ${myRankIndex + 1}위 / ${rankings.length}명, ${formatMileage(myEntry.totalDistance)} · ${myEntry.count}일 출석`;
-    } else {
-      weeklyRankingStatus.innerText = `${monthlyPeriodText} ${selectedGroupLabel} 기준 ${rankings.length}명이 챌린지에 참여 중입니다. 이번 달 첫 기록을 남겨보세요.`;
-    }
+    latestChallengeRankings = rankings;
+    latestChallengeRankingMeta = {
+      monthlyPeriodText,
+      selectedGroupLabel
+    };
+    renderWeeklyRankingList(user);
   } catch (e) {
     console.error(e);
+    latestChallengeRankings = [];
+    latestChallengeRankingMeta = null;
+    loadMoreWeeklyRankingBtn?.classList.add("hidden");
     weeklyRankingStatus.innerText = "월간 조별 챌린지 랭킹을 불러오지 못했습니다. Firestore 보안 규칙에서 전체 기록 읽기가 허용되어 있는지 확인해주세요.";
   }
+}
+
+function renderWeeklyRankingList(user) {
+  const weeklyRankingList = document.getElementById("weeklyRankingList");
+  const weeklyRankingStatus = document.getElementById("weeklyRankingStatus");
+  const loadMoreWeeklyRankingBtn = document.getElementById("loadMoreWeeklyRanking");
+
+  if (!weeklyRankingList || !weeklyRankingStatus || !latestChallengeRankingMeta) return;
+
+  const { monthlyPeriodText, selectedGroupLabel } = latestChallengeRankingMeta;
+  const visibleRankings = latestChallengeRankings.slice(0, visibleChallengeRankingCount);
+  weeklyRankingList.innerHTML = "";
+
+  visibleRankings.forEach((entry, index) => {
+    const tr = document.createElement("tr");
+    const isMe = isCurrentUserRankingEntry(entry, user);
+
+    if (isMe) {
+      tr.classList.add("my-rank");
+    }
+
+    [
+      `${index + 1}${isMe ? " (나)" : ""}`,
+      entry.name,
+      entry.group === "미배정" ? "미배정" : `${entry.group}조`,
+      formatMileage(entry.totalDistance),
+      `${entry.count}일`,
+      entry.averagePace ? formatPace(entry.averagePace) : "-"
+    ].forEach((value) => {
+      const td = document.createElement("td");
+      td.innerText = value;
+      tr.appendChild(td);
+    });
+
+    weeklyRankingList.appendChild(tr);
+  });
+
+  const myRankIndex = latestChallengeRankings.findIndex((entry) => isCurrentUserRankingEntry(entry, user));
+  const visibleCount = Math.min(visibleChallengeRankingCount, latestChallengeRankings.length);
+  const visibleText = latestChallengeRankings.length > INITIAL_VISIBLE_RANKING_COUNT
+    ? ` · ${visibleCount}/${latestChallengeRankings.length}명 표시`
+    : "";
+
+  if (myRankIndex >= 0) {
+    const myEntry = latestChallengeRankings[myRankIndex];
+    weeklyRankingStatus.innerText = `${monthlyPeriodText} ${selectedGroupLabel} 기준 내 순위: ${myRankIndex + 1}위 / ${latestChallengeRankings.length}명, ${formatMileage(myEntry.totalDistance)} · ${myEntry.count}일 출석${visibleText}`;
+  } else {
+    weeklyRankingStatus.innerText = `${monthlyPeriodText} ${selectedGroupLabel} 기준 ${latestChallengeRankings.length}명이 챌린지에 참여 중입니다. 이번 달 첫 기록을 남겨보세요.${visibleText}`;
+  }
+
+  loadMoreWeeklyRankingBtn?.classList.toggle("hidden", visibleCount >= latestChallengeRankings.length);
 }
 
 async function loadMonthlyAthleteCandidates(user) {
@@ -6089,6 +6180,12 @@ function clearDashboard() {
   monthlyGoalKm = 0;
   monthlyGoalLocked = false;
   visibleRunCount = INITIAL_VISIBLE_RUN_COUNT;
+  visibleClubRankingCount = INITIAL_VISIBLE_RANKING_COUNT;
+  visibleChallengeRankingCount = INITIAL_VISIBLE_RANKING_COUNT;
+  latestClubRankings = [];
+  latestClubRankingMeta = null;
+  latestChallengeRankings = [];
+  latestChallengeRankingMeta = null;
   resetPersonalBest();
   document.getElementById("runList").innerHTML = "";
   document.getElementById("recordListStatus").innerText = "로그인 후 운동 기록을 확인할 수 있습니다.";
@@ -6109,8 +6206,10 @@ function clearDashboard() {
   document.getElementById("monthlyGoalStatus").classList.remove("goal-star");
   document.getElementById("rankingList").innerHTML = "";
   document.getElementById("rankingStatus").innerText = "";
+  document.getElementById("loadMoreRanking").classList.add("hidden");
   document.getElementById("weeklyRankingList").innerHTML = "";
   document.getElementById("weeklyRankingStatus").innerText = `로그인 후 월간 조별 챌린지 랭킹을 확인할 수 있습니다. 집계 기간: ${getMonthChallengeRangeText()}`;
+  document.getElementById("loadMoreWeeklyRanking").classList.add("hidden");
   document.getElementById("monthlyAthleteList").innerHTML = "";
   document.getElementById("monthlyAthleteStatus").innerText = "로그인 후 이달의 선수 예상을 확인할 수 있습니다.";
   document.getElementById("athleteHallSummaryList").innerHTML = "";

@@ -2809,6 +2809,9 @@
           <tbody id="rankingList"></tbody>
         </table>
       </div>
+      <div class="form-row">
+        <button id="loadMoreRanking" class="button-secondary hidden" type="button">더보기</button>
+      </div>
     </section>
 
     <section class="section">
@@ -2843,6 +2846,9 @@
           </thead>
           <tbody id="weeklyRankingList"></tbody>
         </table>
+      </div>
+      <div class="form-row">
+        <button id="loadMoreWeeklyRanking" class="button-secondary hidden" type="button">더보기</button>
       </div>
     </section>
 
@@ -3168,11 +3174,11 @@
     second.addEventListener("input", updateTime);
   </script>
 
-  <script type="module" src="app.js?v=20260422-hall-achievement"></script>
+  <script type="module" src="app.js?v=20260422-ranking-more"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
-        navigator.serviceWorker.register("service-worker.js?v=20260422-hall-achievement").then((registration) => {
+        navigator.serviceWorker.register("service-worker.js?v=20260422-ranking-more").then((registration) => {
           registration.update().catch(() => {});
         }).catch(() => {});
       });
@@ -3181,7 +3187,7 @@
     if ("caches" in window) {
       caches.keys().then((keys) => {
         keys
-          .filter((key) => key.startsWith("naviheal-runners-") && key !== "naviheal-runners-v181")
+          .filter((key) => key.startsWith("naviheal-runners-") && key !== "naviheal-runners-v182")
           .forEach((key) => caches.delete(key));
       }).catch(() => {});
     }
