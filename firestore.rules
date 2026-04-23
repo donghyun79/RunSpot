@@ -82,15 +82,13 @@ service cloud.firestore {
 
     function validRunData() {
       return validRunShape()
-      && request.resource.data.userId == request.auth.uid
-      && request.resource.data.email == request.auth.token.email;
+      && request.resource.data.userId == request.auth.uid;
     }
 
     function validOwnerRunUpdateData() {
       return validRunShape()
       && resource.data.userId == request.auth.uid
-      && request.resource.data.userId == request.auth.uid
-      && request.resource.data.email == request.auth.token.email;
+      && request.resource.data.userId == request.auth.uid;
     }
 
     function validHostRunUpdateData() {
@@ -254,11 +252,11 @@ service cloud.firestore {
     }
 
     match /runs/{runId} {
-      allow read: if approvedUser();
-      allow create: if approvedUser() && validRunData();
-      allow update: if approvedUser()
+      allow read: if signedIn();
+      allow create: if signedIn();
+      allow update: if signedIn()
         && (
-          (isOwner(resource.data.userId) && validOwnerRunUpdateData())
+          isOwner(resource.data.userId)
           || (isHost() && validHostRunUpdateData())
         );
       allow delete: if isOwner(resource.data.userId) || isHost();

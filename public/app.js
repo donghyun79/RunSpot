@@ -135,6 +135,7 @@ const RUNNING_GROUP_STANDARD_XLSX_PATH = "assets/나빌러닝 조별기준.xlsx"
 const RUNNING_GROUP_STANDARD_NOTE = "조편성 조정을 원하시면 코치와 상의해 주세요.";
 const OFFICIAL_TRAINING_LABEL = "나빌러닝 정훈";
 const QUALITY_MAKEUP_CREDIT = 0.7;
+const TESSERACT_CDN_URL = "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
 let runningGroupStandardsLoadedFromXlsx = false;
 const QUALITY_NOTICE_VOTE_OPTIONS = [
   { value: "attend", label: "훈련 참석" },
@@ -649,6 +650,9 @@ function beginQualityRunEdit(run) {
   const qualitySetResultsInput = document.getElementById("qualitySetResults");
   const qualitySelfRatingSelect = document.getElementById("qualitySelfRating");
   const qualityReflectionInput = document.getElementById("qualityReflection");
+  const qualityGarminCaptureInput = document.getElementById("qualityGarminCapture");
+  const qualityOcrStatus = document.getElementById("qualityOcrStatus");
+  const qualityOcrPreview = document.getElementById("qualityOcrPreview");
 
   if (!qualityDateInput) return;
 
@@ -668,6 +672,9 @@ function beginQualityRunEdit(run) {
   fillQualitySetInputs(run.qualitySetResults || "");
   qualitySelfRatingSelect.value = run.qualitySelfRating || "";
   qualityReflectionInput.value = run.qualityReflection || "";
+  if (qualityGarminCaptureInput) qualityGarminCaptureInput.value = "";
+  if (qualityOcrStatus) qualityOcrStatus.innerText = "수정 중인 기록입니다. 새 Garmin 캡처를 올리면 세트 입력칸을 다시 채울 수 있습니다.";
+  if (qualityOcrPreview) qualityOcrPreview.innerHTML = "";
   updateQualityFormMode();
   document.getElementById("qualityTab")?.click();
   document.getElementById("qualityView")?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -1419,7 +1426,7 @@ function parseQualitySetResults(setResults = "") {
 
 function parseQualityDurationMinutes(value = "") {
   const text = String(value || "").trim();
-  const match = text.match(/(\d{1,2})(?::(\d{2}))(?::(\d{2}))?$/);
+  const match = text.match(/(\d{1,2})(?::(\d{1,2}(?:\.\d+)?))(?::(\d{1,2}(?:\.\d+)?))?$/);
 
   if (!match) return 0;
 
@@ -1634,10 +1641,11 @@ function renderQualitySetInputs(planText = "", setResults = "") {
   const workoutType = document.getElementById("qualityWorkoutType")?.value || "";
   const structure = getQualityWorkoutStructure(planText, workoutType);
   const { setValues, recoveryValues } = parseQualitySetResults(setResults);
+  const inputSetCount = Math.max(structure.setCount, setValues.length, recoveryValues.length);
 
   container.innerHTML = "";
 
-  Array.from({ length: structure.setCount }).forEach((_, index) => {
+  Array.from({ length: inputSetCount }).forEach((_, index) => {
     const field = document.createElement("div");
     const title = document.createElement("div");
     const setLabel = document.createElement("label");
@@ -1647,7 +1655,7 @@ function renderQualitySetInputs(planText = "", setResults = "") {
 
     field.className = "quality-set-field";
     title.className = "quality-set-field-title";
-    title.innerText = structure.setCount > 1 ? `${structure.setLabel} ${index + 1}` : structure.setLabel;
+    title.innerText = inputSetCount > 1 ? `${structure.setLabel} ${index + 1}` : structure.setLabel;
     setInput.className = "quality-set-input";
     setInput.placeholder = structure.setPlaceholder;
     setInput.value = setValues[index] || "";
@@ -1727,6 +1735,1295 @@ function fillQualitySetInputs(setResults = "") {
   renderQualitySetInputs(plannedWorkout, setResults);
 }
 
+function loadTesseractScript() {
+  if (window.Tesseract) return Promise.resolve(window.Tesseract);
+
+  return new Promise((resolve, reject) => {
+    const existingScript = document.querySelector(`script[src="${TESSERACT_CDN_URL}"]`);
+
+    if (existingScript) {
+      existingScript.addEventListener("load", () => resolve(window.Tesseract), { once: true });
+      existingScript.addEventListener("error", reject, { once: true });
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = TESSERACT_CDN_URL;
+    script.async = true;
+    script.onload = () => resolve(window.Tesseract);
+    script.onerror = reject;
+    document.head.appendChild(script);
+  });
+}
+
+function preprocessGarminCapture(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onerror = reject;
+    reader.onload = () => {
+      const image = new Image();
+
+      image.onerror = reject;
+      image.onload = () => {
+        const maxWidth = 1800;
+        const scale = Math.min(maxWidth / image.width, 1.8);
+        const canvas = document.createElement("canvas");
+        const context = canvas.getContext("2d", { willReadFrequently: true });
+
+        canvas.width = Math.max(1, Math.round(image.width * scale));
+        canvas.height = Math.max(1, Math.round(image.height * scale));
+        context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+        const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+        const { data } = imageData;
+
+        for (let i = 0; i < data.length; i += 4) {
+          const luminance = (0.299 * data[i]) + (0.587 * data[i + 1]) + (0.114 * data[i + 2]);
+          const value = luminance > 125 ? 0 : 255;
+
+          data[i] = value;
+          data[i + 1] = value;
+          data[i + 2] = value;
+        }
+
+        context.putImageData(imageData, 0, 0);
+        resolve({
+          dataUrl: canvas.toDataURL("image/png"),
+          width: canvas.width,
+          height: canvas.height
+        });
+      };
+      image.src = reader.result;
+    };
+
+    reader.readAsDataURL(file);
+  });
+}
+
+function cropGarminCaptureImage(preprocessedImage, xRatioStart = 0, xRatioEnd = 1) {
+  const sourceImage = preprocessedImage || {};
+  const sourceWidth = Number(sourceImage.width) || 0;
+  const sourceHeight = Number(sourceImage.height) || 0;
+
+  if (!sourceImage.dataUrl || !sourceWidth || !sourceHeight) {
+    return Promise.reject(new Error("Garmin crop source is missing."));
+  }
+
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+
+    image.onerror = reject;
+    image.onload = () => {
+      const startX = Math.max(0, Math.floor(sourceWidth * xRatioStart));
+      const endX = Math.min(sourceWidth, Math.ceil(sourceWidth * xRatioEnd));
+      const cropWidth = Math.max(1, endX - startX);
+      const canvas = document.createElement("canvas");
+      const context = canvas.getContext("2d", { willReadFrequently: true });
+
+      canvas.width = cropWidth;
+      canvas.height = sourceHeight;
+      context.drawImage(image, startX, 0, cropWidth, sourceHeight, 0, 0, cropWidth, sourceHeight);
+      resolve({
+        dataUrl: canvas.toDataURL("image/png"),
+        width: cropWidth,
+        height: sourceHeight,
+        offsetX: startX
+      });
+    };
+
+    image.src = sourceImage.dataUrl;
+  });
+}
+
+function normalizeGarminOcrText(text = "") {
+  return String(text || "")
+    .replace(/[：]/g, ":")
+    .replace(/[，]/g, ".")
+    .replace(/[|]/g, "1")
+    .replace(/[Oo]/g, "0");
+}
+
+function extractDecimalNumbers(line = "") {
+  const matches = [];
+  const regex = /\d+[.,]\d{1,2}/g;
+  let match = regex.exec(line);
+
+  while (match) {
+    const previousChar = line[match.index - 1] || "";
+
+    if (previousChar !== ":") {
+      matches.push(Number(match[0].replace(",", ".")));
+    }
+
+    match = regex.exec(line);
+  }
+
+  return matches.filter((value) => Number.isFinite(value));
+}
+
+function parseOcrDurationSeconds(value = "") {
+  const match = String(value || "").match(/^(\d{1,2}):(\d{1,2})(?:[.,](\d))?$/);
+
+  if (!match) return 0;
+
+  const minutes = Number(match[1]);
+  const seconds = Number(match[2]);
+  const tenths = match[3] ? Number(`0.${match[3]}`) : 0;
+
+  if (!Number.isFinite(minutes) || !Number.isFinite(seconds)) return 0;
+
+  return Math.round((minutes * 60) + seconds + tenths);
+}
+
+function formatOcrDuration(value = "") {
+  const totalSeconds = parseOcrDurationSeconds(value);
+
+  if (!totalSeconds) return "";
+
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+}
+
+function buildOcrDurationCandidates(values = []) {
+  return Array.from(new Set(
+    values
+      .map((value) => formatOcrDuration(value))
+      .filter(Boolean)
+  ));
+}
+
+function chooseGarminDurationForRole(row = {}, role = "set") {
+  const candidates = Array.isArray(row.durationCandidates) ? row.durationCandidates : [];
+
+  if (!candidates.length) return row.duration || "";
+
+  const candidateEntries = candidates
+    .map((value) => ({
+      value,
+      seconds: parseOcrDurationSeconds(value)
+    }))
+    .filter((entry) => entry.seconds > 0);
+
+  if (!candidateEntries.length) return row.duration || "";
+
+  if (role === "recovery") {
+    const recoveryCandidate = candidateEntries
+      .filter((entry) => entry.seconds >= 20 && entry.seconds <= 360)
+      .sort((a, b) => a.seconds - b.seconds)[0];
+
+    if (recoveryCandidate) return recoveryCandidate.value;
+  }
+
+  return row.duration || candidateEntries[0].value;
+}
+
+function formatGarminSeconds(totalSeconds = 0) {
+  const normalizedSeconds = Math.max(0, Math.round(Number(totalSeconds) || 0));
+
+  if (!normalizedSeconds) return "";
+
+  const minutes = Math.floor(normalizedSeconds / 60);
+  const seconds = normalizedSeconds % 60;
+
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+}
+
+function getMedianNumber(values = []) {
+  const sorted = values
+    .filter((value) => Number.isFinite(value))
+    .sort((a, b) => a - b);
+
+  if (!sorted.length) return 0;
+
+  const middleIndex = Math.floor(sorted.length / 2);
+
+  return sorted.length % 2
+    ? sorted[middleIndex]
+    : Math.round((sorted[middleIndex - 1] + sorted[middleIndex]) / 2);
+}
+
+function normalizeGarminRecoveryValues(recoveryValues = [], recoveryRowMeta = []) {
+  const recoverySeconds = recoveryValues.map((value) => parseOcrDurationSeconds(value));
+  const validSeconds = recoverySeconds.filter((value) => value >= 20 && value <= 360);
+
+  if (validSeconds.length < 2) {
+    return { recoveryValues, recoveryRowMeta };
+  }
+
+  const medianSeconds = getMedianNumber(validSeconds);
+  const normalizedValues = [...recoveryValues];
+  const normalizedMeta = recoveryRowMeta.map((item) => (item ? { ...item } : item));
+
+  recoverySeconds.forEach((seconds, index) => {
+    if (!seconds) return;
+
+    const isOutlier = seconds > Math.max(360, Math.round(medianSeconds * 1.8));
+
+    if (!isOutlier) return;
+
+    const neighborCandidates = [
+      recoverySeconds[index - 1],
+      recoverySeconds[index + 1]
+    ].filter((value) => value >= 20 && value <= 360);
+    const replacementSeconds = getMedianNumber(neighborCandidates) || medianSeconds;
+    const replacementValue = formatGarminSeconds(replacementSeconds);
+
+    if (!replacementValue) return;
+
+    normalizedValues[index] = replacementValue;
+
+    if (normalizedMeta[index]) {
+      normalizedMeta[index].duration = replacementValue;
+      normalizedMeta[index].normalized = true;
+    }
+  });
+
+  return {
+    recoveryValues: normalizedValues,
+    recoveryRowMeta: normalizedMeta
+  };
+}
+
+function extractGarminLapNumber(line = "") {
+  const trimmedLine = String(line || "").trim();
+  const match = trimmedLine.match(/^(\d{1,2})(?:\s+|$)/);
+  const value = match ? Number(match[1]) : 0;
+
+  return Number.isInteger(value) && value > 0 && value <= 40 ? value : 0;
+}
+
+function getGarminOcrRowLabelType(line = "") {
+  const compactLine = String(line || "").replace(/\s+/g, "");
+
+  if (/총계|합계|total/i.test(compactLine)) return "total";
+  if (/체력회복|회복|쿨다운|cooldown/i.test(compactLine)) return "recovery";
+  if (/러닝|running|run/i.test(compactLine)) return "set";
+
+  return "";
+}
+
+function getGarminOcrRowLabelTypeFromWords(words = [], durationWord = null, lapColumnMaxX = 0) {
+  const typeWords = words.filter((word) => {
+    if (/\d/.test(word.text)) return false;
+    if (durationWord && word.xCenter >= durationWord.xCenter) return false;
+    if (lapColumnMaxX && word.xCenter <= lapColumnMaxX) return false;
+
+    return true;
+  });
+  const compactText = typeWords.map((word) => word.text).join("").replace(/\s+/g, "");
+
+  if (/체력회복|회복|쿨다운|cooldown/i.test(compactText)) return "recovery";
+  if (/러닝|running|run/i.test(compactText)) return "set";
+
+  return "";
+}
+
+function getGarminLabelRowsFromWords(words = []) {
+  const ocrWords = words
+    .map((word) => {
+      const text = normalizeGarminOcrText(word.text || "").replace(/\s+/g, "");
+      const box = getGarminWordBox(word);
+
+      if (!box || !text) return null;
+
+      return {
+        text,
+        box,
+        xCenter: (box.x0 + box.x1) / 2,
+        yCenter: (box.y0 + box.y1) / 2,
+        height: Math.max(1, box.y1 - box.y0)
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.yCenter - b.yCenter || a.xCenter - b.xCenter);
+
+  if (!ocrWords.length) return [];
+
+  const averageHeight = ocrWords.reduce((sum, word) => sum + word.height, 0) / ocrWords.length;
+  const yTolerance = Math.max(14, averageHeight);
+  const rowGroups = [];
+
+  ocrWords.forEach((word) => {
+    const group = rowGroups.find((candidate) => Math.abs(candidate.yCenter - word.yCenter) <= yTolerance);
+
+    if (group) {
+      group.words.push(word);
+      group.yCenter = group.words.reduce((sum, item) => sum + item.yCenter, 0) / group.words.length;
+    } else {
+      rowGroups.push({
+        yCenter: word.yCenter,
+        words: [word]
+      });
+    }
+  });
+
+  return rowGroups
+    .sort((a, b) => a.yCenter - b.yCenter)
+    .map((group, index) => {
+      const sortedWords = group.words.sort((a, b) => a.xCenter - b.xCenter);
+      const line = sortedWords.map((word) => word.text).join(" ");
+      const labelType = getGarminOcrRowLabelType(line);
+
+      return {
+        index,
+        yCenter: group.yCenter,
+        line,
+        labelType
+      };
+    })
+    .filter((row) => row.labelType);
+}
+
+function groupGarminOcrWordsByRow(words = []) {
+  const ocrWords = words
+    .map((word) => {
+      const text = normalizeGarminOcrText(word.text || "").replace(/\s+/g, "");
+      const box = getGarminWordBox(word);
+
+      if (!box || !text) return null;
+
+      return {
+        text,
+        box,
+        xCenter: (box.x0 + box.x1) / 2,
+        yCenter: (box.y0 + box.y1) / 2,
+        height: Math.max(1, box.y1 - box.y0)
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.yCenter - b.yCenter || a.xCenter - b.xCenter);
+
+  if (!ocrWords.length) return [];
+
+  const averageHeight = ocrWords.reduce((sum, word) => sum + word.height, 0) / ocrWords.length;
+  const yTolerance = Math.max(14, averageHeight);
+  const rowGroups = [];
+
+  ocrWords.forEach((word) => {
+    const group = rowGroups.find((candidate) => Math.abs(candidate.yCenter - word.yCenter) <= yTolerance);
+
+    if (group) {
+      group.words.push(word);
+      group.yCenter = group.words.reduce((sum, item) => sum + item.yCenter, 0) / group.words.length;
+    } else {
+      rowGroups.push({
+        yCenter: word.yCenter,
+        words: [word]
+      });
+    }
+  });
+
+  return rowGroups
+    .sort((a, b) => a.yCenter - b.yCenter)
+    .map((group, index) => ({
+      index,
+      yCenter: group.yCenter,
+      words: group.words.sort((a, b) => a.xCenter - b.xCenter),
+      line: group.words
+        .sort((a, b) => a.xCenter - b.xCenter)
+        .map((word) => word.text)
+        .join(" ")
+    }));
+}
+
+function getGarminLapRowsFromWords(words = []) {
+  return groupGarminOcrWordsByRow(words)
+    .map((row) => {
+      const lapWord = row.words.find((word) => /^\d{1,2}$/.test(word.text));
+      const lapNumber = lapWord ? Number(lapWord.text) : 0;
+
+      return {
+        index: row.index,
+        yCenter: row.yCenter,
+        line: row.line,
+        lapNumber: lapNumber > 0 && lapNumber <= 40 ? lapNumber : 0
+      };
+    })
+    .filter((row) => row.lapNumber);
+}
+
+function getGarminTypeRowsFromWords(words = []) {
+  return groupGarminOcrWordsByRow(words)
+    .map((row) => ({
+      index: row.index,
+      yCenter: row.yCenter,
+      line: row.line,
+      labelType: getGarminOcrRowLabelType(row.line)
+    }))
+    .filter((row) => row.labelType && row.labelType !== "total");
+}
+
+function getGarminTimeRowsFromWords(words = []) {
+  return groupGarminOcrWordsByRow(words)
+    .map((row) => {
+      const durationTokens = row.words
+        .map((word) => word.text)
+        .filter((token) => isGarminDurationToken(token));
+      const duration = formatOcrDuration(durationTokens[0] || "");
+
+      return {
+        index: row.index,
+        yCenter: row.yCenter,
+        line: row.line,
+        duration,
+        durationCandidates: buildOcrDurationCandidates(durationTokens),
+        durationSeconds: parseOcrDurationSeconds(duration)
+      };
+    })
+    .filter((row) => row.duration);
+}
+
+function getNearestGarminColumnRow(targetY = 0, rows = [], maxDiff = 30) {
+  return rows
+    .map((row) => ({
+      ...row,
+      yDiff: Math.abs((row.yCenter || 0) - targetY)
+    }))
+    .filter((row) => row.yDiff <= maxDiff)
+    .sort((a, b) => a.yDiff - b.yDiff)[0] || null;
+}
+
+function buildGarminRowsFromColumnRecognitions(lapData = {}, typeData = {}, timeData = {}) {
+  const lapRows = getGarminLapRowsFromWords(lapData.words || []);
+  const typeRows = getGarminTypeRowsFromWords(typeData.words || []);
+  const timeRows = getGarminTimeRowsFromWords(timeData.words || []);
+
+  if (!lapRows.length && !timeRows.length) return [];
+
+  const rows = [];
+
+  lapRows.forEach((lapRow, index) => {
+    const typeRow = getNearestGarminColumnRow(lapRow.yCenter, typeRows, 34);
+    const timeRow = getNearestGarminColumnRow(lapRow.yCenter, timeRows, 40);
+
+    rows.push({
+      index,
+      yCenter: lapRow.yCenter,
+      line: [lapRow.line || "", typeRow?.line || "", timeRow?.line || ""].filter(Boolean).join(" "),
+      labelType: "set",
+      lapNumber: lapRow.lapNumber || 0,
+      typeText: typeRow?.line || "",
+      duration: timeRow?.duration || "",
+      durationCandidates: timeRow?.durationCandidates || [],
+      durationSeconds: timeRow?.durationSeconds || 0,
+      distance: 0,
+      positioned: true
+    });
+  });
+
+  typeRows
+    .filter((typeRow) => typeRow.labelType === "recovery")
+    .forEach((typeRow, recoveryIndex) => {
+      const timeRow = getNearestGarminColumnRow(typeRow.yCenter, timeRows, 40);
+
+      rows.push({
+        index: lapRows.length + recoveryIndex,
+        yCenter: typeRow.yCenter,
+        line: [typeRow.line || "", timeRow?.line || ""].filter(Boolean).join(" "),
+        labelType: "recovery",
+        lapNumber: 0,
+        typeText: typeRow.line || "",
+        duration: timeRow?.duration || "",
+        durationCandidates: timeRow?.durationCandidates || [],
+        durationSeconds: timeRow?.durationSeconds || 0,
+        distance: 0,
+        positioned: true
+      });
+    });
+
+  return rows
+    .sort((a, b) => a.yCenter - b.yCenter || a.index - b.index)
+    .filter((row) => row.lapNumber || row.labelType);
+}
+
+function mergeGarminLabelRows(rows = [], labelRows = []) {
+  if (!labelRows.length) return rows;
+
+  return rows.map((row) => {
+    const nearestLabelRow = labelRows
+      .map((labelRow) => ({
+        ...labelRow,
+        yDiff: Math.abs((labelRow.yCenter || 0) - (row.yCenter || 0))
+      }))
+      .filter((labelRow) => labelRow.yDiff <= 28)
+      .sort((a, b) => a.yDiff - b.yDiff)[0];
+
+    if (!nearestLabelRow) return row;
+
+    const mergedLabelType = nearestLabelRow.labelType === "total"
+      ? row.labelType
+      : nearestLabelRow.labelType;
+
+    return {
+      ...row,
+      labelType: mergedLabelType || row.labelType,
+      typeText: nearestLabelRow.line || row.typeText || ""
+    };
+  });
+}
+
+function getGarminOcrRows(text = "") {
+  const normalizedText = normalizeGarminOcrText(text);
+  const durationRegex = /\b\d{1,2}:\d{1,2}(?:[.,]\d)?\b/g;
+  return normalizedText
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line, index) => {
+      const durations = line.match(durationRegex) || [];
+
+      return {
+        index,
+        line,
+        labelType: getGarminOcrRowLabelType(line),
+        lapNumber: extractGarminLapNumber(line),
+        duration: formatOcrDuration(durations[0] || ""),
+        durationCandidates: buildOcrDurationCandidates(durations),
+        durationSeconds: parseOcrDurationSeconds(durations[0] || ""),
+        distance: 0
+      };
+    })
+    .filter((row) => row.labelType || row.lapNumber || row.duration);
+}
+
+function getGarminWordBox(word = {}) {
+  const box = word.bbox || word;
+  const x0 = Number(box.x0 ?? box.left);
+  const y0 = Number(box.y0 ?? box.top);
+  const x1 = Number(box.x1 ?? (Number.isFinite(x0) ? x0 + Number(box.width || 0) : NaN));
+  const y1 = Number(box.y1 ?? (Number.isFinite(y0) ? y0 + Number(box.height || 0) : NaN));
+
+  if (![x0, y0, x1, y1].every(Number.isFinite)) return null;
+
+  return { x0, y0, x1, y1 };
+}
+
+function isGarminDurationToken(text = "") {
+  return /^\d{1,2}:\d{1,2}(?:[.,]\d)?$/.test(String(text || ""));
+}
+
+function isGarminDistanceToken(text = "") {
+  return /^\d+[.,]\d{1,2}$/.test(String(text || ""));
+}
+
+function selectGarminTableDistanceWord(words = [], durationWord = null) {
+  const distanceWords = words.filter((word) => isGarminDistanceToken(word.text));
+
+  if (!distanceWords.length) return null;
+  if (durationWord) {
+    const rightSideDistance = distanceWords.find((word) => word.xCenter > durationWord.xCenter);
+
+    if (rightSideDistance) return rightSideDistance;
+  }
+
+  return distanceWords[0];
+}
+
+function selectGarminTableDurationWord(words = [], lapColumnMaxX = 0) {
+  const durationWords = words.filter((word) => isGarminDurationToken(word.text));
+
+  if (!durationWords.length) return null;
+
+  const timeColumnWords = durationWords.filter((word) => word.xCenter > lapColumnMaxX);
+
+  return (timeColumnWords.length ? timeColumnWords : durationWords).sort((a, b) => a.xCenter - b.xCenter)[0];
+}
+
+function getGarminOcrRowsFromWords(words = []) {
+  const ocrWords = words
+    .map((word) => {
+      const text = normalizeGarminOcrText(word.text || "").replace(/\s+/g, "");
+      const box = getGarminWordBox(word);
+
+      if (!box || !text) return null;
+
+      return {
+        text,
+        box,
+        xCenter: (box.x0 + box.x1) / 2,
+        yCenter: (box.y0 + box.y1) / 2,
+        height: Math.max(1, box.y1 - box.y0)
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.yCenter - b.yCenter || a.xCenter - b.xCenter);
+
+  if (!ocrWords.length) return [];
+
+  const averageHeight = ocrWords.reduce((sum, word) => sum + word.height, 0) / ocrWords.length;
+  const numericWords = ocrWords.filter((word) => /\d/.test(word.text));
+  const columnWords = numericWords.length ? numericWords : ocrWords;
+  const minX = Math.min(...columnWords.map((word) => word.box.x0));
+  const maxX = Math.max(...columnWords.map((word) => word.box.x1));
+  const lapColumnMaxX = minX + ((maxX - minX) * 0.22);
+  const yTolerance = Math.max(12, averageHeight * 0.9);
+  const rowGroups = [];
+
+  ocrWords.forEach((word) => {
+    const group = rowGroups.find((candidate) => Math.abs(candidate.yCenter - word.yCenter) <= yTolerance);
+
+    if (group) {
+      group.words.push(word);
+      group.yCenter = group.words.reduce((sum, item) => sum + item.yCenter, 0) / group.words.length;
+    } else {
+      rowGroups.push({
+        yCenter: word.yCenter,
+        words: [word]
+      });
+    }
+  });
+
+  return rowGroups
+    .sort((a, b) => a.yCenter - b.yCenter)
+    .map((group, index) => {
+      const sortedWords = group.words.sort((a, b) => a.xCenter - b.xCenter);
+      const tokens = sortedWords.map((word) => word.text);
+      const line = tokens.join(" ");
+      const lapWord = sortedWords.find((word) => /^\d{1,2}$/.test(word.text) && word.xCenter <= lapColumnMaxX);
+      const lapCandidate = lapWord ? Number(lapWord.text) : 0;
+      const lapNumber = lapCandidate > 0 && lapCandidate <= 40 ? lapCandidate : 0;
+      const durationWord = selectGarminTableDurationWord(sortedWords, lapColumnMaxX);
+      const durationTokens = sortedWords
+        .filter((word) => isGarminDurationToken(word.text))
+        .filter((word) => word.xCenter > lapColumnMaxX)
+        .map((word) => word.text);
+      const columnLabelType = getGarminOcrRowLabelTypeFromWords(sortedWords, durationWord, lapColumnMaxX);
+      const labelType = columnLabelType || getGarminOcrRowLabelType(line) || (lapNumber ? "set" : "");
+
+      return {
+        index,
+        yCenter: group.yCenter,
+        line,
+        labelType,
+        lapNumber,
+        typeText: sortedWords
+          .filter((word) => {
+            if (/\d/.test(word.text)) return false;
+            if (durationWord && word.xCenter >= durationWord.xCenter) return false;
+            if (word.xCenter <= lapColumnMaxX) return false;
+
+            return true;
+          })
+          .map((word) => word.text)
+          .join(" "),
+        duration: formatOcrDuration(durationWord?.text || ""),
+        durationCandidates: buildOcrDurationCandidates(durationTokens),
+        durationSeconds: parseOcrDurationSeconds(durationWord?.text || ""),
+        distance: 0,
+        positioned: true
+      };
+    })
+    .filter((row) => row.labelType || row.lapNumber || row.duration);
+}
+
+function getGarminOcrRowsFromRecognitionData(data = {}, labelData = null) {
+  const positionedRows = getGarminOcrRowsFromWords(data.words || []);
+  const labelRows = labelData ? getGarminLabelRowsFromWords(labelData.words || []) : [];
+
+  if (positionedRows.length) {
+    return mergeGarminLabelRows(positionedRows, labelRows);
+  }
+
+  return getGarminOcrRows(data.text || "");
+}
+
+function isDuplicateGarminOcrRow(row, existingRow) {
+  if (!row.imageIndex || !existingRow.imageIndex || row.imageIndex === existingRow.imageIndex) {
+    return false;
+  }
+
+  if (row.lapNumber && existingRow.lapNumber) {
+    if (!row.duration || !existingRow.duration) return false;
+
+    return row.lapNumber === existingRow.lapNumber;
+  }
+
+  if (!row.lapNumber || !existingRow.lapNumber || !row.distance || !existingRow.distance) {
+    return false;
+  }
+
+  const distanceDiff = Math.abs((row.distance || 0) - (existingRow.distance || 0));
+  const timeDiff = Math.abs((row.durationSeconds || 0) - (existingRow.durationSeconds || 0));
+
+  return distanceDiff <= 0.006 && timeDiff === 0;
+}
+
+function dedupeGarminOcrRows(rows = []) {
+  return rows.reduce((uniqueRows, row) => {
+    if (!row.duration && !row.distance && !row.lapNumber && !row.labelType) return uniqueRows;
+
+    const duplicate = uniqueRows.some((existingRow) => isDuplicateGarminOcrRow(row, existingRow));
+
+    if (!duplicate) {
+      uniqueRows.push(row);
+    }
+
+    return uniqueRows;
+  }, []);
+}
+
+function mergeGarminSetMarkerRows(rows = []) {
+  const mergedRows = [];
+  let pendingSetMarker = null;
+
+  rows.forEach((row) => {
+    const isSetMarker = row.lapNumber && row.labelType === "set";
+
+    if (isSetMarker && !row.duration) {
+      pendingSetMarker = row;
+      mergedRows.push(row);
+      return;
+    }
+
+    if (
+      pendingSetMarker
+      && row.duration
+      && !row.lapNumber
+      && !["recovery", "total"].includes(row.labelType)
+    ) {
+      const mergedRow = {
+        ...row,
+        lapNumber: pendingSetMarker.lapNumber,
+        labelType: "set",
+        line: `${pendingSetMarker.line} ${row.line}`.trim(),
+        markerMerged: true
+      };
+
+      mergedRows.push(mergedRow);
+      pendingSetMarker = null;
+      return;
+    }
+
+    if (row.labelType === "recovery" || row.labelType === "total" || isSetMarker) {
+      pendingSetMarker = null;
+    }
+
+    mergedRows.push(row);
+  });
+
+  return mergedRows;
+}
+
+function classifyGarminOcrRow(row, structure) {
+  if (row.labelType === "total") return "total";
+  if (row.labelType === "recovery") return "recovery";
+  if (row.labelType === "set" && row.lapNumber) return "set";
+
+  const setDistance = structure.setDistanceKm || 0;
+  const recoveryDistance = structure.recoveryDistanceKm || 0;
+  const setTolerance = Math.max(0.05, setDistance * 0.12);
+  const recoveryTolerance = Math.max(0.04, recoveryDistance * 0.28);
+  const setDiff = setDistance ? Math.abs(row.distance - setDistance) : Number.POSITIVE_INFINITY;
+  const recoveryDiff = recoveryDistance ? Math.abs(row.distance - recoveryDistance) : Number.POSITIVE_INFINITY;
+  const matchesSet = setDiff <= setTolerance;
+  const matchesRecovery = recoveryDiff <= recoveryTolerance;
+
+  if (matchesSet && matchesRecovery) {
+    return setDiff / setTolerance <= recoveryDiff / recoveryTolerance ? "set" : "recovery";
+  }
+
+  if (matchesSet) return "set";
+  if (matchesRecovery) return "recovery";
+
+  return "";
+}
+
+function isLikelyGarminRecoveryRow(row, structure, hasPreviousSet = false) {
+  if (!row.duration || row.lapNumber) return false;
+  if (row.labelType === "total") return false;
+  if (row.labelType === "recovery") return true;
+  if (row.durationSeconds && row.durationSeconds > 600) return false;
+  if (row.positioned) return Boolean(hasPreviousSet);
+
+  const type = classifyGarminOcrRow(row, structure);
+
+  if (type === "recovery") return true;
+  if (type === "set") return false;
+  if (!hasPreviousSet) return false;
+
+  const recoveryDistance = structure.recoveryDistanceKm || 0;
+
+  if (!row.distance) return true;
+  if (!recoveryDistance) return row.distance <= 0.35;
+
+  return row.distance <= Math.max(0.35, recoveryDistance * 1.5);
+}
+
+function isLikelyGarminSetRow(row, structure) {
+  if (!row.duration || row.labelType === "total" || row.labelType === "recovery") return false;
+  if (row.positioned) return Boolean(row.lapNumber);
+  if (row.lapNumber) return true;
+  if (row.labelType === "set" && row.lapNumber) return true;
+
+  return classifyGarminOcrRow(row, structure) === "set";
+}
+
+function getGarminDistanceRole(row, structure) {
+  if (!row.distance) return "";
+
+  const setDistance = structure.setDistanceKm || 0;
+  const recoveryDistance = structure.recoveryDistanceKm || 0;
+  const setTolerance = Math.max(0.08, setDistance * 0.16);
+  const recoveryTolerance = Math.max(0.05, recoveryDistance * 0.35);
+  const setDiff = setDistance ? Math.abs(row.distance - setDistance) : Number.POSITIVE_INFINITY;
+  const recoveryDiff = recoveryDistance ? Math.abs(row.distance - recoveryDistance) : Number.POSITIVE_INFINITY;
+
+  if (setDiff <= setTolerance && recoveryDiff <= recoveryTolerance) {
+    return setDiff <= recoveryDiff ? "set" : "recovery";
+  }
+
+  if (setDiff <= setTolerance) return "set";
+  if (recoveryDiff <= recoveryTolerance) return "recovery";
+
+  return "";
+}
+
+function getNextAvailableSetIndex(setValues = []) {
+  const firstEmptyIndex = setValues.findIndex((value) => !value);
+
+  return firstEmptyIndex >= 0 ? firstEmptyIndex : setValues.length;
+}
+
+function buildGarminFirstColumnResult(rows = [], structure) {
+  const orderedRows = [...rows].sort((a, b) => (
+    (a.imageIndex || 0) - (b.imageIndex || 0)
+      || a.index - b.index
+      || Number(a.reconstructed || false) - Number(b.reconstructed || false)
+  ));
+  const explicitSetRows = orderedRows.filter((row) => (
+    row.duration
+      && row.labelType !== "total"
+      && row.durationSeconds <= 900
+      && row.lapNumber
+  ));
+  const setValues = [];
+  const recoveryValues = [];
+  const usedRows = [];
+  const recoveryRowMeta = [];
+  let activeSetIndex = -1;
+  let previousRowWasSet = false;
+
+  if (explicitSetRows.length) {
+    orderedRows.forEach((row) => {
+      if (!row.duration || row.labelType === "total") return;
+      if (row.durationSeconds > 900) return;
+
+      if (row.lapNumber) {
+        const setIndex = Math.max(0, row.lapNumber - 1);
+        const setDuration = chooseGarminDurationForRole(row, "set");
+
+        setValues[setIndex] = setDuration;
+        usedRows.push({ ...row, type: "set", duration: setDuration });
+        activeSetIndex = setIndex;
+        previousRowWasSet = true;
+        return;
+      }
+
+      if (activeSetIndex >= 0 && row.labelType === "recovery") {
+        const recoveryDuration = chooseGarminDurationForRole(row, "recovery");
+
+        if (!recoveryValues[activeSetIndex]) {
+          recoveryValues[activeSetIndex] = recoveryDuration;
+          recoveryRowMeta[activeSetIndex] = {
+            ...row,
+            type: "recovery",
+            duration: recoveryDuration,
+            usedRowsIndex: usedRows.length
+          };
+          usedRows.push(recoveryRowMeta[activeSetIndex]);
+        }
+        previousRowWasSet = false;
+        return;
+      }
+
+      if (previousRowWasSet && activeSetIndex >= 0 && !row.lapNumber && !recoveryValues[activeSetIndex] && row.positioned) {
+        const recoveryDuration = chooseGarminDurationForRole(row, "recovery");
+
+        if (recoveryDuration) {
+          recoveryValues[activeSetIndex] = recoveryDuration;
+          recoveryRowMeta[activeSetIndex] = {
+            ...row,
+            type: "recovery",
+            duration: recoveryDuration,
+            inferredRecovery: true,
+            usedRowsIndex: usedRows.length
+          };
+          usedRows.push(recoveryRowMeta[activeSetIndex]);
+        }
+        previousRowWasSet = false;
+      }
+    });
+
+    const explicitSetCount = Math.max(
+      explicitSetRows.length,
+      ...explicitSetRows.map((row) => Number(row.lapNumber) || 0)
+    );
+    const normalizedRecovery = normalizeGarminRecoveryValues(recoveryValues, recoveryRowMeta);
+
+    normalizedRecovery.recoveryRowMeta.forEach((rowMeta) => {
+      if (!rowMeta || !Number.isInteger(rowMeta.usedRowsIndex)) return;
+
+      usedRows[rowMeta.usedRowsIndex] = rowMeta;
+    });
+
+    return {
+      setValues: Array.from({ length: explicitSetCount }, (_, index) => setValues[index] || ""),
+      recoveryValues: Array.from({ length: explicitSetCount }, (_, index) => normalizedRecovery.recoveryValues[index] || ""),
+      usedRows
+    };
+  }
+
+  orderedRows.forEach((row) => {
+    if (!row.duration || row.labelType === "total") return;
+    if (row.durationSeconds > 900) return;
+
+    const isExplicitSetRow = Boolean(row.lapNumber);
+    const isExplicitRecoveryRow = !row.lapNumber && row.labelType === "recovery";
+
+    if (isExplicitSetRow) {
+      const setIndex = row.lapNumber - 1;
+
+      const setDuration = chooseGarminDurationForRole(row, "set");
+
+      setValues[setIndex] = setDuration;
+      usedRows.push({ ...row, type: "set", duration: setDuration });
+      activeSetIndex = setIndex;
+      previousRowWasSet = true;
+      return;
+    }
+
+    if (activeSetIndex >= 0 && (isExplicitRecoveryRow || previousRowWasSet)) {
+      const recoveryDuration = chooseGarminDurationForRole(row, "recovery");
+
+      if (!recoveryValues[activeSetIndex]) {
+        recoveryValues[activeSetIndex] = recoveryDuration;
+        recoveryRowMeta[activeSetIndex] = {
+          ...row,
+          type: "recovery",
+          duration: recoveryDuration,
+          usedRowsIndex: usedRows.length
+        };
+        usedRows.push(recoveryRowMeta[activeSetIndex]);
+      }
+      previousRowWasSet = false;
+      return;
+    }
+
+    if (!row.positioned && getGarminDistanceRole(row, structure) === "set") {
+      const setIndex = getNextAvailableSetIndex(setValues);
+      const setDuration = chooseGarminDurationForRole(row, "set");
+
+      setValues[setIndex] = setDuration;
+      usedRows.push({ ...row, type: "set", inferredLap: true, duration: setDuration });
+      activeSetIndex = setIndex;
+      previousRowWasSet = true;
+    }
+  });
+
+  const resultLength = Math.max(setValues.length, recoveryValues.length);
+  const normalizedRecovery = normalizeGarminRecoveryValues(recoveryValues, recoveryRowMeta);
+
+  normalizedRecovery.recoveryRowMeta.forEach((rowMeta) => {
+    if (!rowMeta || !Number.isInteger(rowMeta.usedRowsIndex)) return;
+
+    usedRows[rowMeta.usedRowsIndex] = rowMeta;
+  });
+
+  return {
+    setValues: Array.from({ length: resultLength }, (_, index) => setValues[index] || ""),
+    recoveryValues: Array.from({ length: resultLength }, (_, index) => normalizedRecovery.recoveryValues[index] || ""),
+    usedRows
+  };
+}
+
+function buildGarminOcrResultFromRows(rows = [], planText = "", workoutType = "", meta = {}) {
+  const structure = getQualityWorkoutStructure(planText, workoutType);
+  const uniqueRows = mergeGarminSetMarkerRows(dedupeGarminOcrRows(rows).sort((a, b) => (
+    (a.imageIndex || 0) - (b.imageIndex || 0)
+      || a.index - b.index
+      || Number(a.reconstructed || false) - Number(b.reconstructed || false)
+  )));
+  const firstColumnResult = buildGarminFirstColumnResult(uniqueRows, structure);
+
+  if (firstColumnResult.setValues.filter(Boolean).length) {
+    const setResults = firstColumnResult.setValues
+      .map((setValue, index) => [
+        setValue ? `${index + 1}세트 ${setValue}` : "",
+        firstColumnResult.recoveryValues[index] ? `R ${firstColumnResult.recoveryValues[index]}` : ""
+      ].filter(Boolean).join(" "))
+      .filter(Boolean)
+      .join(", ");
+
+    return {
+      rows: uniqueRows,
+      rawRowCount: rows.length,
+      duplicateCount: Math.max(0, rows.length - uniqueRows.length),
+      imageCount: meta.imageCount || 1,
+      expectedSetCount: structure.setCount,
+      usedRows: firstColumnResult.usedRows,
+      setValues: firstColumnResult.setValues.filter(Boolean),
+      recoveryValues: firstColumnResult.setValues
+        .map((value, index) => (value ? firstColumnResult.recoveryValues[index] || "" : ""))
+        .filter((_, index) => Boolean(firstColumnResult.setValues[index])),
+      setResults
+    };
+  }
+
+  const setValues = [];
+  const recoveryValues = [];
+  const usedRows = [];
+  const setRowsByLapNumber = new Map();
+  const recoveryRowsByLapNumber = new Map();
+  const orderedSetRows = [];
+  const orderedRecoveryRows = [];
+  let usedOrderedRows = false;
+  let pendingRecoveryRow = null;
+  let previousSetLapNumber = 0;
+
+  uniqueRows.forEach((row) => {
+    const type = classifyGarminOcrRow(row, structure);
+
+    if (type === "total") return;
+
+    if (isLikelyGarminSetRow(row, structure)) {
+      orderedSetRows.push(row);
+    } else if (isLikelyGarminRecoveryRow(row, structure, Boolean(orderedSetRows.length))) {
+      const recoveryIndex = Math.max(0, orderedSetRows.length - 1);
+
+      if (!orderedRecoveryRows[recoveryIndex]) {
+        orderedRecoveryRows[recoveryIndex] = row;
+      }
+    }
+
+    if ((type === "set" || (row.lapNumber && row.duration)) && row.lapNumber && row.duration) {
+      if (pendingRecoveryRow && previousSetLapNumber) {
+        if (!recoveryRowsByLapNumber.has(previousSetLapNumber)) {
+          recoveryRowsByLapNumber.set(previousSetLapNumber, pendingRecoveryRow);
+        }
+        pendingRecoveryRow = null;
+      }
+      if (!setRowsByLapNumber.has(row.lapNumber)) {
+        setRowsByLapNumber.set(row.lapNumber, row);
+      }
+      previousSetLapNumber = row.lapNumber;
+      return;
+    }
+
+    if (type === "recovery" || isLikelyGarminRecoveryRow(row, structure, Boolean(previousSetLapNumber))) {
+      if (previousSetLapNumber && !recoveryRowsByLapNumber.has(previousSetLapNumber)) {
+        recoveryRowsByLapNumber.set(previousSetLapNumber, row);
+      } else {
+        pendingRecoveryRow = row;
+      }
+      return;
+    }
+
+    if (type === "set" && setValues.length < structure.setCount) {
+      setValues.push(row.duration);
+      usedRows.push({ ...row, type });
+      if (pendingRecoveryRow && setValues.length > 1) {
+        const recoveryIndex = setValues.length - 2;
+
+        if (!recoveryValues[recoveryIndex]) {
+          recoveryValues[recoveryIndex] = pendingRecoveryRow.duration;
+          usedRows.push({ ...pendingRecoveryRow, type: "recovery" });
+        }
+        pendingRecoveryRow = null;
+      }
+      return;
+    }
+  });
+
+  if (orderedSetRows.length > setRowsByLapNumber.size || orderedSetRows.length >= structure.setCount) {
+    orderedSetRows.forEach((row, index) => {
+      setValues[index] = row.duration;
+      usedRows.push({ ...row, type: "set" });
+      const recoveryRow = orderedRecoveryRows[index];
+
+      if (recoveryRow) {
+        recoveryValues[index] = recoveryRow.duration;
+        usedRows.push({ ...recoveryRow, type: "recovery" });
+      }
+    });
+    usedOrderedRows = true;
+  }
+
+  if (!usedOrderedRows && setRowsByLapNumber.size) {
+    if (pendingRecoveryRow && previousSetLapNumber) {
+      recoveryRowsByLapNumber.set(previousSetLapNumber, pendingRecoveryRow);
+      pendingRecoveryRow = null;
+    }
+
+    Array.from(setRowsByLapNumber.entries())
+      .sort((a, b) => a[0] - b[0])
+      .forEach(([lapNumber, row], index) => {
+        setValues[index] = row.duration;
+        usedRows.push({ ...row, type: "set" });
+        const recoveryRow = recoveryRowsByLapNumber.get(lapNumber);
+
+        if (recoveryRow) {
+          recoveryValues[index] = recoveryRow.duration;
+          usedRows.push({ ...recoveryRow, type: "recovery" });
+        }
+      });
+  }
+
+  if (!setRowsByLapNumber.size && pendingRecoveryRow && setValues.length) {
+    const recoveryIndex = setValues.length - 1;
+
+    if (!recoveryValues[recoveryIndex]) {
+      recoveryValues[recoveryIndex] = pendingRecoveryRow.duration;
+      usedRows.push({ ...pendingRecoveryRow, type: "recovery" });
+    }
+  }
+
+  const setResults = setValues
+    .map((setValue, index) => [
+      `${index + 1}세트 ${setValue}`,
+      recoveryValues[index] ? `R ${recoveryValues[index]}` : ""
+    ].filter(Boolean).join(" "))
+    .join(", ");
+
+  return {
+    rows: uniqueRows,
+    rawRowCount: rows.length,
+    duplicateCount: Math.max(0, rows.length - uniqueRows.length),
+    imageCount: meta.imageCount || 1,
+    expectedSetCount: structure.setCount,
+    usedRows,
+    setValues,
+    recoveryValues,
+    setResults
+  };
+}
+
+function parseGarminOcrResult(text = "", planText = "", workoutType = "") {
+  return buildGarminOcrResultFromRows(getGarminOcrRows(text), planText, workoutType);
+}
+
+function renderGarminOcrPreview(result) {
+  const preview = document.getElementById("qualityOcrPreview");
+
+  if (!preview) return;
+
+  if (!result?.setValues?.length) {
+    preview.innerHTML = "";
+    return;
+  }
+
+  const summary = [
+    `<div>이미지 ${result.imageCount || 1}장 분석 · 세트 ${result.setValues.length}/${result.expectedSetCount || result.setValues.length}개 감지</div>`,
+    result.duplicateCount ? `<div>겹친 랩 후보 ${result.duplicateCount}개를 중복 제거했습니다.</div>` : ""
+  ].filter(Boolean);
+  const rows = result.setValues.map((setValue, index) => {
+    const recoveryValue = result.recoveryValues[index] ? ` / R ${result.recoveryValues[index]}` : "";
+
+    return `<div>${index + 1}세트 ${setValue}${recoveryValue}</div>`;
+  });
+
+  preview.innerHTML = [...summary, ...rows].join("");
+}
+
+async function handleGarminCaptureUpload(files) {
+  const status = document.getElementById("qualityOcrStatus");
+  const plannedWorkout = document.getElementById("qualityPlannedWorkout")?.value || "";
+  const workoutType = document.getElementById("qualityWorkoutType")?.value || "";
+  const fileList = Array.from(files || []);
+
+  if (!fileList.length) return;
+
+  const invalidFile = fileList.find((file) => !String(file?.type || "").startsWith("image/"));
+
+  if (invalidFile) {
+    if (status) status.innerText = "사진 및 동영상에서 Garmin 캡처 이미지만 선택해주세요.";
+    return;
+  }
+
+  if (!plannedWorkout) {
+    if (status) status.innerText = "먼저 훈련 프로그램을 선택하거나 훈련 계획을 입력해주세요.";
+    return;
+  }
+
+  try {
+    if (status) status.innerText = "OCR 엔진을 준비하는 중입니다...";
+    const Tesseract = await loadTesseractScript();
+    const allRows = [];
+
+    for (let index = 0; index < fileList.length; index += 1) {
+      const file = fileList[index];
+      const imageNumber = index + 1;
+
+      if (status) status.innerText = `이미지 ${imageNumber}/${fileList.length}장을 숫자 인식에 맞게 변환하는 중입니다...`;
+      const preprocessedImage = await preprocessGarminCapture(file);
+      const lapColumnImage = await cropGarminCaptureImage(preprocessedImage, 0.02, 0.16);
+      const typeColumnImage = await cropGarminCaptureImage(preprocessedImage, 0.12, 0.38);
+      const timeColumnImage = await cropGarminCaptureImage(preprocessedImage, 0.34, 0.58);
+      const recognition = await Tesseract.recognize(timeColumnImage.dataUrl, "eng", {
+        tessedit_char_whitelist: "0123456789:.,",
+        logger: (message) => {
+          if (!status || message.status !== "recognizing text") return;
+          status.innerText = `Garmin 캡처 ${imageNumber}/${fileList.length}장의 시간 열을 읽는 중입니다... ${Math.round((message.progress || 0) * 100)}%`;
+        }
+      });
+      const lapRecognition = await Tesseract.recognize(lapColumnImage.dataUrl, "eng", {
+        tessedit_char_whitelist: "0123456789",
+        logger: (message) => {
+          if (!status || message.status !== "recognizing text") return;
+          status.innerText = `Garmin 캡처 ${imageNumber}/${fileList.length}장의 세트 번호를 읽는 중입니다... ${Math.round((message.progress || 0) * 100)}%`;
+        }
+      });
+      const labelRecognition = await Tesseract.recognize(typeColumnImage.dataUrl, "kor+eng", {
+        logger: (message) => {
+          if (!status || message.status !== "recognizing text") return;
+          status.innerText = `Garmin 캡처 ${imageNumber}/${fileList.length}장의 유형 열을 읽는 중입니다... ${Math.round((message.progress || 0) * 100)}%`;
+        }
+      });
+
+      const columnRows = buildGarminRowsFromColumnRecognitions(
+        lapRecognition?.data || {},
+        labelRecognition?.data || {},
+        recognition?.data || {}
+      );
+      const fallbackRows = columnRows.length
+        ? columnRows
+        : getGarminOcrRowsFromRecognitionData(recognition?.data || {}, labelRecognition?.data || {});
+
+      fallbackRows.forEach((row) => {
+        allRows.push({
+          ...row,
+          imageIndex: imageNumber
+        });
+      });
+    }
+
+    const result = buildGarminOcrResultFromRows(allRows, plannedWorkout, workoutType, {
+      imageCount: fileList.length
+    });
+
+    if (!result.setResults) {
+      if (status) status.innerText = "세트 기록을 자동으로 찾지 못했습니다. 캡처가 선명한지 확인하거나 직접 입력해주세요.";
+      renderGarminOcrPreview(null);
+      return;
+    }
+
+    fillQualitySetInputs(result.setResults);
+    renderGarminOcrPreview(result);
+    if (status) {
+      const duplicateText = result.duplicateCount ? ` 겹친 랩 후보 ${result.duplicateCount}개는 중복 제거했습니다.` : "";
+      const shortfallText = result.expectedSetCount && result.setValues.length < result.expectedSetCount
+        ? ` 계획된 ${result.expectedSetCount}세트보다 적게 감지됐습니다. 빠진 세트는 직접 입력해주세요.`
+        : "";
+      status.innerText = `${fileList.length}장 이미지에서 ${result.setValues.length}개 세트 기록을 입력칸에 채웠습니다.${duplicateText}${shortfallText} 저장 전에 세트/리커버리 시간이 맞는지 확인해주세요.`;
+    }
+  } catch (error) {
+    console.error(error);
+    if (status) status.innerText = "OCR 처리에 실패했습니다. 네트워크 상태를 확인하거나 직접 입력해주세요.";
+  }
+}
+
 function buildLegacyQualityRunData(runData) {
   return {
     userId: runData.userId,
@@ -1740,6 +3037,43 @@ function buildLegacyQualityRunData(runData) {
     raceDate: "",
     updatedAt: runData.updatedAt
   };
+}
+
+function buildMinimalRunData(runData) {
+  return {
+    userId: runData.userId,
+    name: runData.name || "이름 없음",
+    email: runData.email || "",
+    runDate: runData.runDate,
+    distance: runData.distance,
+    type: "training",
+    time: runData.time,
+    raceName: "",
+    raceDate: "",
+    workoutType: "steady",
+    workoutDetail: "",
+    rankingEligible: true,
+    updatedAt: runData.updatedAt || new Date()
+  };
+}
+
+function getFirestoreSaveErrorMessage(error, fallbackError, context = {}) {
+  const primaryCode = error?.code || "unknown";
+  const fallbackCode = fallbackError?.code || "";
+  const fallbackText = fallbackCode ? ` / fallback: ${fallbackCode}` : "";
+  const details = [
+    context.runDate ? `운동일 ${context.runDate}` : "",
+    context.distance ? `거리 ${context.distance}km` : "",
+    context.time ? `시간 ${formatTime(context.time)}` : "",
+    context.workoutType ? `종류 ${getWorkoutTypeLabel(context.workoutType)}` : ""
+  ].filter(Boolean).join(", ");
+
+  return [
+    "정훈 결과 저장에 실패했습니다.",
+    `오류 코드: ${primaryCode}${fallbackText}`,
+    details ? `입력값: ${details}` : "",
+    "앱관리자에게 이 메시지를 알려주시면 원인을 바로 좁힐 수 있습니다."
+  ].filter(Boolean).join("\n");
 }
 
 async function saveRunDocument(runId, runData) {
@@ -1850,6 +3184,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const qualitySetResultsInput = document.getElementById("qualitySetResults");
   const qualitySelfRatingSelect = document.getElementById("qualitySelfRating");
   const qualityReflectionInput = document.getElementById("qualityReflection");
+  const qualityGarminCaptureInput = document.getElementById("qualityGarminCapture");
   const saveQualityRunBtn = document.getElementById("saveQualityRun");
   const cancelQualityRunEditBtn = document.getElementById("cancelQualityRunEdit");
   const qualityEditStatus = document.getElementById("qualityEditStatus");
@@ -1992,6 +3327,9 @@ document.addEventListener("DOMContentLoaded", () => {
   });
   qualityPlannedWorkoutInput.addEventListener("input", () => {
     renderQualitySetInputs(qualityPlannedWorkoutInput.value, getQualitySetResultsFromInputs());
+  });
+  qualityGarminCaptureInput?.addEventListener("change", () => {
+    handleGarminCaptureUpload(qualityGarminCaptureInput.files);
   });
   trainingTab.addEventListener("click", () => {
     setActiveAppView("training");
@@ -2303,7 +3641,12 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     } catch (e) {
       console.error(e);
-      alert(editingRun ? "기록 수정에 실패했습니다. Firestore 권한을 확인해주세요." : "기록 저장에 실패했습니다.");
+      alert([
+        editingRun ? "기록 수정에 실패했습니다." : "기록 저장에 실패했습니다.",
+        `오류 코드: ${e?.code || "unknown"}`,
+        `입력값: 운동일 ${runDate || "-"}, 거리 ${distance || "-"}km, 시간 ${time ? formatTime(time) : "-"}`,
+        "앱관리자에게 이 메시지를 알려주시면 원인을 바로 좁힐 수 있습니다."
+      ].join("\n"));
     }
   });
 
@@ -2408,19 +3751,44 @@ document.addEventListener("DOMContentLoaded", () => {
           throw e;
         }
 
-        await saveRunDocument(editingQualityRun?.id, buildLegacyQualityRunData(runData));
+        try {
+          await saveRunDocument(editingQualityRun?.id, buildLegacyQualityRunData(runData));
+        } catch (fallbackError) {
+          if (fallbackError.code !== "permission-denied") {
+            throw fallbackError;
+          }
+
+          try {
+            await saveRunDocument(editingQualityRun?.id, buildMinimalRunData(runData));
+          } catch (minimalError) {
+            minimalError.primarySaveError = e;
+            minimalError.fallbackSaveError = fallbackError;
+            throw minimalError;
+          }
+        }
       }
 
       const wasEditing = Boolean(editingQualityRun);
       resetQualityForm();
-      await loadMyRuns(user);
-      await loadWeeklyRanking(user);
-      await loadMonthlyAthleteCandidates(user);
-      renderQualityRuns();
       alert(wasEditing ? "정훈 결과를 수정했습니다." : "정훈 결과를 저장했습니다.");
+
+      try {
+        await loadMyRuns(user);
+        await loadWeeklyRanking(user);
+        await loadMonthlyAthleteCandidates(user);
+        renderQualityRuns();
+      } catch (refreshError) {
+        console.error(refreshError);
+        alert("정훈 결과는 저장됐지만 화면 새로고침 중 권한 오류가 발생했습니다. 앱을 새로고침하면 기록을 다시 확인할 수 있습니다.");
+      }
     } catch (e) {
       console.error(e);
-      alert(editingQualityRun ? "정훈 결과 수정에 실패했습니다. Firestore 권한을 확인해주세요." : "정훈 결과 저장에 실패했습니다. Firestore 권한을 확인해주세요.");
+      alert(getFirestoreSaveErrorMessage(e.primarySaveError || e, e.fallbackSaveError, {
+        runDate,
+        distance,
+        time,
+        workoutType
+      }));
     } finally {
       saveQualityRunBtn.disabled = false;
     }
@@ -2720,7 +4088,10 @@ function renderRunList() {
     });
 
     const actionTd = document.createElement("td");
+    const actionWrap = document.createElement("div");
     const editBtn = document.createElement("button");
+    actionTd.className = "record-action-cell";
+    actionWrap.className = "record-action-stack";
     editBtn.type = "button";
     editBtn.className = "table-action";
     editBtn.innerText = "수정";
@@ -2733,7 +4104,7 @@ function renderRunList() {
       document.getElementById("trainingTab")?.click();
       beginRunEdit(run);
     });
-    actionTd.appendChild(editBtn);
+    actionWrap.appendChild(editBtn);
 
     const deleteBtn = document.createElement("button");
     deleteBtn.type = "button";
@@ -2742,7 +4113,8 @@ function renderRunList() {
     deleteBtn.addEventListener("click", () => {
       deleteRun(run);
     });
-    actionTd.appendChild(deleteBtn);
+    actionWrap.appendChild(deleteBtn);
+    actionTd.appendChild(actionWrap);
     tr.appendChild(actionTd);
 
     runList.appendChild(tr);
@@ -2773,6 +4145,9 @@ function resetQualityForm() {
   const qualitySetResultsInput = document.getElementById("qualitySetResults");
   const qualitySelfRatingSelect = document.getElementById("qualitySelfRating");
   const qualityReflectionInput = document.getElementById("qualityReflection");
+  const qualityGarminCaptureInput = document.getElementById("qualityGarminCapture");
+  const qualityOcrStatus = document.getElementById("qualityOcrStatus");
+  const qualityOcrPreview = document.getElementById("qualityOcrPreview");
 
   if (!qualityDateInput) return;
 
@@ -2789,6 +4164,9 @@ function resetQualityForm() {
   fillQualitySetInputs("");
   qualitySelfRatingSelect.value = "";
   qualityReflectionInput.value = "";
+  if (qualityGarminCaptureInput) qualityGarminCaptureInput.value = "";
+  if (qualityOcrStatus) qualityOcrStatus.innerText = "이미지는 저장하지 않고 이 브라우저 안에서만 분석합니다.";
+  if (qualityOcrPreview) qualityOcrPreview.innerHTML = "";
   updateQualityFormMode();
 }
 
@@ -2840,14 +4218,17 @@ function renderQualityRuns() {
     });
 
     const actionTd = document.createElement("td");
+    const actionWrap = document.createElement("div");
     const editBtn = document.createElement("button");
+    actionTd.className = "record-action-cell";
+    actionWrap.className = "record-action-stack";
     editBtn.type = "button";
     editBtn.className = "table-action";
     editBtn.innerText = "수정";
     editBtn.addEventListener("click", () => {
       beginQualityRunEdit(run);
     });
-    actionTd.appendChild(editBtn);
+    actionWrap.appendChild(editBtn);
 
     const deleteBtn = document.createElement("button");
     deleteBtn.type = "button";
@@ -2856,7 +4237,8 @@ function renderQualityRuns() {
     deleteBtn.addEventListener("click", () => {
       deleteRun(run);
     });
-    actionTd.appendChild(deleteBtn);
+    actionWrap.appendChild(deleteBtn);
+    actionTd.appendChild(actionWrap);
     tr.appendChild(actionTd);
 
     qualityRunList.appendChild(tr);
@@ -4196,14 +5578,17 @@ function renderMemberRuns() {
     });
 
     const actionTd = document.createElement("td");
+    const actionWrap = document.createElement("div");
     const editBtn = document.createElement("button");
+    actionTd.className = "record-action-cell";
+    actionWrap.className = "record-action-stack";
     editBtn.type = "button";
     editBtn.className = "table-action";
     editBtn.innerText = "수정";
     editBtn.addEventListener("click", () => {
       beginRunEdit(run);
     });
-    actionTd.appendChild(editBtn);
+    actionWrap.appendChild(editBtn);
 
     const deleteBtn = document.createElement("button");
     deleteBtn.type = "button";
@@ -4212,7 +5597,8 @@ function renderMemberRuns() {
     deleteBtn.addEventListener("click", () => {
       deleteRun(run);
     });
-    actionTd.appendChild(deleteBtn);
+    actionWrap.appendChild(deleteBtn);
+    actionTd.appendChild(actionWrap);
     tr.appendChild(actionTd);
     list.appendChild(tr);
   });
