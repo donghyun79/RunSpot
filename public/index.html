@@ -794,6 +794,59 @@
       min-width: 0;
     }
 
+    .quality-duration-group {
+      display: grid;
+      gap: 4px;
+    }
+
+    .quality-duration-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+      gap: 6px;
+      align-items: center;
+    }
+
+    .quality-duration-input {
+      text-align: center;
+    }
+
+    .quality-duration-separator {
+      color: var(--brand-dark);
+      font-size: 1rem;
+      font-weight: 900;
+      line-height: 1;
+    }
+
+    .quality-mode-toggle {
+      display: grid;
+      grid-column: 1 / -1;
+      gap: 6px;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface-soft);
+    }
+
+    .quality-mode-toggle label {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      color: var(--brand-dark);
+      font-size: 0.84rem;
+      font-weight: 800;
+    }
+
+    .quality-mode-toggle input[type="checkbox"] {
+      width: auto;
+      min-width: auto;
+    }
+
+    .quality-manual-note {
+      color: var(--muted);
+      font-size: 0.76rem;
+      font-weight: 700;
+    }
+
     .quality-review-row {
       display: grid;
       grid-template-columns: minmax(120px, 0.35fr) minmax(0, 1fr);
@@ -3044,21 +3097,18 @@
             </label>
 
             <div class="quality-form-section">결과 입력</div>
-            <p id="qualitySetGuide" class="vdot-guide-note quality-set-guide">훈련 프로그램을 선택하면 세트 입력 칸이 자동으로 맞춰집니다.</p>
-            <div id="qualitySetInputs" class="quality-set-row">
-              <label>1세트 <input class="quality-set-input" placeholder="4:13"></label>
-              <label>2세트 <input class="quality-set-input" placeholder="4:14"></label>
-              <label>3세트 <input class="quality-set-input" placeholder="4:10"></label>
-              <label>4세트 <input class="quality-set-input" placeholder="4:07"></label>
-              <label>5세트 <input class="quality-set-input" placeholder="-"></label>
-              <label>6세트 <input class="quality-set-input" placeholder="-"></label>
+            <div class="quality-mode-toggle">
+              <label><input id="qualityManualTotalsToggle" type="checkbox"> 세트 입력이 어려운 날은 전체 거리와 시간만 직접 입력</label>
+              <div class="quality-manual-note">시계 조작 오류 등으로 세트별 기록이 불확실한 경우 이 모드를 켜고 전체 거리와 전체 시간만 저장할 수 있습니다.</div>
             </div>
-            <p class="vdot-guide-note quality-set-guide">총 거리와 총 시간은 세트 기록과 리커버리 시간을 기준으로 자동 계산됩니다. 별도로 입력하지 않아도 됩니다.</p>
+            <p id="qualitySetGuide" class="vdot-guide-note quality-set-guide">훈련 프로그램을 선택하면 세트 입력 칸이 자동으로 맞춰집니다.</p>
+            <div id="qualitySetInputs" class="quality-set-row"></div>
+            <p id="qualityTotalsGuide" class="vdot-guide-note quality-set-guide">총 거리와 총 시간은 세트 기록과 리커버리 시간을 기준으로 자동 계산됩니다. 별도로 입력하지 않아도 됩니다.</p>
             <div class="quality-result-row">
-              <label>자동 총 거리 <input id="qualityDistance" type="number" step="0.01" placeholder="km" readonly></label>
-              <label>자동 시간 <input id="qualityHour" type="number" placeholder="h" readonly></label>
-              <label>자동 분 <input id="qualityMinute" type="number" placeholder="m" max="59" readonly></label>
-              <label>자동 초 <input id="qualitySecond" type="number" placeholder="s" max="59" readonly></label>
+              <label><span id="qualityDistanceLabel">자동 총 거리</span> <input id="qualityDistance" type="number" step="0.01" placeholder="km" readonly></label>
+              <label><span id="qualityHourLabel">자동 시간</span> <input id="qualityHour" type="number" placeholder="h" readonly></label>
+              <label><span id="qualityMinuteLabel">자동 분</span> <input id="qualityMinute" type="number" placeholder="m" max="59" readonly></label>
+              <label><span id="qualitySecondLabel">자동 초</span> <input id="qualitySecond" type="number" placeholder="s" max="59" readonly></label>
             </div>
             <input id="qualitySetResults" type="hidden">
 

@@ -649,6 +649,7 @@ function beginQualityRunEdit(run) {
   const qualitySetResultsInput = document.getElementById("qualitySetResults");
   const qualitySelfRatingSelect = document.getElementById("qualitySelfRating");
   const qualityReflectionInput = document.getElementById("qualityReflection");
+  const qualityManualTotalsToggle = document.getElementById("qualityManualTotalsToggle");
 
   if (!qualityDateInput) return;
 
@@ -666,8 +667,12 @@ function beginQualityRunEdit(run) {
   qualitySecondInput.value = totalSeconds % 60 || "";
   qualitySetResultsInput.value = run.qualitySetResults || "";
   fillQualitySetInputs(run.qualitySetResults || "");
+  if (qualityManualTotalsToggle) {
+    qualityManualTotalsToggle.checked = !run.qualitySetResults;
+  }
   qualitySelfRatingSelect.value = run.qualitySelfRating || "";
   qualityReflectionInput.value = run.qualityReflection || "";
+  updateQualityTotalsInputMode();
   updateQualityFormMode();
   document.getElementById("qualityTab")?.click();
   document.getElementById("qualityView")?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -1256,6 +1261,52 @@ function buildQualityWorkoutDetail({ plannedWorkout, setResults, selfRating, ref
   ].filter(Boolean).join("\n");
 }
 
+function isQualityManualTotalsModeEnabled() {
+  return Boolean(document.getElementById("qualityManualTotalsToggle")?.checked);
+}
+
+function updateQualityTotalsInputMode() {
+  const manualMode = isQualityManualTotalsModeEnabled();
+  const qualityDistanceInput = document.getElementById("qualityDistance");
+  const qualityHourInput = document.getElementById("qualityHour");
+  const qualityMinuteInput = document.getElementById("qualityMinute");
+  const qualitySecondInput = document.getElementById("qualitySecond");
+  const qualitySetInputs = document.getElementById("qualitySetInputs");
+  const qualitySetGuide = document.getElementById("qualitySetGuide");
+  const qualityTotalsGuide = document.getElementById("qualityTotalsGuide");
+  const qualityDistanceLabel = document.getElementById("qualityDistanceLabel");
+  const qualityHourLabel = document.getElementById("qualityHourLabel");
+  const qualityMinuteLabel = document.getElementById("qualityMinuteLabel");
+  const qualitySecondLabel = document.getElementById("qualitySecondLabel");
+
+  [qualityDistanceInput, qualityHourInput, qualityMinuteInput, qualitySecondInput].forEach((input) => {
+    if (!input) return;
+    input.readOnly = !manualMode;
+  });
+
+  if (qualityDistanceInput) qualityDistanceInput.placeholder = manualMode ? "직접 입력 km" : "km";
+  if (qualityHourInput) qualityHourInput.placeholder = manualMode ? "시간" : "h";
+  if (qualityMinuteInput) qualityMinuteInput.placeholder = manualMode ? "분" : "m";
+  if (qualitySecondInput) qualitySecondInput.placeholder = manualMode ? "초" : "s";
+
+  if (qualityDistanceLabel) qualityDistanceLabel.innerText = manualMode ? "전체 거리" : "자동 총 거리";
+  if (qualityHourLabel) qualityHourLabel.innerText = manualMode ? "전체 시간" : "자동 시간";
+  if (qualityMinuteLabel) qualityMinuteLabel.innerText = manualMode ? "전체 분" : "자동 분";
+  if (qualitySecondLabel) qualitySecondLabel.innerText = manualMode ? "전체 초" : "자동 초";
+
+  if (qualitySetInputs) qualitySetInputs.style.opacity = manualMode ? "0.45" : "1";
+  if (qualitySetGuide) {
+    qualitySetGuide.innerText = manualMode
+      ? "세트별 기록이 불확실한 경우 전체 거리와 전체 시간만 입력해서 저장할 수 있습니다."
+      : getQualityWorkoutStructure(document.getElementById("qualityPlannedWorkout")?.value || "", document.getElementById("qualityWorkoutType")?.value || "").guide;
+  }
+  if (qualityTotalsGuide) {
+    qualityTotalsGuide.innerText = manualMode
+      ? "이 모드에서는 전체 거리와 전체 시간을 직접 입력합니다."
+      : "총 거리와 총 시간은 세트 기록과 리커버리 시간을 기준으로 자동 계산됩니다. 별도로 입력하지 않아도 됩니다.";
+  }
+}
+
 function getOxygenCost(velocityMetersPerMinute) {
   return -4.6 + (0.182258 * velocityMetersPerMinute) + (0.000104 * velocityMetersPerMinute * velocityMetersPerMinute);
 }
@@ -1373,8 +1424,8 @@ function renderVdotTrainingGuide() {
 function getQualitySetResultsFromInputs() {
   const setValues = Array.from(document.querySelectorAll(".quality-set-field"))
     .map((field, index) => {
-      const setValue = field.querySelector(".quality-set-input")?.value.trim() || "";
-      const recoveryValue = field.querySelector(".quality-recovery-input")?.value.trim() || "";
+      const setValue = getQualityDurationValueFromField(field, "set");
+      const recoveryValue = getQualityDurationValueFromField(field, "recovery");
 
       if (!setValue && !recoveryValue) return "";
 
@@ -1434,6 +1485,40 @@ function parseQualityDurationMinutes(value = "") {
   return (first * 60) + second + (third / 60);
 }
 
+function splitQualityDurationParts(value = "") {
+  const text = String(value || "").trim();
+  const match = text.match(/^(\d{1,2})(?::(\d{1,2})(?:\.\d+)?)?$/);
+
+  if (!match) {
+    return { minutes: "", seconds: "" };
+  }
+
+  return {
+    minutes: match[1] || "",
+    seconds: match[2] || ""
+  };
+}
+
+function buildQualityDurationValue(minutes = "", seconds = "") {
+  const trimmedMinutes = String(minutes || "").trim();
+  const trimmedSeconds = String(seconds || "").trim();
+
+  if (!trimmedMinutes && !trimmedSeconds) return "";
+
+  const minuteValue = Math.max(0, Number.parseInt(trimmedMinutes || "0", 10) || 0);
+  const secondValue = Math.max(0, Math.min(59, Number.parseInt(trimmedSeconds || "0", 10) || 0));
+
+  return `${minuteValue}:${String(secondValue).padStart(2, "0")}`;
+}
+
+function getQualityDurationValueFromField(field, role = "set") {
+  const prefix = role === "recovery" ? "recovery" : "set";
+  const minuteValue = field?.querySelector(`.quality-${prefix}-minute-input`)?.value || "";
+  const secondValue = field?.querySelector(`.quality-${prefix}-second-input`)?.value || "";
+
+  return buildQualityDurationValue(minuteValue, secondValue);
+}
+
 function setQualityTimeInputs(timeMinutes) {
   const qualityHourInput = document.getElementById("qualityHour");
   const qualityMinuteInput = document.getElementById("qualityMinute");
@@ -1460,14 +1545,15 @@ function updateQualityCalculatedTotals() {
   const workoutType = document.getElementById("qualityWorkoutType")?.value || "";
 
   if (!qualityDistanceInput) return;
+  if (isQualityManualTotalsModeEnabled()) return;
 
   const structure = getQualityWorkoutStructure(plannedWorkout, workoutType);
   let totalDistance = 0;
   let totalTime = 0;
 
   Array.from(document.querySelectorAll(".quality-set-field")).forEach((field) => {
-    const setTime = parseQualityDurationMinutes(field.querySelector(".quality-set-input")?.value || "");
-    const recoveryTime = parseQualityDurationMinutes(field.querySelector(".quality-recovery-input")?.value || "");
+    const setTime = parseQualityDurationMinutes(getQualityDurationValueFromField(field, "set"));
+    const recoveryTime = parseQualityDurationMinutes(getQualityDurationValueFromField(field, "recovery"));
 
     if (setTime) {
       totalTime += setTime;
@@ -1585,7 +1671,6 @@ function getQualityWorkoutStructure(planText = "", workoutType = "") {
     return {
       setCount: 1,
       setLabel: `${ttDistance} 결과`,
-      setPlaceholder: "21:30",
       guide: `${ttDistance} 타임트라이얼은 리커버리 반복훈련이 아니라 기록 측정입니다. ${getQualityTimeTrialPaceGuide(text)}`,
       hasRecoveryInputs: false,
       setDistanceKm: ttDistanceKm,
@@ -1606,9 +1691,7 @@ function getQualityWorkoutStructure(planText = "", workoutType = "") {
     return {
       setCount,
       setLabel: `${repDistance}`,
-      setPlaceholder: repDistance.endsWith("m") && Number.parseInt(repDistance, 10) <= 600 ? "2:05" : "4:13",
       guide: `${repDistance} ${setCount}세트 기록과 각 세트 후 리커버리 시간만 입력해 주세요.${groupGuide}${recoveryGuide} 총 거리와 시간은 자동 계산됩니다.`,
-      recoveryPlaceholder: recoveryDistanceLabel ? `예: 2:30` : "예: 1:15",
       setDistanceKm: intervalMeters / 1000,
       recoveryDistanceKm: getQualityRecoveryDistanceMeters(intervalMeters) / 1000
     };
@@ -1617,9 +1700,7 @@ function getQualityWorkoutStructure(planText = "", workoutType = "") {
   return {
     setCount: 6,
     setLabel: "세트",
-    setPlaceholder: "4:13",
     guide: "훈련 프로그램에 맞춰 세트 기록을 입력해 주세요. 직접 입력한 훈련은 기본 6칸을 제공합니다.",
-    recoveryPlaceholder: "예: 1:15",
     setDistanceKm: 0,
     recoveryDistanceKm: 0
   };
@@ -1641,38 +1722,70 @@ function renderQualitySetInputs(planText = "", setResults = "") {
     const field = document.createElement("div");
     const title = document.createElement("div");
     const setLabel = document.createElement("label");
-    const setInput = document.createElement("input");
     const recoveryLabel = document.createElement("label");
-    const recoveryInput = document.createElement("input");
+    const setDuration = createQualityDurationInputGroup(setValues[index] || "", "set");
+    const recoveryDuration = createQualityDurationInputGroup(recoveryValues[index] || "", "recovery");
 
     field.className = "quality-set-field";
     title.className = "quality-set-field-title";
     title.innerText = structure.setCount > 1 ? `${structure.setLabel} ${index + 1}` : structure.setLabel;
-    setInput.className = "quality-set-input";
-    setInput.placeholder = structure.setPlaceholder;
-    setInput.value = setValues[index] || "";
-    setInput.addEventListener("input", updateQualityCalculatedTotals);
     setLabel.append("기록");
-    setLabel.appendChild(setInput);
+    setLabel.appendChild(setDuration);
     field.appendChild(title);
     field.appendChild(setLabel);
     if (structure.hasRecoveryInputs !== false) {
-      recoveryInput.className = "quality-recovery-input";
-      recoveryInput.placeholder = structure.recoveryPlaceholder;
-      recoveryInput.value = recoveryValues[index] || "";
-      recoveryInput.addEventListener("input", updateQualityCalculatedTotals);
       recoveryLabel.append("리커버리");
-      recoveryLabel.appendChild(recoveryInput);
+      recoveryLabel.appendChild(recoveryDuration);
       field.appendChild(recoveryLabel);
     }
     container.appendChild(field);
   });
 
-  if (guide) {
+  if (guide && !isQualityManualTotalsModeEnabled()) {
     guide.innerText = structure.guide;
   }
 
   updateQualityCalculatedTotals();
+  updateQualityTotalsInputMode();
+}
+
+function createQualityDurationInputGroup(value = "", role = "set") {
+  const wrap = document.createElement("div");
+  const row = document.createElement("div");
+  const minuteInput = document.createElement("input");
+  const separator = document.createElement("span");
+  const secondInput = document.createElement("input");
+  const parts = splitQualityDurationParts(value);
+
+  wrap.className = "quality-duration-group";
+  row.className = "quality-duration-row";
+
+  minuteInput.type = "number";
+  minuteInput.min = "0";
+  minuteInput.step = "1";
+  minuteInput.inputMode = "numeric";
+  minuteInput.placeholder = "분";
+  minuteInput.className = `quality-duration-input quality-${role === "recovery" ? "recovery" : "set"}-minute-input`;
+  minuteInput.value = parts.minutes;
+  minuteInput.addEventListener("input", updateQualityCalculatedTotals);
+
+  separator.className = "quality-duration-separator";
+  separator.innerText = ":";
+
+  secondInput.type = "number";
+  secondInput.min = "0";
+  secondInput.max = "59";
+  secondInput.step = "1";
+  secondInput.inputMode = "numeric";
+  secondInput.placeholder = "초";
+  secondInput.className = `quality-duration-input quality-${role === "recovery" ? "recovery" : "set"}-second-input`;
+  secondInput.value = parts.seconds;
+  secondInput.addEventListener("input", updateQualityCalculatedTotals);
+
+  row.append(minuteInput, separator, secondInput);
+  wrap.append(row);
+
+  return wrap;
 }
 
 function parseFirstSetPace(setResults, plannedWorkout) {
@@ -1725,6 +1838,78 @@ function getQualityVdotAssessment(run) {
 function fillQualitySetInputs(setResults = "") {
   const plannedWorkout = document.getElementById("qualityPlannedWorkout")?.value || "";
   renderQualitySetInputs(plannedWorkout, setResults);
+}
+
+function getQualityWorkoutOptionDateValue(optionValue = "", year = new Date().getFullYear()) {
+  const workoutDate = parseQualityWorkoutDate(optionValue, year);
+  return workoutDate ? dateToInputValue(workoutDate) : "";
+}
+
+function syncQualityPlanSelection({ selectedValue = "", resetResults = false } = {}) {
+  const qualityDateInput = document.getElementById("qualityDate");
+  const qualityPlanSelect = document.getElementById("qualityPlanSelect");
+  const qualityWorkoutTypeSelect = document.getElementById("qualityWorkoutType");
+  const qualityPlannedWorkoutInput = document.getElementById("qualityPlannedWorkout");
+  const qualitySetResultsInput = document.getElementById("qualitySetResults");
+
+  if (!qualityPlanSelect || !qualityWorkoutTypeSelect || !qualityPlannedWorkoutInput) return;
+
+  const selected = Array.from(qualityPlanSelect.options).find((option) => option.value === selectedValue)
+    || qualityPlanSelect.selectedOptions?.[0];
+
+  if (!selected || !selected.value) {
+    renderQualitySetInputs(qualityPlannedWorkoutInput.value, getQualitySetResultsFromInputs());
+    return;
+  }
+
+  qualityPlanSelect.value = selected.value;
+  qualityPlannedWorkoutInput.value = formatQualityWorkoutPlanText(selected.dataset.workout || "");
+  qualityWorkoutTypeSelect.value = selected.dataset.type || "interval";
+
+  const officialDateValue = getQualityWorkoutOptionDateValue(selected.value);
+
+  if (qualityDateInput && officialDateValue) {
+    qualityDateInput.value = officialDateValue;
+  }
+
+  if (resetResults && qualitySetResultsInput) {
+    qualitySetResultsInput.value = "";
+    fillQualitySetInputs("");
+    return;
+  }
+
+  renderQualitySetInputs(qualityPlannedWorkoutInput.value, getQualitySetResultsFromInputs());
+}
+
+function syncQualityPlanByDate(dateValue = "", { preserveResults = true } = {}) {
+  const qualityPlanSelect = document.getElementById("qualityPlanSelect");
+  const qualityWorkoutTypeSelect = document.getElementById("qualityWorkoutType");
+  const qualityPlannedWorkoutInput = document.getElementById("qualityPlannedWorkout");
+  const qualitySetResultsInput = document.getElementById("qualitySetResults");
+
+  if (!qualityPlanSelect || !qualityWorkoutTypeSelect || !qualityPlannedWorkoutInput) return;
+
+  const matchedOption = Array.from(qualityPlanSelect.options).find((option) => (
+    option.value && getQualityWorkoutOptionDateValue(option.value) === dateValue
+  ));
+
+  if (!matchedOption) {
+    qualityPlanSelect.value = "";
+    renderQualitySetInputs(qualityPlannedWorkoutInput.value, getQualitySetResultsFromInputs());
+    return;
+  }
+
+  qualityPlanSelect.value = matchedOption.value;
+  qualityPlannedWorkoutInput.value = formatQualityWorkoutPlanText(matchedOption.dataset.workout || "");
+  qualityWorkoutTypeSelect.value = matchedOption.dataset.type || "interval";
+
+  if (!preserveResults && qualitySetResultsInput) {
+    qualitySetResultsInput.value = "";
+    fillQualitySetInputs("");
+    return;
+  }
+
+  renderQualitySetInputs(qualityPlannedWorkoutInput.value, getQualitySetResultsFromInputs());
 }
 
 function buildLegacyQualityRunData(runData) {
@@ -1850,6 +2035,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const qualitySetResultsInput = document.getElementById("qualitySetResults");
   const qualitySelfRatingSelect = document.getElementById("qualitySelfRating");
   const qualityReflectionInput = document.getElementById("qualityReflection");
+  const qualityManualTotalsToggle = document.getElementById("qualityManualTotalsToggle");
   const saveQualityRunBtn = document.getElementById("saveQualityRun");
   const cancelQualityRunEditBtn = document.getElementById("cancelQualityRunEdit");
   const qualityEditStatus = document.getElementById("qualityEditStatus");
@@ -1862,6 +2048,10 @@ document.addEventListener("DOMContentLoaded", () => {
   runDateInput.value = getTodayDateString();
   qualityDateInput.value = getTodayDateString();
   fillQualitySetInputs("");
+  if (qualityManualTotalsToggle) {
+    qualityManualTotalsToggle.checked = false;
+  }
+  updateQualityTotalsInputMode();
   updateMonthlyChallengeMonthLabel();
 
   function openUpdateNotice() {
@@ -1975,17 +2165,18 @@ document.addEventListener("DOMContentLoaded", () => {
     saveRunningGroupStandards();
   });
   qualityPlanSelect.addEventListener("change", () => {
-    const selected = qualityPlanSelect.selectedOptions[0];
-
-    if (!selected || !selected.value) {
-      renderQualitySetInputs(qualityPlannedWorkoutInput.value, getQualitySetResultsFromInputs());
-      return;
-    }
-
-    qualityPlannedWorkoutInput.value = formatQualityWorkoutPlanText(selected.dataset.workout || "");
-    qualityWorkoutTypeSelect.value = selected.dataset.type || "interval";
-    qualitySetResultsInput.value = "";
-    fillQualitySetInputs("");
+    syncQualityPlanSelection({
+      selectedValue: qualityPlanSelect.value,
+      resetResults: true
+    });
+  });
+  qualityManualTotalsToggle?.addEventListener("change", () => {
+    updateQualityTotalsInputMode();
+  });
+  qualityDateInput.addEventListener("change", () => {
+    syncQualityPlanByDate(qualityDateInput.value, {
+      preserveResults: false
+    });
   });
   qualityWorkoutTypeSelect.addEventListener("change", () => {
     renderQualitySetInputs(qualityPlannedWorkoutInput.value, getQualitySetResultsFromInputs());
@@ -2319,9 +2510,12 @@ document.addEventListener("DOMContentLoaded", () => {
     const workoutType = qualityWorkoutTypeSelect.value;
     const qualityPlanDate = qualityPlanSelect.value;
     const plannedWorkout = qualityPlannedWorkoutInput.value.trim();
-    const setResults = getQualitySetResultsFromInputs();
+    const manualTotalsMode = isQualityManualTotalsModeEnabled();
+    const setResults = manualTotalsMode ? "" : getQualitySetResultsFromInputs();
     qualitySetResultsInput.value = setResults;
-    updateQualityCalculatedTotals();
+    if (!manualTotalsMode) {
+      updateQualityCalculatedTotals();
+    }
     const distance = Number(qualityDistanceInput.value);
     const hour = Number(qualityHourInput.value) || 0;
     const minute = Number(qualityMinuteInput.value) || 0;
@@ -2342,7 +2536,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     if (!distance || !time) {
-      alert("세트 기록과 리커버리 시간을 입력하면 총 거리와 시간이 자동 계산됩니다. 입력값을 확인해주세요.");
+      alert(manualTotalsMode
+        ? "전체 거리와 전체 시간을 입력해주세요."
+        : "세트 기록과 리커버리 시간을 입력하면 총 거리와 시간이 자동 계산됩니다. 입력값을 확인해주세요.");
       return;
     }
 
@@ -2358,7 +2554,7 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    if (!setResults) {
+    if (!manualTotalsMode && !setResults) {
       alert("세트별 결과를 입력해주세요.");
       return;
     }
@@ -2773,6 +2969,7 @@ function resetQualityForm() {
   const qualitySetResultsInput = document.getElementById("qualitySetResults");
   const qualitySelfRatingSelect = document.getElementById("qualitySelfRating");
   const qualityReflectionInput = document.getElementById("qualityReflection");
+  const qualityManualTotalsToggle = document.getElementById("qualityManualTotalsToggle");
 
   if (!qualityDateInput) return;
 
@@ -2787,8 +2984,12 @@ function resetQualityForm() {
   qualitySecondInput.value = "";
   qualitySetResultsInput.value = "";
   fillQualitySetInputs("");
+  if (qualityManualTotalsToggle) {
+    qualityManualTotalsToggle.checked = false;
+  }
   qualitySelfRatingSelect.value = "";
   qualityReflectionInput.value = "";
+  updateQualityTotalsInputMode();
   updateQualityFormMode();
 }
 
@@ -2866,6 +3067,7 @@ function renderQualityRuns() {
 function renderQualityMonthlyPlan() {
   const qualityMonthlyPlan = document.getElementById("qualityMonthlyPlan");
   const qualityPlanSelect = document.getElementById("qualityPlanSelect");
+  const currentPlanValue = qualityPlanSelect?.value || "";
   const upcomingWorkout = getUpcomingQualityWorkout();
   const noticeWorkout = getQualityNoticeWorkout();
   const userGroup = getCurrentUserRunningGroup(getMarathonPredictionBasis()?.predictedTime);
@@ -2940,6 +3142,7 @@ function renderQualityMonthlyPlan() {
   };
 
   renderSelectedWorkout(upcomingWorkout || schedule.workouts[0]);
+  let selectedWorkout = upcomingWorkout || schedule.workouts[0];
 
   const planList = document.createElement("div");
   planList.className = "quality-plan-list";
@@ -2965,12 +3168,12 @@ function renderQualityMonthlyPlan() {
       planList.querySelectorAll(".quality-plan-date").forEach((planButton) => {
         planButton.classList.toggle("active", planButton === button);
       });
+      selectedWorkout = workout;
       renderSelectedWorkout(workout);
-
-      if (qualityPlanSelect) {
-        qualityPlanSelect.value = workout.date;
-        qualityPlanSelect.dispatchEvent(new Event("change"));
-      }
+      syncQualityPlanSelection({
+        selectedValue: workout.date,
+        resetResults: true
+      });
     });
 
     if (upcomingWorkout && workout.date === upcomingWorkout.date) {
@@ -2982,6 +3185,18 @@ function renderQualityMonthlyPlan() {
 
   qualityMonthlyPlan.appendChild(planList);
   qualityMonthlyPlan.appendChild(selectedDetail);
+
+  if (!editingQualityRun && currentPlanValue) {
+    syncQualityPlanSelection({
+      selectedValue: currentPlanValue,
+      resetResults: false
+    });
+  } else if (!editingQualityRun && selectedWorkout) {
+    syncQualityPlanSelection({
+      selectedValue: selectedWorkout.date,
+      resetResults: false
+    });
+  }
 }
 
 function parseQualityWorkoutDate(workoutDate, year = new Date().getFullYear()) {
