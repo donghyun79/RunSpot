@@ -60,6 +60,28 @@ let memberRunsLoadId = 0;
 let editingRun = null;
 let editingQualityRun = null;
 let latestSuggestions = [];
+let latestHealingEvents = [];
+let latestHealingResponses = [];
+let latestHealingCheckins = [];
+let latestHealingCheers = [];
+let editingHealingEvent = null;
+let editingHealingCheckin = null;
+let editingHealingCheer = null;
+let healingEventHostForm = null;
+let healingEventTitleInput = null;
+let healingEventTypeSelect = null;
+let healingEventDateInput = null;
+let healingEventLocationInput = null;
+let healingEventDescriptionInput = null;
+let saveHealingEventBtn = null;
+let cancelHealingEventEditBtn = null;
+let healingCheckinMoodInput = null;
+let healingCheckinContentInput = null;
+let saveHealingCheckinBtn = null;
+let cancelHealingCheckinEditBtn = null;
+let healingCheerContentInput = null;
+let saveHealingCheerBtn = null;
+let cancelHealingCheerEditBtn = null;
 let latestEnvironment = null;
 const CLUB_INVITE_CODE = "NAVIHEAL";
 const HOST_EMAIL = "dhseo@skku.edu";
@@ -2020,9 +2042,11 @@ document.addEventListener("DOMContentLoaded", () => {
   const dashboardView = document.getElementById("dashboardView");
   const trainingTab = document.getElementById("trainingTab");
   const qualityTab = document.getElementById("qualityTab");
+  const healingTab = document.getElementById("healingTab");
   const suggestionTab = document.getElementById("suggestionTab");
   const trainingView = document.getElementById("trainingView");
   const qualityView = document.getElementById("qualityView");
+  const healingView = document.getElementById("healingView");
   const suggestionView = document.getElementById("suggestionView");
   const qualityDateInput = document.getElementById("qualityDate");
   const qualityPlanSelect = document.getElementById("qualityPlanSelect");
@@ -2042,6 +2066,21 @@ document.addEventListener("DOMContentLoaded", () => {
   const editGroupStandardsBtn = document.getElementById("editGroupStandards");
   const saveGroupStandardsBtn = document.getElementById("saveGroupStandards");
   const cancelGroupStandardEditBtn = document.getElementById("cancelGroupStandardEdit");
+  healingEventHostForm = document.getElementById("healingEventHostForm");
+  healingEventTitleInput = document.getElementById("healingEventTitle");
+  healingEventTypeSelect = document.getElementById("healingEventType");
+  healingEventDateInput = document.getElementById("healingEventDate");
+  healingEventLocationInput = document.getElementById("healingEventLocation");
+  healingEventDescriptionInput = document.getElementById("healingEventDescription");
+  saveHealingEventBtn = document.getElementById("saveHealingEvent");
+  cancelHealingEventEditBtn = document.getElementById("cancelHealingEventEdit");
+  healingCheckinMoodInput = document.getElementById("healingCheckinMood");
+  healingCheckinContentInput = document.getElementById("healingCheckinContent");
+  saveHealingCheckinBtn = document.getElementById("saveHealingCheckin");
+  cancelHealingCheckinEditBtn = document.getElementById("cancelHealingCheckinEdit");
+  healingCheerContentInput = document.getElementById("healingCheerContent");
+  saveHealingCheerBtn = document.getElementById("saveHealingCheer");
+  cancelHealingCheerEditBtn = document.getElementById("cancelHealingCheerEdit");
 
   filterDistance = document.getElementById("filterDistance");
   filterPeriod = document.getElementById("filterPeriod");
@@ -2097,6 +2136,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function updateHostView(user) {
     const isHost = isHostUser(user);
     memberManagement.classList.toggle("hidden", !isHost);
+    syncHealingEventFormVisibility(user);
 
     if (!isHost) {
       document.getElementById("memberList").innerHTML = "";
@@ -2106,19 +2146,26 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function setActiveAppView(viewName) {
     const showsQuality = viewName === "quality";
+    const showsHealing = viewName === "healing";
     const showsSuggestion = viewName === "suggestion";
 
-    trainingView.classList.toggle("hidden", showsQuality || showsSuggestion);
+    trainingView.classList.toggle("hidden", showsQuality || showsHealing || showsSuggestion);
     qualityView.classList.toggle("hidden", !showsQuality);
+    healingView.classList.toggle("hidden", !showsHealing);
     suggestionView.classList.toggle("hidden", !showsSuggestion);
     trainingTab.classList.toggle("active", viewName === "training");
     qualityTab.classList.toggle("active", showsQuality);
+    healingTab.classList.toggle("active", showsHealing);
     suggestionTab.classList.toggle("active", showsSuggestion);
 
     if (showsQuality) {
       renderVdotTrainingGuide();
       renderQualityMonthlyPlan();
       renderQualityRuns();
+    }
+
+    if (showsHealing) {
+      loadHealingHub(auth.currentUser);
     }
 
     if (showsSuggestion) {
@@ -2189,6 +2236,9 @@ document.addEventListener("DOMContentLoaded", () => {
   });
   qualityTab.addEventListener("click", () => {
     setActiveAppView("quality");
+  });
+  healingTab.addEventListener("click", () => {
+    setActiveAppView("healing");
   });
   suggestionTab.addEventListener("click", () => {
     setActiveAppView("suggestion");
@@ -2697,6 +2747,33 @@ document.addEventListener("DOMContentLoaded", () => {
     } finally {
       submitSuggestionBtn.disabled = false;
     }
+  });
+
+  saveHealingEventBtn?.addEventListener("click", () => {
+    saveHealingEvent();
+  });
+  document.getElementById("healingEventList")?.addEventListener("click", handleHealingEventListClick);
+  cancelHealingEventEditBtn?.addEventListener("click", () => {
+    resetHealingEventForm();
+    setHealingStatus("event", "번개 공지 수정을 취소했습니다.");
+  });
+
+  saveHealingCheckinBtn?.addEventListener("click", () => {
+    saveHealingCheckin();
+  });
+  document.getElementById("healingCheckinList")?.addEventListener("click", handleHealingCheckinListClick);
+  cancelHealingCheckinEditBtn?.addEventListener("click", () => {
+    resetHealingCheckinForm();
+    setHealingStatus("checkin", "체크인 수정을 취소했습니다.");
+  });
+
+  saveHealingCheerBtn?.addEventListener("click", () => {
+    saveHealingCheer();
+  });
+  document.getElementById("healingCheerList")?.addEventListener("click", handleHealingCheerListClick);
+  cancelHealingCheerEditBtn?.addEventListener("click", () => {
+    resetHealingCheerForm();
+    setHealingStatus("cheer", "응원 수정을 취소했습니다.");
   });
 
   loadRankingBtn.addEventListener("click", () => {
@@ -3872,6 +3949,870 @@ async function deleteRun(run) {
     }
 
     alert(`기록 삭제에 실패했습니다. ${e.message}`);
+  }
+}
+
+function getHealingEventTypeLabel(type) {
+  const labels = {
+    run: "러닝",
+    coffee: "커피",
+    meal: "식사",
+    walk: "산책",
+    culture: "문화"
+  };
+  return labels[type] || "기타";
+}
+
+function getHealingEventResponseLabel(response) {
+  const labels = {
+    attend: "참석",
+    maybe: "미정",
+    absent: "불참"
+  };
+  return labels[response] || "미정";
+}
+
+function getDateTimeValueMs(value) {
+  if (!value) return 0;
+  if (value?.toDate) return value.toDate().getTime();
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
+}
+
+function formatHealingDateTime(value) {
+  if (!value) return "-";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return String(value).replace("T", " ");
+  }
+  const month = parsed.getMonth() + 1;
+  const date = parsed.getDate();
+  const hours = parsed.getHours().toString().padStart(2, "0");
+  const minutes = parsed.getMinutes().toString().padStart(2, "0");
+  return `${month}/${date} ${hours}:${minutes}`;
+}
+
+function formatHealingDate(value) {
+  if (!value) return "-";
+  const parsed = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+  return `${parsed.getMonth() + 1}/${parsed.getDate()}`;
+}
+
+function getHealingResponseCounts(eventId) {
+  return latestHealingResponses.reduce((counts, response) => {
+    if (response.eventId !== eventId) return counts;
+    counts[response.response] = (counts[response.response] || 0) + 1;
+    return counts;
+  }, {
+    attend: 0,
+    maybe: 0,
+    absent: 0
+  });
+}
+
+function getHealingEventResponses(eventId) {
+  return latestHealingResponses.filter((response) => response.eventId === eventId);
+}
+
+function canEditHealingEvent(user, event) {
+  return Boolean(user && event && (isHostUser(user) || event.userId === user.uid));
+}
+
+function syncHealingEventFormVisibility(user = auth.currentUser) {
+  if (!healingEventHostForm) return;
+  const showForm = Boolean(user);
+  healingEventHostForm.classList.toggle("hidden", !showForm);
+}
+
+function getHealingCheckinMoodLabel(mood) {
+  const labels = {
+    good: "좋아요",
+    okay: "보통이에요",
+    tired: "조금 지쳤어요",
+    rest: "회복 중이에요"
+  };
+  return labels[mood] || "체크인";
+}
+
+function setHealingStatus(section, message) {
+  const statusMap = {
+    event: document.getElementById("healingEventStatus"),
+    checkin: document.getElementById("healingCheckinStatus"),
+    cheer: document.getElementById("healingCheerStatus")
+  };
+
+  const target = statusMap[section];
+  if (target) {
+    target.innerText = message;
+  }
+}
+
+async function loadHealingHub(user = auth.currentUser) {
+  const eventStatus = document.getElementById("healingEventStatus");
+  const checkinStatus = document.getElementById("healingCheckinStatus");
+  const cheerStatus = document.getElementById("healingCheerStatus");
+  const eventList = document.getElementById("healingEventList");
+  const checkinList = document.getElementById("healingCheckinList");
+  const cheerList = document.getElementById("healingCheerList");
+
+  if (!eventStatus || !checkinStatus || !cheerStatus || !eventList || !checkinList || !cheerList) return;
+
+  if (!user) {
+    latestHealingEvents = [];
+    latestHealingResponses = [];
+    latestHealingCheckins = [];
+    latestHealingCheers = [];
+    eventList.innerHTML = "";
+    checkinList.innerHTML = "";
+    cheerList.innerHTML = "";
+    eventStatus.innerText = "로그인 후 힐링 탭을 사용할 수 있습니다.";
+    checkinStatus.innerText = "로그인 후 한 줄 체크인을 확인할 수 있습니다.";
+    cheerStatus.innerText = "로그인 후 응원 한마디를 확인할 수 있습니다.";
+    return;
+  }
+
+  eventStatus.innerText = "번개 공지를 불러오는 중입니다.";
+  checkinStatus.innerText = "한 줄 체크인을 불러오는 중입니다.";
+  cheerStatus.innerText = "응원 한마디를 불러오는 중입니다.";
+
+  try {
+    const [eventSnapshot, responseSnapshot, checkinSnapshot, cheerSnapshot] = await Promise.all([
+      getDocsFromServer(collection(db, "healingEvents")),
+      getDocsFromServer(collection(db, "healingEventResponses")),
+      getDocsFromServer(collection(db, "healingCheckins")),
+      getDocsFromServer(collection(db, "healingCheers"))
+    ]);
+
+    latestHealingEvents = [];
+    latestHealingResponses = [];
+    latestHealingCheckins = [];
+    latestHealingCheers = [];
+
+    eventSnapshot.forEach((snapshotDoc) => {
+      const data = snapshotDoc.data();
+      latestHealingEvents.push({
+        id: snapshotDoc.id,
+        title: data.title || "제목 없음",
+        type: data.type || "run",
+        eventDate: data.eventDate || "",
+        location: data.location || "",
+        description: data.description || "",
+        userId: data.userId || "",
+        name: data.name || data.email || "이름 없음",
+        email: data.email || "",
+        createdAt: data.createdAt || null,
+        updatedAt: data.updatedAt || null
+      });
+    });
+
+    responseSnapshot.forEach((snapshotDoc) => {
+      const data = snapshotDoc.data();
+      latestHealingResponses.push({
+        id: snapshotDoc.id,
+        eventId: data.eventId || "",
+        userId: data.userId || "",
+        name: data.name || data.email || "이름 없음",
+        email: data.email || "",
+        response: data.response || "maybe",
+        updatedAt: data.updatedAt || null
+      });
+    });
+
+    checkinSnapshot.forEach((snapshotDoc) => {
+      const data = snapshotDoc.data();
+      latestHealingCheckins.push({
+        id: snapshotDoc.id,
+        mood: data.mood || "okay",
+        content: data.content || "",
+        userId: data.userId || "",
+        name: data.name || data.email || "이름 없음",
+        email: data.email || "",
+        updatedAt: data.updatedAt || null
+      });
+    });
+
+    cheerSnapshot.forEach((snapshotDoc) => {
+      const data = snapshotDoc.data();
+      latestHealingCheers.push({
+        id: snapshotDoc.id,
+        content: data.content || "",
+        userId: data.userId || "",
+        name: data.name || data.email || "이름 없음",
+        email: data.email || "",
+        createdAt: data.createdAt || null
+      });
+    });
+
+    latestHealingEvents.sort((a, b) => getDateTimeValueMs(a.eventDate) - getDateTimeValueMs(b.eventDate));
+    latestHealingCheckins.sort((a, b) => getDateTimeValueMs(b.updatedAt) - getDateTimeValueMs(a.updatedAt));
+    latestHealingCheers.sort((a, b) => getDateTimeValueMs(b.createdAt) - getDateTimeValueMs(a.createdAt));
+
+    renderHealingHub(user);
+  } catch (e) {
+    console.error(e);
+    eventStatus.innerText = "번개 공지를 불러오지 못했습니다. Firestore 권한을 확인해주세요.";
+    checkinStatus.innerText = "한 줄 체크인을 불러오지 못했습니다. Firestore 권한을 확인해주세요.";
+    cheerStatus.innerText = "응원 한마디를 불러오지 못했습니다. Firestore 권한을 확인해주세요.";
+  }
+}
+
+function renderHealingHub(user = auth.currentUser) {
+  renderHealingEvents(user);
+  renderHealingCheckins(user);
+  renderHealingCheers(user);
+}
+
+function isEditingHealingEventId(eventId) {
+  return Boolean(editingHealingEvent?.id && editingHealingEvent.id === eventId);
+}
+
+function isEditingHealingCheckinId(checkinId) {
+  return Boolean(editingHealingCheckin?.id && editingHealingCheckin.id === checkinId);
+}
+
+function isEditingHealingCheerId(cheerId) {
+  return Boolean(editingHealingCheer?.id && editingHealingCheer.id === cheerId);
+}
+
+function focusHealingForm(formId, inputId) {
+  const form = document.getElementById(formId);
+  const input = document.getElementById(inputId);
+  form?.scrollIntoView({ behavior: "smooth", block: "start" });
+  window.setTimeout(() => {
+    input?.focus();
+    if (typeof input?.select === "function") {
+      input.select();
+    }
+  }, 180);
+}
+
+function resetHealingEventForm() {
+  editingHealingEvent = null;
+  if (healingEventTitleInput) healingEventTitleInput.value = "";
+  if (healingEventTypeSelect) healingEventTypeSelect.value = "run";
+  if (healingEventDateInput) healingEventDateInput.value = "";
+  if (healingEventLocationInput) healingEventLocationInput.value = "";
+  if (healingEventDescriptionInput) healingEventDescriptionInput.value = "";
+  if (saveHealingEventBtn) saveHealingEventBtn.innerText = "번개 등록";
+  document.getElementById("cancelHealingEventEdit")?.classList.add("hidden");
+  syncHealingEventFormVisibility(auth.currentUser);
+  renderHealingHub(auth.currentUser);
+}
+
+function startHealingEventEdit(event) {
+  editingHealingEvent = event;
+  if (healingEventTitleInput) healingEventTitleInput.value = event.title || "";
+  if (healingEventTypeSelect) healingEventTypeSelect.value = event.type || "run";
+  if (healingEventDateInput) healingEventDateInput.value = event.eventDate || "";
+  if (healingEventLocationInput) healingEventLocationInput.value = event.location || "";
+  if (healingEventDescriptionInput) healingEventDescriptionInput.value = event.description || "";
+  if (saveHealingEventBtn) saveHealingEventBtn.innerText = "번개 수정";
+  document.getElementById("cancelHealingEventEdit")?.classList.remove("hidden");
+  syncHealingEventFormVisibility(auth.currentUser);
+  renderHealingHub(auth.currentUser);
+  setHealingStatus("event", "번개 내용을 수정한 뒤 저장해주세요.");
+  focusHealingForm("healingEventHostForm", "healingEventTitle");
+}
+
+function resetHealingCheckinForm() {
+  editingHealingCheckin = null;
+  if (healingCheckinMoodInput) healingCheckinMoodInput.value = "good";
+  if (healingCheckinContentInput) healingCheckinContentInput.value = "";
+  if (saveHealingCheckinBtn) saveHealingCheckinBtn.innerText = "체크인 남기기";
+  document.getElementById("cancelHealingCheckinEdit")?.classList.add("hidden");
+  renderHealingHub(auth.currentUser);
+}
+
+function startHealingCheckinEdit(checkin) {
+  editingHealingCheckin = checkin;
+  if (healingCheckinMoodInput) healingCheckinMoodInput.value = checkin.mood || "good";
+  if (healingCheckinContentInput) healingCheckinContentInput.value = checkin.content || "";
+  if (saveHealingCheckinBtn) saveHealingCheckinBtn.innerText = "체크인 수정";
+  document.getElementById("cancelHealingCheckinEdit")?.classList.remove("hidden");
+  renderHealingHub(auth.currentUser);
+  setHealingStatus("checkin", "체크인을 수정한 뒤 저장해주세요.");
+  focusHealingForm("healingCheckinForm", "healingCheckinContent");
+}
+
+function resetHealingCheerForm() {
+  editingHealingCheer = null;
+  if (healingCheerContentInput) healingCheerContentInput.value = "";
+  if (saveHealingCheerBtn) saveHealingCheerBtn.innerText = "응원 남기기";
+  document.getElementById("cancelHealingCheerEdit")?.classList.add("hidden");
+  renderHealingHub(auth.currentUser);
+}
+
+function startHealingCheerEdit(cheer) {
+  editingHealingCheer = cheer;
+  if (healingCheerContentInput) healingCheerContentInput.value = cheer.content || "";
+  if (saveHealingCheerBtn) saveHealingCheerBtn.innerText = "응원 수정";
+  document.getElementById("cancelHealingCheerEdit")?.classList.remove("hidden");
+  renderHealingHub(auth.currentUser);
+  setHealingStatus("cheer", "응원 내용을 수정한 뒤 저장해주세요.");
+  focusHealingForm("healingCheerForm", "healingCheerContent");
+}
+
+function handleHealingEventListClick(event) {
+  const button = event.target.closest("button[data-healing-action]");
+  if (!button) return;
+
+  const action = button.dataset.healingAction;
+  const eventId = button.dataset.eventId;
+  const targetEvent = latestHealingEvents.find((item) => item.id === eventId);
+
+  if (action === "respond" && targetEvent) {
+    saveHealingEventResponse(targetEvent, button.dataset.response || "maybe");
+    return;
+  }
+
+  if (action === "edit" && targetEvent) {
+    startHealingEventEdit(targetEvent);
+    return;
+  }
+
+  if (action === "delete" && targetEvent) {
+    deleteHealingEvent(targetEvent);
+  }
+}
+
+function handleHealingCheckinListClick(event) {
+  const button = event.target.closest("button[data-healing-action]");
+  if (!button) return;
+
+  const action = button.dataset.healingAction;
+  const checkinId = button.dataset.checkinId;
+  const targetCheckin = latestHealingCheckins.find((item) => item.id === checkinId);
+
+  if (action === "edit" && targetCheckin) {
+    startHealingCheckinEdit(targetCheckin);
+    return;
+  }
+
+  if (action === "delete" && targetCheckin) {
+    deleteHealingCheckin(targetCheckin);
+  }
+}
+
+function handleHealingCheerListClick(event) {
+  const button = event.target.closest("button[data-healing-action]");
+  if (!button) return;
+
+  const action = button.dataset.healingAction;
+  const cheerId = button.dataset.cheerId;
+  const targetCheer = latestHealingCheers.find((item) => item.id === cheerId);
+
+  if (action === "edit" && targetCheer) {
+    startHealingCheerEdit(targetCheer);
+    return;
+  }
+
+  if (action === "delete" && targetCheer) {
+    deleteHealingCheer(targetCheer);
+  }
+}
+
+function renderHealingEvents(user = auth.currentUser) {
+  const eventStatus = document.getElementById("healingEventStatus");
+  const eventList = document.getElementById("healingEventList");
+
+  if (!eventStatus || !eventList) return;
+
+  eventList.innerHTML = "";
+
+  if (!latestHealingEvents.length) {
+    eventStatus.innerText = "아직 등록된 번개가 없습니다.";
+    eventList.innerHTML = '<div class="healing-empty">가볍게 함께할 번개를 기다리고 있어요.</div>';
+    return;
+  }
+
+  eventStatus.innerText = `${latestHealingEvents.length}개 번개 공지`;
+
+  latestHealingEvents.forEach((event) => {
+    const responses = getHealingEventResponses(event.id);
+    const counts = getHealingResponseCounts(event.id);
+    const myResponse = responses.find((response) => response.userId === user?.uid)?.response || "";
+    const attendNames = responses.filter((response) => response.response === "attend").map((response) => response.name);
+    const maybeNames = responses.filter((response) => response.response === "maybe").map((response) => response.name);
+    const absentNames = responses.filter((response) => response.response === "absent").map((response) => response.name);
+
+    const card = document.createElement("article");
+    card.className = "suggestion-card";
+    if (isEditingHealingEventId(event.id)) {
+      card.classList.add("healing-card-editing");
+    }
+
+    const title = document.createElement("div");
+    title.className = "suggestion-title";
+    title.innerText = event.title;
+    card.appendChild(title);
+
+    const meta = document.createElement("div");
+    meta.className = "healing-card-meta";
+    meta.innerText = `${getHealingEventTypeLabel(event.type)} · ${formatHealingDateTime(event.eventDate)} · ${event.location || "장소 추후 안내"}`;
+    card.appendChild(meta);
+
+    if (event.description) {
+      const body = document.createElement("div");
+      body.className = "suggestion-body";
+      body.innerText = event.description;
+      card.appendChild(body);
+    }
+
+    const pillRow = document.createElement("div");
+    pillRow.className = "healing-pill-row";
+    [`참석 ${counts.attend}`, `미정 ${counts.maybe}`, `불참 ${counts.absent}`].forEach((label) => {
+      const pill = document.createElement("span");
+      pill.className = "healing-pill";
+      pill.innerText = label;
+      pillRow.appendChild(pill);
+    });
+    card.appendChild(pillRow);
+
+    if (attendNames.length || maybeNames.length || absentNames.length) {
+      const attendee = document.createElement("div");
+      attendee.className = "suggestion-body";
+      attendee.innerText = [
+        attendNames.length ? `참석: ${attendNames.join(", ")}` : "",
+        maybeNames.length ? `미정: ${maybeNames.join(", ")}` : "",
+        absentNames.length ? `불참: ${absentNames.join(", ")}` : ""
+      ].filter(Boolean).join("\n");
+      card.appendChild(attendee);
+    }
+
+    const actionRow = document.createElement("div");
+    actionRow.className = "healing-action-row";
+    [
+      { value: "attend", label: "참석" },
+      { value: "maybe", label: "미정" },
+      { value: "absent", label: "불참" }
+    ].forEach((option) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = myResponse === option.value ? "button-secondary" : "table-action";
+      button.dataset.healingAction = "respond";
+      button.dataset.eventId = event.id;
+      button.dataset.response = option.value;
+      button.innerText = myResponse === option.value
+        ? `${getHealingEventResponseLabel(option.value)} 선택됨`
+        : getHealingEventResponseLabel(option.value);
+      actionRow.appendChild(button);
+    });
+
+    if (canEditHealingEvent(user, event)) {
+      const editButton = document.createElement("button");
+      editButton.type = "button";
+      editButton.className = `${isEditingHealingEventId(event.id) ? "table-action" : "button-secondary table-action"}`;
+      editButton.dataset.healingAction = "edit";
+      editButton.dataset.eventId = event.id;
+      editButton.innerText = isEditingHealingEventId(event.id) ? "수정 중" : "수정";
+      actionRow.appendChild(editButton);
+    }
+
+    if (isHostUser(user)) {
+      const deleteButton = document.createElement("button");
+      deleteButton.type = "button";
+      deleteButton.className = "button-danger table-action";
+      deleteButton.dataset.healingAction = "delete";
+      deleteButton.dataset.eventId = event.id;
+      deleteButton.innerText = "삭제";
+      actionRow.appendChild(deleteButton);
+    }
+
+    card.appendChild(actionRow);
+    eventList.appendChild(card);
+  });
+}
+
+function renderHealingCheckins(user = auth.currentUser) {
+  const checkinStatus = document.getElementById("healingCheckinStatus");
+  const checkinList = document.getElementById("healingCheckinList");
+
+  if (!checkinStatus || !checkinList) return;
+
+  checkinList.innerHTML = "";
+
+  if (!latestHealingCheckins.length) {
+    checkinStatus.innerText = "아직 등록된 한 줄 체크인이 없습니다.";
+    checkinList.innerHTML = '<div class="healing-empty">러닝한 날도, 쉬는 날도 괜찮아요. 오늘의 상태를 짧게 남겨주세요.</div>';
+    return;
+  }
+
+  checkinStatus.innerText = `${latestHealingCheckins.length}개의 한 줄 체크인`;
+
+  latestHealingCheckins.forEach((checkin) => {
+    const card = document.createElement("article");
+    card.className = "suggestion-card";
+    if (isEditingHealingCheckinId(checkin.id)) {
+      card.classList.add("healing-card-editing");
+    }
+
+    const meta = document.createElement("div");
+    meta.className = "healing-card-meta";
+    meta.innerText = `${checkin.name} · ${getHealingCheckinMoodLabel(checkin.mood)} · ${formatSavedDateTime(checkin.updatedAt) || "-"}`;
+    card.appendChild(meta);
+
+    if (checkin.content) {
+      const body = document.createElement("div");
+      body.className = "suggestion-body";
+      body.innerText = checkin.content;
+      card.appendChild(body);
+    }
+
+    if (user && (isHostUser(user) || checkin.userId === user.uid)) {
+      const actionRow = document.createElement("div");
+      actionRow.className = "healing-action-row";
+      const editButton = document.createElement("button");
+      editButton.type = "button";
+      editButton.className = `${isEditingHealingCheckinId(checkin.id) ? "table-action" : "button-secondary table-action"}`;
+      editButton.dataset.healingAction = "edit";
+      editButton.dataset.checkinId = checkin.id;
+      editButton.innerText = isEditingHealingCheckinId(checkin.id) ? "수정 중" : "수정";
+      actionRow.appendChild(editButton);
+
+      const deleteButton = document.createElement("button");
+      deleteButton.type = "button";
+      deleteButton.className = "button-danger table-action";
+      deleteButton.dataset.healingAction = "delete";
+      deleteButton.dataset.checkinId = checkin.id;
+      deleteButton.innerText = "삭제";
+      actionRow.appendChild(deleteButton);
+      card.appendChild(actionRow);
+    }
+
+    checkinList.appendChild(card);
+  });
+}
+
+function renderHealingCheers(user = auth.currentUser) {
+  const cheerStatus = document.getElementById("healingCheerStatus");
+  const cheerList = document.getElementById("healingCheerList");
+
+  if (!cheerStatus || !cheerList) return;
+
+  cheerList.innerHTML = "";
+
+  if (!latestHealingCheers.length) {
+    cheerStatus.innerText = "첫 응원 한마디를 남겨주세요.";
+    cheerList.innerHTML = '<div class="healing-empty">오늘 수고한 회원들에게 짧은 응원을 남겨보세요.</div>';
+    return;
+  }
+
+  cheerStatus.innerText = `${latestHealingCheers.length}개의 응원 한마디`;
+
+  latestHealingCheers.forEach((cheer) => {
+    const card = document.createElement("article");
+    card.className = "suggestion-card";
+    if (isEditingHealingCheerId(cheer.id)) {
+      card.classList.add("healing-card-editing");
+    }
+
+    const meta = document.createElement("div");
+    meta.className = "healing-card-meta";
+    meta.innerText = `${cheer.name} · ${formatSavedDateTime(cheer.createdAt) || "-"}`;
+    card.appendChild(meta);
+
+    const body = document.createElement("div");
+    body.className = "suggestion-body";
+    body.innerText = cheer.content;
+    card.appendChild(body);
+
+    if (user && (isHostUser(user) || cheer.userId === user.uid)) {
+      const actionRow = document.createElement("div");
+      actionRow.className = "healing-action-row";
+      const editButton = document.createElement("button");
+      editButton.type = "button";
+      editButton.className = `${isEditingHealingCheerId(cheer.id) ? "table-action" : "button-secondary table-action"}`;
+      editButton.dataset.healingAction = "edit";
+      editButton.dataset.cheerId = cheer.id;
+      editButton.innerText = isEditingHealingCheerId(cheer.id) ? "수정 중" : "수정";
+      actionRow.appendChild(editButton);
+
+      const deleteButton = document.createElement("button");
+      deleteButton.type = "button";
+      deleteButton.className = "button-danger table-action";
+      deleteButton.dataset.healingAction = "delete";
+      deleteButton.dataset.cheerId = cheer.id;
+      deleteButton.innerText = "삭제";
+      actionRow.appendChild(deleteButton);
+      card.appendChild(actionRow);
+    }
+
+    cheerList.appendChild(card);
+  });
+}
+
+async function saveHealingEvent() {
+  const user = auth.currentUser;
+  const isEditing = Boolean(editingHealingEvent?.id);
+
+  if (!user) {
+    setHealingStatus("event", "로그인 후 번개 공지를 작성하거나 수정할 수 있습니다.");
+    return;
+  }
+
+  if (!isEditing && !user) {
+    setHealingStatus("event", "로그인 후 번개 공지를 등록할 수 있습니다.");
+    return;
+  }
+
+  if (isEditing && !canEditHealingEvent(user, editingHealingEvent)) {
+    setHealingStatus("event", "작성자 본인 또는 호스트만 번개를 수정할 수 있습니다.");
+    return;
+  }
+
+  const title = document.getElementById("healingEventTitle")?.value.trim() || "";
+  const type = document.getElementById("healingEventType")?.value || "run";
+  const eventDate = document.getElementById("healingEventDate")?.value || "";
+  const location = document.getElementById("healingEventLocation")?.value.trim() || "";
+  const description = document.getElementById("healingEventDescription")?.value.trim() || "";
+
+  if (!title) {
+    setHealingStatus("event", "번개 제목을 입력해주세요.");
+    return;
+  }
+
+  if (!eventDate) {
+    setHealingStatus("event", "모임 일정을 입력해주세요.");
+    return;
+  }
+
+  const saveButton = document.getElementById("saveHealingEvent");
+  if (saveButton) saveButton.disabled = true;
+
+  try {
+    if (isEditing) {
+      await updateDoc(doc(db, "healingEvents", editingHealingEvent.id), {
+        title,
+        type,
+        eventDate,
+        location,
+        description,
+        userId: editingHealingEvent.userId,
+        name: editingHealingEvent.name,
+        email: editingHealingEvent.email,
+        createdAt: editingHealingEvent.createdAt || new Date(),
+        updatedAt: new Date()
+      });
+    } else {
+      await addDoc(collection(db, "healingEvents"), {
+        title,
+        type,
+        eventDate,
+        location,
+        description,
+        userId: user.uid,
+        name: getUserName(user),
+        email: user.email,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
+    }
+
+    resetHealingEventForm();
+    await loadHealingHub(user);
+    setHealingStatus("event", isEditing ? "번개 공지를 수정했습니다." : "번개 공지를 등록했습니다.");
+  } catch (e) {
+    console.error(e);
+    setHealingStatus("event", editingHealingEvent?.id
+      ? "번개 공지 수정이 되지 않았습니다. 잠시 후 다시 시도해주세요."
+      : "번개 공지 등록이 되지 않았습니다. 잠시 후 다시 시도해주세요.");
+  } finally {
+    if (saveButton) saveButton.disabled = false;
+  }
+}
+
+async function saveHealingEventResponse(event, response) {
+  const user = auth.currentUser;
+
+  if (!user) {
+    setHealingStatus("event", "로그인 후 참여 상태를 남길 수 있습니다.");
+    return;
+  }
+
+  try {
+    await setDoc(doc(db, "healingEventResponses", `${event.id}_${user.uid}`), {
+      eventId: event.id,
+      userId: user.uid,
+      name: getUserName(user),
+      email: user.email,
+      response,
+      updatedAt: new Date()
+    });
+    await loadHealingHub(user);
+    setHealingStatus("event", `${event.title} 번개에 ${getHealingEventResponseLabel(response)}로 표시했습니다.`);
+  } catch (e) {
+    console.error(e);
+    setHealingStatus("event", "참여 상태 저장이 되지 않았습니다. 잠시 후 다시 시도해주세요.");
+  }
+}
+
+async function deleteHealingEvent(event) {
+  const user = auth.currentUser;
+
+  if (!isHostUser(user)) {
+    setHealingStatus("event", "호스트 계정에서만 번개를 삭제할 수 있습니다.");
+    return;
+  }
+
+  if (!confirm(`"${event.title}" 번개를 삭제할까요?`)) return;
+
+  try {
+    await deleteDoc(doc(db, "healingEvents", event.id));
+    await loadHealingHub(user);
+    setHealingStatus("event", "번개를 삭제했습니다.");
+  } catch (e) {
+    console.error(e);
+    setHealingStatus("event", "번개 삭제가 되지 않았습니다. 잠시 후 다시 시도해주세요.");
+  }
+}
+
+async function saveHealingCheckin() {
+  const user = auth.currentUser;
+
+  if (!user) {
+    setHealingStatus("checkin", "로그인 후 체크인을 남길 수 있습니다.");
+    return;
+  }
+
+  const mood = document.getElementById("healingCheckinMood")?.value || "okay";
+  const content = document.getElementById("healingCheckinContent")?.value.trim() || "";
+
+  if (!content) {
+    setHealingStatus("checkin", "체크인 내용을 입력해주세요.");
+    return;
+  }
+
+  const saveButton = document.getElementById("saveHealingCheckin");
+  if (saveButton) saveButton.disabled = true;
+
+  try {
+    const isEditing = Boolean(editingHealingCheckin?.id);
+    if (isEditing) {
+      await updateDoc(doc(db, "healingCheckins", editingHealingCheckin.id), {
+        mood,
+        content,
+        userId: editingHealingCheckin.userId || user.uid,
+        name: editingHealingCheckin.name || getUserName(user),
+        email: editingHealingCheckin.email || user.email,
+        updatedAt: new Date()
+      });
+    } else {
+      await addDoc(collection(db, "healingCheckins"), {
+        mood,
+        content,
+        userId: user.uid,
+        name: getUserName(user),
+        email: user.email,
+        updatedAt: new Date()
+      });
+    }
+
+    resetHealingCheckinForm();
+    await loadHealingHub(user);
+    setHealingStatus("checkin", isEditing ? "한 줄 체크인을 수정했습니다." : "한 줄 체크인을 남겼습니다.");
+  } catch (e) {
+    console.error(e);
+    setHealingStatus("checkin", editingHealingCheckin?.id
+      ? "체크인 수정이 되지 않았습니다. 잠시 후 다시 시도해주세요."
+      : "체크인 등록이 되지 않았습니다. 잠시 후 다시 시도해주세요.");
+  } finally {
+    if (saveButton) saveButton.disabled = false;
+  }
+}
+
+async function deleteHealingCheckin(checkin) {
+  const user = auth.currentUser;
+
+  if (!user || (!isHostUser(user) && checkin.userId !== user.uid)) {
+    setHealingStatus("checkin", "본인 체크인 또는 호스트 계정에서만 삭제할 수 있습니다.");
+    return;
+  }
+
+  if (!confirm("이 체크인을 삭제할까요?")) return;
+
+  try {
+    await deleteDoc(doc(db, "healingCheckins", checkin.id));
+    await loadHealingHub(user);
+    setHealingStatus("checkin", "체크인을 삭제했습니다.");
+  } catch (e) {
+    console.error(e);
+    setHealingStatus("checkin", "체크인 삭제가 되지 않았습니다. 잠시 후 다시 시도해주세요.");
+  }
+}
+
+async function saveHealingCheer() {
+  const user = auth.currentUser;
+
+  if (!user) {
+    setHealingStatus("cheer", "로그인 후 응원을 남길 수 있습니다.");
+    return;
+  }
+
+  const content = document.getElementById("healingCheerContent")?.value.trim() || "";
+
+  if (!content) {
+    setHealingStatus("cheer", "응원 내용을 입력해주세요.");
+    return;
+  }
+
+  const saveButton = document.getElementById("saveHealingCheer");
+  if (saveButton) saveButton.disabled = true;
+
+  try {
+    const isEditing = Boolean(editingHealingCheer?.id);
+    if (isEditing) {
+      await updateDoc(doc(db, "healingCheers", editingHealingCheer.id), {
+        content,
+        userId: editingHealingCheer.userId || user.uid,
+        name: editingHealingCheer.name || getUserName(user),
+        email: editingHealingCheer.email || user.email,
+        createdAt: editingHealingCheer.createdAt || new Date(),
+        updatedAt: new Date()
+      });
+    } else {
+      await addDoc(collection(db, "healingCheers"), {
+        content,
+        userId: user.uid,
+        name: getUserName(user),
+        email: user.email,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
+    }
+
+    resetHealingCheerForm();
+    await loadHealingHub(user);
+    setHealingStatus("cheer", isEditing ? "응원 한마디를 수정했습니다." : "응원 한마디를 남겼습니다.");
+  } catch (e) {
+    console.error(e);
+    setHealingStatus("cheer", editingHealingCheer?.id
+      ? "응원 수정이 되지 않았습니다. 잠시 후 다시 시도해주세요."
+      : "응원 등록이 되지 않았습니다. 잠시 후 다시 시도해주세요.");
+  } finally {
+    if (saveButton) saveButton.disabled = false;
+  }
+}
+
+async function deleteHealingCheer(cheer) {
+  const user = auth.currentUser;
+
+  if (!user || (!isHostUser(user) && cheer.userId !== user.uid)) {
+    setHealingStatus("cheer", "본인 응원 또는 호스트 계정에서만 삭제할 수 있습니다.");
+    return;
+  }
+
+  if (!confirm("이 응원을 삭제할까요?")) return;
+
+  try {
+    await deleteDoc(doc(db, "healingCheers", cheer.id));
+    await loadHealingHub(user);
+    setHealingStatus("cheer", "응원을 삭제했습니다.");
+  } catch (e) {
+    console.error(e);
+    setHealingStatus("cheer", "응원 삭제가 되지 않았습니다. 잠시 후 다시 시도해주세요.");
   }
 }
 
@@ -6392,6 +7333,10 @@ function getDistanceLabel(distance) {
 function clearDashboard() {
   latestRuns = [];
   latestSuggestions = [];
+  latestHealingEvents = [];
+  latestHealingResponses = [];
+  latestHealingCheckins = [];
+  latestHealingCheers = [];
   monthlyGoalKm = 0;
   monthlyGoalLocked = false;
   visibleRunCount = INITIAL_VISIBLE_RUN_COUNT;
@@ -6442,6 +7387,15 @@ function clearDashboard() {
   document.getElementById("suggestionContent").value = "";
   document.getElementById("suggestionList").innerHTML = "";
   document.getElementById("suggestionStatus").innerText = "로그인 후 제안 목록을 확인할 수 있습니다.";
+  document.getElementById("healingEventList").innerHTML = "";
+  document.getElementById("healingCheckinList").innerHTML = "";
+  document.getElementById("healingCheerList").innerHTML = "";
+  document.getElementById("healingEventStatus").innerText = "로그인 후 힐링 탭을 사용할 수 있습니다.";
+  document.getElementById("healingCheckinStatus").innerText = "로그인 후 한 줄 체크인을 확인할 수 있습니다.";
+  document.getElementById("healingCheerStatus").innerText = "로그인 후 응원 한마디를 확인할 수 있습니다.";
+  resetHealingEventForm();
+  resetHealingCheckinForm();
+  resetHealingCheerForm();
   document.getElementById("pbCelebration").innerText = "";
   document.getElementById("pbCelebration").classList.add("hidden");
   document.getElementById("marathonPrediction").innerText = "-";

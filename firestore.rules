@@ -245,6 +245,182 @@ service cloud.firestore {
       && request.resource.data.email == request.auth.token.email;
     }
 
+    function validHealingEventShape() {
+      return request.resource.data.keys().hasOnly([
+        "title",
+        "type",
+        "eventDate",
+        "location",
+        "description",
+        "userId",
+        "name",
+        "email",
+        "createdAt",
+        "updatedAt"
+      ])
+      && request.resource.data.title is string
+      && request.resource.data.title.size() > 0
+      && request.resource.data.title.size() <= 80
+      && request.resource.data.type in ["run", "coffee", "meal", "walk", "culture"]
+      && request.resource.data.eventDate is string
+      && request.resource.data.eventDate.size() > 0
+      && request.resource.data.eventDate.size() <= 40
+      && request.resource.data.location is string
+      && request.resource.data.location.size() <= 80
+      && request.resource.data.description is string
+      && request.resource.data.description.size() <= 400
+      && request.resource.data.userId is string
+      && request.resource.data.name is string
+      && request.resource.data.name.size() > 0
+      && request.resource.data.name.size() <= 40
+      && request.resource.data.email is string;
+    }
+
+    function validHealingEventData() {
+      return validHealingEventShape()
+      && request.resource.data.userId == request.auth.uid
+      && request.resource.data.email == request.auth.token.email;
+    }
+
+    function validHealingResponseShape() {
+      return request.resource.data.keys().hasOnly([
+        "eventId",
+        "userId",
+        "name",
+        "email",
+        "response",
+        "updatedAt"
+      ])
+      && request.resource.data.eventId is string
+      && request.resource.data.eventId.size() > 0
+      && request.resource.data.eventId.size() <= 80
+      && request.resource.data.userId is string
+      && request.resource.data.name is string
+      && request.resource.data.name.size() > 0
+      && request.resource.data.name.size() <= 40
+      && request.resource.data.email is string
+      && request.resource.data.response in ["attend", "maybe", "absent"];
+    }
+
+    function validHealingResponseData() {
+      return validHealingResponseShape()
+      && request.resource.data.userId == request.auth.uid
+      && request.resource.data.email == request.auth.token.email;
+    }
+
+    function validHealingMissionShape() {
+      return request.resource.data.keys().hasOnly([
+        "title",
+        "missionDate",
+        "description",
+        "userId",
+        "name",
+        "email",
+        "createdAt",
+        "updatedAt"
+      ])
+      && request.resource.data.title is string
+      && request.resource.data.title.size() > 0
+      && request.resource.data.title.size() <= 80
+      && request.resource.data.missionDate is string
+      && request.resource.data.missionDate.size() > 0
+      && request.resource.data.missionDate.size() <= 20
+      && request.resource.data.description is string
+      && request.resource.data.description.size() <= 400
+      && request.resource.data.userId is string
+      && request.resource.data.name is string
+      && request.resource.data.name.size() > 0
+      && request.resource.data.name.size() <= 40
+      && request.resource.data.email is string;
+    }
+
+    function validHealingMissionData() {
+      return validHealingMissionShape()
+      && request.resource.data.userId == request.auth.uid
+      && request.resource.data.email == request.auth.token.email;
+    }
+
+    function validHealingMissionCheckShape() {
+      return request.resource.data.keys().hasOnly([
+        "missionId",
+        "userId",
+        "name",
+        "email",
+        "checked",
+        "updatedAt"
+      ])
+      && request.resource.data.missionId is string
+      && request.resource.data.missionId.size() > 0
+      && request.resource.data.missionId.size() <= 80
+      && request.resource.data.userId is string
+      && request.resource.data.name is string
+      && request.resource.data.name.size() > 0
+      && request.resource.data.name.size() <= 40
+      && request.resource.data.email is string
+      && request.resource.data.checked is bool;
+    }
+
+    function validHealingMissionCheckData() {
+      return validHealingMissionCheckShape()
+      && request.resource.data.userId == request.auth.uid
+      && request.resource.data.email == request.auth.token.email;
+    }
+
+    function validHealingCheckinShape() {
+      return request.resource.data.keys().hasOnly([
+        "mood",
+        "content",
+        "userId",
+        "name",
+        "email",
+        "updatedAt"
+      ])
+      && request.resource.data.mood in ["good", "okay", "tired", "rest"]
+      && request.resource.data.content is string
+      && request.resource.data.content.size() > 0
+      && request.resource.data.content.size() <= 240
+      && request.resource.data.userId is string
+      && request.resource.data.name is string
+      && request.resource.data.name.size() > 0
+      && request.resource.data.name.size() <= 40
+      && request.resource.data.email is string;
+    }
+
+    function validHealingCheckinData() {
+      return validHealingCheckinShape()
+      && request.resource.data.userId == request.auth.uid
+      && request.resource.data.email == request.auth.token.email;
+    }
+
+    function validHealingCheerShape() {
+      return request.resource.data.keys().hasOnly([
+        "content",
+        "userId",
+        "name",
+        "email",
+        "createdAt",
+        "updatedAt"
+      ])
+      && request.resource.data.content is string
+      && request.resource.data.content.size() > 0
+      && request.resource.data.content.size() <= 240
+      && request.resource.data.userId is string
+      && request.resource.data.name is string
+      && request.resource.data.name.size() > 0
+      && request.resource.data.name.size() <= 40
+      && request.resource.data.email is string;
+    }
+
+    function validHealingCheerData() {
+      return validHealingCheerShape()
+      && request.resource.data.userId == request.auth.uid
+      && (
+        !request.resource.data.keys().hasAny(["email"])
+        || request.auth.token.email == null
+        || request.resource.data.email == request.auth.token.email
+      );
+    }
+
     match /settings/runningGroupStandards {
       allow read: if approvedUser();
       allow create, update: if isHost() && validRunningGroupStandardsData();
@@ -283,6 +459,83 @@ service cloud.firestore {
         && resource.data.userId == request.auth.uid
         && validQualityVoteData();
       allow delete: if false;
+    }
+
+    match /healingEvents/{eventId} {
+      allow read: if approvedUser();
+      allow create: if approvedUser() && validHealingEventData();
+      allow update: if (
+        approvedUser()
+        && resource.data.userId == request.auth.uid
+        && validHealingEventData()
+      ) || (
+        isHost()
+        && validHealingEventShape()
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.email == resource.data.email
+        && request.resource.data.name == resource.data.name
+        && request.resource.data.createdAt == resource.data.createdAt
+      );
+      allow delete: if isHost();
+    }
+
+    match /healingEventResponses/{responseId} {
+      allow read: if approvedUser();
+      allow create: if approvedUser() && validHealingResponseData();
+      allow update: if approvedUser()
+        && resource.data.userId == request.auth.uid
+        && validHealingResponseData();
+      allow delete: if false;
+    }
+
+    match /healingMissions/{missionId} {
+      allow read: if approvedUser();
+      allow create, update: if isHost() && validHealingMissionData();
+      allow delete: if isHost();
+    }
+
+    match /healingMissionChecks/{checkId} {
+      allow read: if approvedUser();
+      allow create: if approvedUser() && validHealingMissionCheckData();
+      allow update: if approvedUser()
+        && resource.data.userId == request.auth.uid
+        && validHealingMissionCheckData();
+      allow delete: if false;
+    }
+
+    match /healingCheckins/{checkinId} {
+      allow read: if approvedUser();
+      allow create: if approvedUser() && validHealingCheckinData();
+      allow update: if (
+        approvedUser()
+        && resource.data.userId == request.auth.uid
+        && validHealingCheckinData()
+      ) || (
+        isHost()
+        && validHealingCheckinShape()
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.email == resource.data.email
+        && request.resource.data.name == resource.data.name
+      );
+      allow delete: if isHost() || (approvedUser() && resource.data.userId == request.auth.uid);
+    }
+
+    match /healingCheers/{cheerId} {
+      allow read: if approvedUser();
+      allow create: if approvedUser() && validHealingCheerData();
+      allow update: if (
+        approvedUser()
+        && resource.data.userId == request.auth.uid
+        && validHealingCheerData()
+      ) || (
+        isHost()
+        && validHealingCheerShape()
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.email == resource.data.email
+        && request.resource.data.name == resource.data.name
+        && request.resource.data.createdAt == resource.data.createdAt
+      );
+      allow delete: if isHost() || (approvedUser() && resource.data.userId == request.auth.uid);
     }
 
     match /users/{userId} {
