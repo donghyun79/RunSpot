@@ -504,25 +504,6 @@
       white-space: nowrap;
     }
 
-    .record-action-cell {
-      min-width: 112px;
-      width: 112px;
-      text-align: center;
-    }
-
-    .record-action-stack {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 6px;
-      min-width: 86px;
-    }
-
-    .record-action-stack .table-action {
-      width: 100%;
-      margin: 0;
-      padding: 6px 8px;
-    }
-
     .member-action-cell {
       min-width: 150px;
     }
@@ -740,10 +721,6 @@
       grid-column: 1 / -1;
     }
 
-    .quality-hidden-field {
-      display: none;
-    }
-
     .quality-form textarea {
       min-height: 86px;
     }
@@ -758,80 +735,6 @@
     .quality-set-guide {
       grid-column: 1 / -1;
       margin: -2px 0 0;
-    }
-
-    .quality-ocr-panel {
-      display: grid;
-      grid-column: 1 / -1;
-      gap: 10px;
-      padding: 12px;
-      border: 1px dashed #b7c7ef;
-      border-radius: 8px;
-      background:
-        linear-gradient(135deg, rgba(35, 89, 220, 0.08), rgba(245, 181, 43, 0.12));
-    }
-
-    .quality-ocr-panel label {
-      width: 100%;
-    }
-
-    .quality-ocr-panel input {
-      width: 100%;
-      min-width: 0;
-      background: #ffffff;
-    }
-
-    .quality-ocr-title {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      align-items: center;
-      color: var(--brand-dark);
-      font-weight: 900;
-    }
-
-    .quality-ocr-optional {
-      display: inline-flex;
-      align-items: center;
-      min-height: 22px;
-      padding: 2px 8px;
-      border: 1px solid #f1cc68;
-      border-radius: 999px;
-      background: var(--accent-soft);
-      color: var(--accent-dark);
-      font-size: 12px;
-      font-weight: 900;
-    }
-
-    .quality-ocr-guide {
-      margin: 0;
-      color: var(--muted);
-      font-size: 13px;
-      font-weight: 700;
-    }
-
-    .quality-ocr-status {
-      min-height: 22px;
-      color: var(--brand-dark);
-      font-size: 13px;
-      font-weight: 800;
-      white-space: pre-line;
-    }
-
-    .quality-ocr-preview {
-      display: grid;
-      gap: 5px;
-      padding: 10px;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      background: #ffffff;
-      color: var(--text);
-      font-size: 13px;
-      font-weight: 800;
-    }
-
-    .quality-ocr-preview:empty {
-      display: none;
     }
 
     .quality-result-row {
@@ -1827,23 +1730,6 @@
       min-width: 640px;
     }
 
-    .run-record-table th:last-child,
-    .run-record-table td:last-child,
-    .quality-table th:last-child,
-    .quality-table td:last-child {
-      position: sticky;
-      right: 0;
-      z-index: 1;
-      background: var(--surface);
-      box-shadow: -6px 0 10px rgba(23, 32, 51, 0.06);
-    }
-
-    .run-record-table th:last-child,
-    .quality-table th:last-child {
-      z-index: 2;
-      background: var(--brand-soft);
-    }
-
     #runChart {
       margin-top: 16px;
       max-width: 100%;
@@ -2421,25 +2307,7 @@
         font-size: 12px;
       }
       .run-record-table {
-        min-width: 650px;
-      }
-      .quality-table {
-        min-width: 1120px;
-      }
-      .record-action-cell {
-        min-width: 96px;
-        width: 96px;
-        padding-left: 6px;
-        padding-right: 6px;
-      }
-      .record-action-stack {
-        min-width: 78px;
-        gap: 5px;
-      }
-      .record-action-stack .table-action {
-        min-height: 34px;
-        padding: 6px 7px;
-        font-size: 12px;
+        min-width: 560px;
       }
       #runChart {
         padding: 6px;
@@ -2545,7 +2413,7 @@
       }
 
       .run-record-table {
-        min-width: 640px;
+        min-width: 520px;
       }
 
       .brand {
@@ -3161,7 +3029,7 @@
             <label>훈련 프로그램
               <select id="qualityPlanSelect"></select>
             </label>
-            <label class="quality-hidden-field">훈련 종류
+            <label>훈련 종류
               <select id="qualityWorkoutType">
                 <option value="interval">인터벌</option>
                 <option value="repetition">레피티션</option>
@@ -3171,21 +3039,11 @@
                 <option value="other">기타</option>
               </select>
             </label>
-            <label class="quality-detail-field quality-hidden-field">훈련 계획
+            <label class="quality-detail-field">훈련 계획
               <textarea id="qualityPlannedWorkout" maxlength="500" placeholder="예: 1000m x 4 (E조, S조: 3세트)"></textarea>
             </label>
 
             <div class="quality-form-section">결과 입력</div>
-            <div class="quality-ocr-panel">
-              <div class="quality-ocr-title">Garmin 캡처 업로드 <span class="quality-ocr-optional">선택사항</span></div>
-              <p class="quality-ocr-guide">캡처를 올리지 않아도 아래 세트 기록과 리커버리를 직접 입력해 저장할 수 있습니다.</p>
-              <p class="quality-ocr-guide">사진 및 동영상에서 Garmin 캡처를 선택한 뒤, 필요하면 수정 후 저장해주세요.</p>
-              <label>사진에서 Garmin 캡처 선택
-                <input id="qualityGarminCapture" type="file" accept="image/*" multiple>
-              </label>
-              <div id="qualityOcrStatus" class="quality-ocr-status">이미지는 저장하지 않고 이 브라우저 안에서만 분석합니다.</div>
-              <div id="qualityOcrPreview" class="quality-ocr-preview"></div>
-            </div>
             <p id="qualitySetGuide" class="vdot-guide-note quality-set-guide">훈련 프로그램을 선택하면 세트 입력 칸이 자동으로 맞춰집니다.</p>
             <div id="qualitySetInputs" class="quality-set-row">
               <label>1세트 <input class="quality-set-input" placeholder="4:13"></label>
@@ -3316,13 +3174,11 @@
     second.addEventListener("input", updateTime);
   </script>
 
-  <script type="module" src="app.js?v=20260424-garmin-lap-anchor-v215"></script>
+  <script type="module" src="app.js?v=20260422-ranking-more"></script>
   <script>
-    const CURRENT_CACHE_NAME = "naviheal-runners-v215";
-
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
-        navigator.serviceWorker.register("service-worker.js?v=20260424-garmin-lap-anchor-v215").then((registration) => {
+        navigator.serviceWorker.register("service-worker.js?v=20260422-ranking-more").then((registration) => {
           registration.update().catch(() => {});
         }).catch(() => {});
       });
@@ -3331,7 +3187,7 @@
     if ("caches" in window) {
       caches.keys().then((keys) => {
         keys
-          .filter((key) => key.startsWith("naviheal-runners-") && key !== CURRENT_CACHE_NAME)
+          .filter((key) => key.startsWith("naviheal-runners-") && key !== "naviheal-runners-v182")
           .forEach((key) => caches.delete(key));
       }).catch(() => {});
     }
