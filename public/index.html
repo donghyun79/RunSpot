@@ -517,6 +517,32 @@
       align-items: center;
     }
 
+    .member-group-cell {
+      min-width: 220px;
+      white-space: normal;
+    }
+
+    .member-group-summary {
+      display: grid;
+      gap: 4px;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .member-group-summary strong {
+      color: var(--text);
+    }
+
+    .member-group-shift {
+      color: var(--brand);
+      font-weight: 700;
+    }
+
+    .member-group-match {
+      color: var(--muted);
+      font-weight: 700;
+    }
+
     .member-runs-panel {
       padding: 10px 0 4px;
     }
@@ -1058,6 +1084,50 @@
       align-content: start;
       gap: 10px;
       min-height: 100%;
+    }
+
+    .healing-photo-note {
+      margin: -2px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .healing-photo-preview {
+      display: none;
+      gap: 8px;
+      align-items: start;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #ffffff;
+    }
+
+    .healing-photo-preview.has-image {
+      display: grid;
+    }
+
+    .healing-photo-preview img {
+      width: 100%;
+      max-width: 220px;
+      border-radius: 8px;
+      object-fit: cover;
+      border: 1px solid var(--line);
+    }
+
+    .healing-photo-meta {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .healing-checkin-image {
+      display: block;
+      width: min(100%, 280px);
+      margin-top: 10px;
+      border-radius: 10px;
+      object-fit: cover;
+      border: 1px solid var(--line);
     }
 
     .healing-form .field-wide {
@@ -2712,6 +2782,21 @@
     </section>
   </div>
 
+  <div id="healingPopupModal" class="update-modal hidden" role="dialog" aria-modal="true" aria-labelledby="healingPopupTitle">
+    <section class="update-modal-panel">
+      <p class="update-modal-kicker">힐링 알림</p>
+      <h2 id="healingPopupTitle" class="update-modal-title">새로운 힐링 콘텐츠가 있어요</h2>
+      <p class="update-modal-date">번개 공지 · 한줄체크인 · 응원 남기기</p>
+      <p id="healingPopupLead" class="update-modal-lead">오늘 올라온 힐링 소식을 확인해보세요.</p>
+      <ul id="healingPopupList" class="update-modal-list"></ul>
+      <p class="update-modal-note"><strong>확인하면 오늘은 다시 뜨지 않습니다.</strong></p>
+      <div class="update-modal-actions">
+        <button id="healingPopupOpenTab" type="button">힐링 보러가기</button>
+        <button id="closeHealingPopup" type="button">확인</button>
+      </div>
+    </section>
+  </div>
+
   <main class="page">
     <section id="authView" class="auth-view">
       <div class="auth-copy">
@@ -3150,6 +3235,7 @@
                 <th>이름</th>
                 <th>이메일</th>
                 <th>상태</th>
+                <th>조편성</th>
                 <th>기록/관리</th>
               </tr>
             </thead>
@@ -3340,6 +3426,15 @@
             <label class="field-wide">한 줄 체크인
               <textarea id="healingCheckinContent" maxlength="240" placeholder="오늘 컨디션이나 러닝 근황을 가볍게 남겨주세요."></textarea>
             </label>
+            <label class="field-wide">사진 첨부
+              <input id="healingCheckinPhoto" type="file" accept="image/*">
+            </label>
+            <p class="healing-photo-note">사진은 자동으로 강하게 압축되며, 회원당 하루 1장만 첨부할 수 있습니다. 텍스트 체크인은 여러 번 남길 수 있습니다.</p>
+            <div id="healingCheckinPhotoPreview" class="healing-photo-preview">
+              <img id="healingCheckinPhotoPreviewImage" alt="체크인 사진 미리보기">
+              <div id="healingCheckinPhotoMeta" class="healing-photo-meta"></div>
+              <button id="removeHealingCheckinPhoto" type="button" class="button-secondary">사진 삭제</button>
+            </div>
             <div class="healing-action-row">
               <button id="saveHealingCheckin" type="button">체크인 남기기</button>
               <button id="cancelHealingCheckinEdit" type="button" class="button-secondary hidden">수정 취소</button>
@@ -3430,11 +3525,11 @@
     second.addEventListener("input", updateTime);
   </script>
 
-  <script type="module" src="app.js?v=20260422-ranking-more"></script>
+  <script type="module" src="app.js?v=20260426-host-member-groups-v221"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
-        navigator.serviceWorker.register("service-worker.js?v=20260422-ranking-more").then((registration) => {
+        navigator.serviceWorker.register("service-worker.js?v=20260426-host-member-groups-v221").then((registration) => {
           registration.update().catch(() => {});
         }).catch(() => {});
       });
@@ -3443,7 +3538,7 @@
     if ("caches" in window) {
       caches.keys().then((keys) => {
         keys
-          .filter((key) => key.startsWith("naviheal-runners-") && key !== "naviheal-runners-v182")
+          .filter((key) => key.startsWith("naviheal-runners-") && key !== "naviheal-runners-v221")
           .forEach((key) => caches.delete(key));
       }).catch(() => {});
     }

@@ -77,12 +77,19 @@ let saveHealingEventBtn = null;
 let cancelHealingEventEditBtn = null;
 let healingCheckinMoodInput = null;
 let healingCheckinContentInput = null;
+let healingCheckinPhotoInput = null;
+let healingCheckinPhotoPreview = null;
+let healingCheckinPhotoMeta = null;
+let removeHealingCheckinPhotoBtn = null;
 let saveHealingCheckinBtn = null;
 let cancelHealingCheckinEditBtn = null;
 let healingCheerContentInput = null;
 let saveHealingCheerBtn = null;
 let cancelHealingCheerEditBtn = null;
 let latestEnvironment = null;
+let pendingHealingCheckinPhoto = null;
+let pendingHealingCheckinPhotoRemoved = false;
+const HEALING_POPUP_STORAGE_KEY_PREFIX = "naviheal-healing-popup";
 const CLUB_INVITE_CODE = "NAVIHEAL";
 const HOST_EMAIL = "dhseo@skku.edu";
 const HOST_NAME = "서동현";
@@ -783,6 +790,14 @@ function formatSavedDateTime(value) {
 
 function getTodayDateString() {
   return dateToInputValue(new Date());
+}
+
+function getLocalDateKey(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
 }
 
 function getWeatherLabel(weatherCode) {
@@ -2076,6 +2091,10 @@ document.addEventListener("DOMContentLoaded", () => {
   cancelHealingEventEditBtn = document.getElementById("cancelHealingEventEdit");
   healingCheckinMoodInput = document.getElementById("healingCheckinMood");
   healingCheckinContentInput = document.getElementById("healingCheckinContent");
+  healingCheckinPhotoInput = document.getElementById("healingCheckinPhoto");
+  healingCheckinPhotoPreview = document.getElementById("healingCheckinPhotoPreview");
+  healingCheckinPhotoMeta = document.getElementById("healingCheckinPhotoMeta");
+  removeHealingCheckinPhotoBtn = document.getElementById("removeHealingCheckinPhoto");
   saveHealingCheckinBtn = document.getElementById("saveHealingCheckin");
   cancelHealingCheckinEditBtn = document.getElementById("cancelHealingCheckinEdit");
   healingCheerContentInput = document.getElementById("healingCheerContent");
@@ -2092,6 +2111,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   updateQualityTotalsInputMode();
   updateMonthlyChallengeMonthLabel();
+  renderHealingCheckinPhotoPreview();
 
   function openUpdateNotice() {
     if (!updateModal) return;
@@ -2120,6 +2140,42 @@ document.addEventListener("DOMContentLoaded", () => {
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && !updateModal?.classList.contains("hidden")) {
       closeUpdateNotice();
+    }
+  });
+
+  const healingPopupModal = document.getElementById("healingPopupModal");
+  const closeHealingPopupBtn = document.getElementById("closeHealingPopup");
+  const openHealingPopupBtn = document.getElementById("openHealingPopup");
+  const healingPopupOpenTabBtn = document.getElementById("healingPopupOpenTab");
+  const healingPopupTitle = document.getElementById("healingPopupTitle");
+  const healingPopupLead = document.getElementById("healingPopupLead");
+  const healingPopupList = document.getElementById("healingPopupList");
+
+  function openHealingPopup() {
+    if (!healingPopupModal) return;
+
+    healingPopupModal.classList.remove("hidden");
+    closeHealingPopupBtn?.focus();
+  }
+
+  function closeHealingPopup() {
+    if (!healingPopupModal) return;
+
+    healingPopupModal.classList.add("hidden");
+  }
+
+  closeHealingPopupBtn?.addEventListener("click", closeHealingPopup);
+  openHealingPopupBtn?.addEventListener("click", openHealingPopup);
+  healingPopupOpenTabBtn?.addEventListener("click", () => {
+    closeHealingPopup();
+    setActiveAppView("healing");
+  });
+  healingPopupModal?.addEventListener("click", (event) => {
+    if (event.target === healingPopupModal) closeHealingPopup();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !healingPopupModal?.classList.contains("hidden")) {
+      closeHealingPopup();
     }
   });
 
@@ -2433,6 +2489,7 @@ document.addEventListener("DOMContentLoaded", () => {
         await loadClubRanking(user).catch(showDashboardLoadError);
         await loadWeeklyRanking(user).catch(showDashboardLoadError);
         await loadSuggestions(user).catch(showDashboardLoadError);
+        await loadHealingHub(user).catch(showDashboardLoadError);
 
       } catch (e) {
         showDashboardLoadError(e);
@@ -2760,6 +2817,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
   saveHealingCheckinBtn?.addEventListener("click", () => {
     saveHealingCheckin();
+  });
+  healingCheckinPhotoInput?.addEventListener("change", () => {
+    handleHealingCheckinPhotoChange();
+  });
+  removeHealingCheckinPhotoBtn?.addEventListener("click", () => {
+    removeHealingCheckinPhotoSelection();
   });
   document.getElementById("healingCheckinList")?.addEventListener("click", handleHealingCheckinListClick);
   cancelHealingCheckinEditBtn?.addEventListener("click", () => {
@@ -4050,6 +4113,129 @@ function setHealingStatus(section, message) {
   }
 }
 
+function getHealingPopupStorageKey(userId = "") {
+  return `${HEALING_POPUP_STORAGE_KEY_PREFIX}:${userId || "guest"}`;
+}
+
+function readHealingPopupState(userId = "") {
+  try {
+    const raw = localStorage.getItem(getHealingPopupStorageKey(userId));
+
+    return raw ? JSON.parse(raw) : {};
+  } catch (error) {
+    console.error(error);
+    return {};
+  }
+}
+
+function writeHealingPopupState(userId = "", state = {}) {
+  try {
+    localStorage.setItem(getHealingPopupStorageKey(userId), JSON.stringify(state));
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+function getHealingPopupMeta() {
+  const latestEvent = latestHealingEvents.reduce((latest, item) => {
+    const latestMs = getDateTimeValueMs(latest?.updatedAt || latest?.createdAt || latest?.eventDate);
+    const itemMs = getDateTimeValueMs(item?.updatedAt || item?.createdAt || item?.eventDate);
+
+    return itemMs > latestMs ? item : latest;
+  }, null);
+  const latestCheckin = latestHealingCheckins.reduce((latest, item) => {
+    const latestMs = getDateTimeValueMs(latest?.updatedAt || latest?.createdAt);
+    const itemMs = getDateTimeValueMs(item?.updatedAt || item?.createdAt);
+
+    return itemMs > latestMs ? item : latest;
+  }, null);
+  const latestCheer = latestHealingCheers.reduce((latest, item) => {
+    const latestMs = getDateTimeValueMs(latest?.updatedAt || latest?.createdAt);
+    const itemMs = getDateTimeValueMs(item?.updatedAt || item?.createdAt);
+
+    return itemMs > latestMs ? item : latest;
+  }, null);
+  const latestEventMs = getDateTimeValueMs(latestEvent?.updatedAt || latestEvent?.createdAt || latestEvent?.eventDate);
+  const latestCheckinMs = getDateTimeValueMs(latestCheckin?.updatedAt || latestCheckin?.createdAt);
+  const latestCheerMs = getDateTimeValueMs(latestCheer?.updatedAt || latestCheer?.createdAt);
+  const latestContentMs = Math.max(latestEventMs, latestCheckinMs, latestCheerMs, 0);
+
+  return {
+    latestContentMs,
+    signature: [
+      latestEvent ? `event:${latestEvent.id}:${latestEventMs}` : "",
+      latestCheckin ? `checkin:${latestCheckin.id}:${latestCheckinMs}` : "",
+      latestCheer ? `cheer:${latestCheer.id}:${latestCheerMs}` : ""
+    ].filter(Boolean).join("|"),
+    counts: {
+      event: latestHealingEvents.length,
+      checkin: latestHealingCheckins.length,
+      cheer: latestHealingCheers.length
+    }
+  };
+}
+
+function summarizeHealingPopupText(text = "", maxLength = 24) {
+  const normalizedText = String(text || "").replace(/\s+/g, " ").trim();
+
+  if (!normalizedText) return "";
+  if (normalizedText.length <= maxLength) return normalizedText;
+
+  return `${normalizedText.slice(0, maxLength).trim()}...`;
+}
+
+function maybeOpenHealingPopup(user = auth.currentUser) {
+  if (!user) return;
+
+  const healingPopupModal = document.getElementById("healingPopupModal");
+  const healingPopupTitle = document.getElementById("healingPopupTitle");
+  const healingPopupLead = document.getElementById("healingPopupLead");
+  const healingPopupList = document.getElementById("healingPopupList");
+
+  if (!healingPopupModal || !healingPopupTitle || !healingPopupLead || !healingPopupList) return;
+
+  const popupMeta = getHealingPopupMeta();
+
+  if (!popupMeta.latestContentMs || !popupMeta.signature) return;
+
+  const todayKey = getLocalDateKey();
+  const popupState = readHealingPopupState(user.uid);
+
+  if (popupState.seenDate === todayKey) return;
+  if (popupState.seenSignature === popupMeta.signature) return;
+
+  const lines = [];
+
+  if (popupMeta.counts.event && latestHealingEvents[0]) {
+    const latestTitle = summarizeHealingPopupText(latestHealingEvents[0].title, 26);
+    const extraCount = Math.max(0, popupMeta.counts.event - 1);
+
+    lines.push(`번개 공지: ${latestTitle}${extraCount ? ` 외 ${extraCount}건` : ""}`);
+  }
+  if (popupMeta.counts.checkin && latestHealingCheckins[0]) {
+    const latestCheckin = summarizeHealingPopupText(latestHealingCheckins[0].content, 24);
+    const extraCount = Math.max(0, popupMeta.counts.checkin - 1);
+
+    lines.push(`한줄체크인: "${latestCheckin}"${extraCount ? ` 외 ${extraCount}건` : ""}`);
+  }
+  if (popupMeta.counts.cheer && latestHealingCheers[0]) {
+    const latestCheer = summarizeHealingPopupText(latestHealingCheers[0].content, 24);
+    const extraCount = Math.max(0, popupMeta.counts.cheer - 1);
+
+    lines.push(`응원 남기기: "${latestCheer}"${extraCount ? ` 외 ${extraCount}건` : ""}`);
+  }
+
+  healingPopupTitle.innerText = "새로운 힐링 콘텐츠가 있어요";
+  healingPopupLead.innerText = "오늘 올라온 힐링 소식을 확인해보세요. 확인하면 오늘은 다시 뜨지 않습니다.";
+  healingPopupList.innerHTML = lines.map((line) => `<li>${line}</li>`).join("");
+
+  writeHealingPopupState(user.uid, {
+    seenDate: todayKey,
+    seenSignature: popupMeta.signature
+  });
+  healingPopupModal.classList.remove("hidden");
+}
+
 async function loadHealingHub(user = auth.currentUser) {
   const eventStatus = document.getElementById("healingEventStatus");
   const checkinStatus = document.getElementById("healingCheckinStatus");
@@ -4123,6 +4309,9 @@ async function loadHealingHub(user = auth.currentUser) {
 
     checkinSnapshot.forEach((snapshotDoc) => {
       const data = snapshotDoc.data();
+      const photoExpiresAt = data.photoExpiresAt || null;
+      const hasActivePhoto = Boolean(data.photoDataUrl) && !isExpiredHealingPhotoValue(photoExpiresAt);
+
       latestHealingCheckins.push({
         id: snapshotDoc.id,
         mood: data.mood || "okay",
@@ -4130,6 +4319,16 @@ async function loadHealingHub(user = auth.currentUser) {
         userId: data.userId || "",
         name: data.name || data.email || "이름 없음",
         email: data.email || "",
+        createdAt: data.createdAt || null,
+        photoDateKey: data.photoDateKey || "",
+        photoExpiresAt,
+        photo: hasActivePhoto ? {
+          dataUrl: data.photoDataUrl,
+          mimeType: data.photoMimeType || "image/jpeg",
+          width: Number(data.photoWidth) || 0,
+          height: Number(data.photoHeight) || 0,
+          sizeBytes: Number(data.photoSizeBytes) || estimateBase64FileSizeBytes(data.photoDataUrl)
+        } : null,
         updatedAt: data.updatedAt || null
       });
     });
@@ -4151,6 +4350,10 @@ async function loadHealingHub(user = auth.currentUser) {
     latestHealingCheers.sort((a, b) => getDateTimeValueMs(b.createdAt) - getDateTimeValueMs(a.createdAt));
 
     renderHealingHub(user);
+    maybeOpenHealingPopup(user);
+    cleanupExpiredHealingCheckinPhotos(checkinSnapshot, user).catch((error) => {
+      console.error(error);
+    });
   } catch (e) {
     console.error(e);
     eventStatus.innerText = "번개 공지를 불러오지 못했습니다. Firestore 권한을 확인해주세요.";
@@ -4163,6 +4366,179 @@ function renderHealingHub(user = auth.currentUser) {
   renderHealingEvents(user);
   renderHealingCheckins(user);
   renderHealingCheers(user);
+}
+
+function estimateBase64FileSizeBytes(dataUrl = "") {
+  const base64 = String(dataUrl || "").split(",")[1] || "";
+
+  return Math.floor((base64.length * 3) / 4);
+}
+
+function formatFileSize(sizeBytes = 0) {
+  const size = Number(sizeBytes) || 0;
+
+  if (size >= 1024 * 1024) {
+    return `${(size / (1024 * 1024)).toFixed(1)}MB`;
+  }
+
+  return `${Math.max(1, Math.round(size / 1024))}KB`;
+}
+
+function getHealingPhotoExpiresAt(baseDate = new Date()) {
+  return new Date(baseDate.getTime() + (30 * 24 * 60 * 60 * 1000));
+}
+
+function isExpiredHealingPhotoValue(value) {
+  const expiresAtMs = getDateTimeValueMs(value);
+
+  return expiresAtMs > 0 && expiresAtMs <= Date.now();
+}
+
+async function cleanupExpiredHealingCheckinPhotos(snapshot, user = auth.currentUser) {
+  if (!snapshot || !user) return;
+
+  const canCleanAll = isHostUser(user);
+  const expiredDocs = snapshot.docs.filter((snapshotDoc) => {
+    const data = snapshotDoc.data();
+
+    if (!data?.photoDataUrl) return false;
+    if (!isExpiredHealingPhotoValue(data.photoExpiresAt)) return false;
+    if (canCleanAll) return true;
+
+    return data.userId === user.uid;
+  });
+
+  if (!expiredDocs.length) return;
+
+  await Promise.all(expiredDocs.map((snapshotDoc) => updateDoc(doc(db, "healingCheckins", snapshotDoc.id), {
+    photoDataUrl: "",
+    photoMimeType: "",
+    photoWidth: 0,
+    photoHeight: 0,
+    photoSizeBytes: 0,
+    photoDateKey: "",
+    photoExpiresAt: null,
+    updatedAt: new Date()
+  }).catch((error) => {
+    console.error(error);
+  })));
+}
+
+function compressHealingCheckinPhoto(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onerror = reject;
+    reader.onload = () => {
+      const image = new Image();
+
+      image.onerror = reject;
+      image.onload = () => {
+        const maxWidth = 1280;
+        const scale = Math.min(maxWidth / image.width, 1);
+        const canvas = document.createElement("canvas");
+        const context = canvas.getContext("2d", { willReadFrequently: true });
+        let quality = 0.72;
+
+        canvas.width = Math.max(1, Math.round(image.width * scale));
+        canvas.height = Math.max(1, Math.round(image.height * scale));
+        context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+        let dataUrl = canvas.toDataURL("image/jpeg", quality);
+
+        while (estimateBase64FileSizeBytes(dataUrl) > 380 * 1024 && quality > 0.4) {
+          quality -= 0.08;
+          dataUrl = canvas.toDataURL("image/jpeg", quality);
+        }
+
+        resolve({
+          dataUrl,
+          mimeType: "image/jpeg",
+          width: canvas.width,
+          height: canvas.height,
+          sizeBytes: estimateBase64FileSizeBytes(dataUrl)
+        });
+      };
+
+      image.src = reader.result;
+    };
+
+    reader.readAsDataURL(file);
+  });
+}
+
+function renderHealingCheckinPhotoPreview() {
+  const preview = healingCheckinPhotoPreview;
+  const previewImage = document.getElementById("healingCheckinPhotoPreviewImage");
+  const previewMeta = healingCheckinPhotoMeta;
+
+  if (!preview || !previewImage || !previewMeta) return;
+
+  const activePhoto = pendingHealingCheckinPhoto || (pendingHealingCheckinPhotoRemoved ? null : editingHealingCheckin?.photo);
+
+  if (!activePhoto?.dataUrl) {
+    preview.classList.remove("has-image");
+    previewImage.removeAttribute("src");
+    previewMeta.innerText = "";
+    return;
+  }
+
+  preview.classList.add("has-image");
+  previewImage.src = activePhoto.dataUrl;
+  previewMeta.innerText = [
+    activePhoto.width && activePhoto.height ? `${activePhoto.width}x${activePhoto.height}` : "",
+    activePhoto.sizeBytes ? formatFileSize(activePhoto.sizeBytes) : ""
+  ].filter(Boolean).join(" · ");
+}
+
+async function handleHealingCheckinPhotoChange() {
+  const file = healingCheckinPhotoInput?.files?.[0];
+
+  if (!file) {
+    pendingHealingCheckinPhoto = null;
+    renderHealingCheckinPhotoPreview();
+    return;
+  }
+
+  if (!String(file.type || "").startsWith("image/")) {
+    setHealingStatus("checkin", "사진 파일만 첨부할 수 있습니다.");
+    if (healingCheckinPhotoInput) healingCheckinPhotoInput.value = "";
+    return;
+  }
+
+  try {
+    setHealingStatus("checkin", "사진을 압축하는 중입니다...");
+    pendingHealingCheckinPhoto = await compressHealingCheckinPhoto(file);
+    pendingHealingCheckinPhotoRemoved = false;
+    renderHealingCheckinPhotoPreview();
+    setHealingStatus("checkin", `사진을 ${formatFileSize(pendingHealingCheckinPhoto.sizeBytes)} 크기로 압축했습니다.`);
+  } catch (error) {
+    console.error(error);
+    pendingHealingCheckinPhoto = null;
+    if (healingCheckinPhotoInput) healingCheckinPhotoInput.value = "";
+    renderHealingCheckinPhotoPreview();
+    setHealingStatus("checkin", "사진을 처리하지 못했습니다. 다른 이미지를 선택해주세요.");
+  }
+}
+
+function removeHealingCheckinPhotoSelection() {
+  pendingHealingCheckinPhoto = null;
+  pendingHealingCheckinPhotoRemoved = true;
+  if (healingCheckinPhotoInput) healingCheckinPhotoInput.value = "";
+  renderHealingCheckinPhotoPreview();
+  setHealingStatus("checkin", "체크인 사진을 제거했습니다.");
+}
+
+async function hasDailyHealingCheckinPhoto(userId = "", dateKey = "", editingId = "") {
+  if (!userId || !dateKey) return false;
+
+  const snapshot = await getDocsFromServer(query(
+    collection(db, "healingCheckins"),
+    where("userId", "==", userId),
+    where("photoDateKey", "==", dateKey)
+  ));
+
+  return snapshot.docs.some((snapshotDoc) => snapshotDoc.id !== editingId);
 }
 
 function isEditingHealingEventId(eventId) {
@@ -4219,19 +4595,27 @@ function startHealingEventEdit(event) {
 
 function resetHealingCheckinForm() {
   editingHealingCheckin = null;
+  pendingHealingCheckinPhoto = null;
+  pendingHealingCheckinPhotoRemoved = false;
   if (healingCheckinMoodInput) healingCheckinMoodInput.value = "good";
   if (healingCheckinContentInput) healingCheckinContentInput.value = "";
+  if (healingCheckinPhotoInput) healingCheckinPhotoInput.value = "";
   if (saveHealingCheckinBtn) saveHealingCheckinBtn.innerText = "체크인 남기기";
   document.getElementById("cancelHealingCheckinEdit")?.classList.add("hidden");
+  renderHealingCheckinPhotoPreview();
   renderHealingHub(auth.currentUser);
 }
 
 function startHealingCheckinEdit(checkin) {
   editingHealingCheckin = checkin;
+  pendingHealingCheckinPhoto = null;
+  pendingHealingCheckinPhotoRemoved = false;
   if (healingCheckinMoodInput) healingCheckinMoodInput.value = checkin.mood || "good";
   if (healingCheckinContentInput) healingCheckinContentInput.value = checkin.content || "";
+  if (healingCheckinPhotoInput) healingCheckinPhotoInput.value = "";
   if (saveHealingCheckinBtn) saveHealingCheckinBtn.innerText = "체크인 수정";
   document.getElementById("cancelHealingCheckinEdit")?.classList.remove("hidden");
+  renderHealingCheckinPhotoPreview();
   renderHealingHub(auth.currentUser);
   setHealingStatus("checkin", "체크인을 수정한 뒤 저장해주세요.");
   focusHealingForm("healingCheckinForm", "healingCheckinContent");
@@ -4461,6 +4845,14 @@ function renderHealingCheckins(user = auth.currentUser) {
       card.appendChild(body);
     }
 
+    if (checkin.photo?.dataUrl) {
+      const image = document.createElement("img");
+      image.className = "healing-checkin-image";
+      image.src = checkin.photo.dataUrl;
+      image.alt = `${checkin.name} 체크인 사진`;
+      card.appendChild(image);
+    }
+
     if (user && (isHostUser(user) || checkin.userId === user.uid)) {
       const actionRow = document.createElement("div");
       actionRow.className = "healing-action-row";
@@ -4679,6 +5071,16 @@ async function saveHealingCheckin() {
 
   const mood = document.getElementById("healingCheckinMood")?.value || "okay";
   const content = document.getElementById("healingCheckinContent")?.value.trim() || "";
+  const todayKey = getLocalDateKey();
+  const isEditing = Boolean(editingHealingCheckin?.id);
+  const existingPhoto = (!pendingHealingCheckinPhotoRemoved && editingHealingCheckin?.photo?.dataUrl)
+    ? editingHealingCheckin.photo
+    : null;
+  const photoPayload = pendingHealingCheckinPhoto || existingPhoto || null;
+  const photoDateKey = photoPayload ? (editingHealingCheckin?.photoDateKey || todayKey) : "";
+  const photoExpiresAt = photoPayload
+    ? (editingHealingCheckin?.photoExpiresAt || getHealingPhotoExpiresAt())
+    : null;
 
   if (!content) {
     setHealingStatus("checkin", "체크인 내용을 입력해주세요.");
@@ -4689,25 +5091,36 @@ async function saveHealingCheckin() {
   if (saveButton) saveButton.disabled = true;
 
   try {
-    const isEditing = Boolean(editingHealingCheckin?.id);
+    if (photoPayload && !editingHealingCheckin?.photo?.dataUrl) {
+      const alreadyHasPhotoToday = await hasDailyHealingCheckinPhoto(user.uid, todayKey, editingHealingCheckin?.id || "");
+
+      if (alreadyHasPhotoToday) {
+        setHealingStatus("checkin", "사진 첨부는 하루 1장만 가능합니다. 오늘은 텍스트 체크인만 추가로 남길 수 있습니다.");
+        return;
+      }
+    }
+
+    const payload = {
+      mood,
+      content,
+      userId: editingHealingCheckin?.userId || user.uid,
+      name: editingHealingCheckin?.name || getUserName(user),
+      email: editingHealingCheckin?.email || user.email,
+      createdAt: editingHealingCheckin?.createdAt || new Date(),
+      updatedAt: new Date(),
+      photoDataUrl: photoPayload?.dataUrl || "",
+      photoMimeType: photoPayload?.mimeType || "",
+      photoWidth: photoPayload?.width || 0,
+      photoHeight: photoPayload?.height || 0,
+      photoSizeBytes: photoPayload?.sizeBytes || 0,
+      photoDateKey,
+      photoExpiresAt
+    };
+
     if (isEditing) {
-      await updateDoc(doc(db, "healingCheckins", editingHealingCheckin.id), {
-        mood,
-        content,
-        userId: editingHealingCheckin.userId || user.uid,
-        name: editingHealingCheckin.name || getUserName(user),
-        email: editingHealingCheckin.email || user.email,
-        updatedAt: new Date()
-      });
+      await updateDoc(doc(db, "healingCheckins", editingHealingCheckin.id), payload);
     } else {
-      await addDoc(collection(db, "healingCheckins"), {
-        mood,
-        content,
-        userId: user.uid,
-        name: getUserName(user),
-        email: user.email,
-        updatedAt: new Date()
-      });
+      await addDoc(collection(db, "healingCheckins"), payload);
     }
 
     resetHealingCheckinForm();
@@ -5042,8 +5455,13 @@ async function loadMembers() {
   memberStatus.innerText = "회원 목록을 불러오는 중입니다...";
 
   try {
-    const querySnapshot = await getDocsFromServer(collection(db, "users"));
+    const [querySnapshot, runsSnapshot] = await Promise.all([
+      getDocsFromServer(collection(db, "users")),
+      getDocsFromServer(collection(db, "runs"))
+    ]);
     const members = [];
+    const runsByUserId = new Map();
+    const runsByEmail = new Map();
 
     querySnapshot.forEach((snapshotDoc) => {
       const data = snapshotDoc.data();
@@ -5058,7 +5476,26 @@ async function loadMembers() {
       });
     });
 
+    runsSnapshot.forEach((snapshotDoc) => {
+      const run = buildRunRecord(snapshotDoc.id, snapshotDoc.data());
+      const userIdKey = run.userId || "";
+      const emailKey = String(run.email || "").toLowerCase();
+
+      if (userIdKey) {
+        const userRuns = runsByUserId.get(userIdKey) || [];
+        userRuns.push(run);
+        runsByUserId.set(userIdKey, userRuns);
+      }
+
+      if (emailKey) {
+        const emailRuns = runsByEmail.get(emailKey) || [];
+        emailRuns.push(run);
+        runsByEmail.set(emailKey, emailRuns);
+      }
+    });
+
     members.sort((a, b) => a.name.localeCompare(b.name, "ko"));
+    let changedGroupCount = 0;
 
     members.forEach((member) => {
       const tr = document.createElement("tr");
@@ -5091,6 +5528,37 @@ async function loadMembers() {
 
         tr.appendChild(td);
       });
+
+      const memberRuns = [];
+      const memberRunIds = new Set();
+
+      (runsByUserId.get(member.userId) || []).forEach((run) => {
+        if (memberRunIds.has(run.id)) return;
+        memberRunIds.add(run.id);
+        memberRuns.push(run);
+      });
+
+      (runsByEmail.get(member.email.toLowerCase()) || []).forEach((run) => {
+        if (memberRunIds.has(run.id)) return;
+        memberRunIds.add(run.id);
+        memberRuns.push(run);
+      });
+
+      const groupSummary = getMemberPredictionGroupSummary(member, memberRuns);
+      if (groupSummary.hasChange) {
+        changedGroupCount += 1;
+      }
+
+      const groupTd = document.createElement("td");
+      groupTd.className = "member-group-cell";
+      groupTd.innerHTML = [
+        '<div class="member-group-summary">',
+        `<div><strong>예상조</strong>: ${groupSummary.predictedGroup ? `${groupSummary.predictedGroup.group}조` : "계산 전"}</div>`,
+        `<div><strong>실제 조</strong>: ${groupSummary.actualGroup ? `${groupSummary.actualGroup.group}조` : "미배정"}</div>`,
+        `<div class="${groupSummary.shiftClass}">${groupSummary.shiftText}</div>`,
+        '</div>'
+      ].join("");
+      tr.appendChild(groupTd);
 
       const actionTd = document.createElement("td");
       actionTd.className = "member-action-cell";
@@ -5144,7 +5612,9 @@ async function loadMembers() {
       memberList.appendChild(tr);
     });
 
-    memberStatus.innerText = `등록 회원 ${members.length}명`;
+    memberStatus.innerText = changedGroupCount > 0
+      ? `등록 회원 ${members.length}명 · 예상조와 실제 조가 다른 회원 ${changedGroupCount}명`
+      : `등록 회원 ${members.length}명`;
   } catch (e) {
     console.error(e);
     memberStatus.innerText = "회원 목록을 불러오지 못했습니다.";
@@ -7421,6 +7891,13 @@ function updateMarathonPrediction() {
   const mileageDetail = getMileageAdjustmentText(basis.mileageAdjustment);
   const assignedGroup = getRunningGroup(basis.predictedTime);
   const memberGroup = getRunningGroupByMemberName(getUserName(auth.currentUser));
+  const qualityBlock = basis.qualitySignal
+    ? [
+        '<div class="target-block">',
+        `<b>화요 정훈 반영</b><br>${basis.qualitySignal.summary}${basis.qualitySignal.count > 1 ? `<br>최근 정훈 ${basis.qualitySignal.count}개를 가중 반영했습니다.` : ""}<br>입력된 화요 정훈 결과가 있는 회원에 한해 예상 마라톤 기록에 보정 반영되었습니다.`,
+        '</div>'
+      ].join("")
+    : "";
 
   if (!assignedGroup) {
     predictionDiv.innerHTML = [
@@ -7430,7 +7907,8 @@ function updateMarathonPrediction() {
       '</div>',
       '<div class="target-block">',
       '<b>나빌러닝 예상조</b><br>현재 기준표의 Sub 5:00보다 여유가 필요합니다.<br>예상조는 최근 기록과 훈련량으로 계산한 임시 참고값이라 실제 조편성과 다를 수 있습니다.',
-      '</div>'
+      '</div>',
+      qualityBlock
     ].join("");
     return;
   }
@@ -7457,6 +7935,7 @@ function updateMarathonPrediction() {
     '<div class="target-block">',
     `<b>적정 훈련 기준</b><br>인터벌 페이스: ${assignedGroup.intervalPace}<br>리커버리 조깅 페이스: ${assignedGroup.recoveryPace}<br>월간 마일리지: ${assignedGroup.monthlyMileage}`,
     '</div>',
+    qualityBlock,
     vdotBlock
   ].join("");
 }
@@ -7466,25 +7945,265 @@ function predictMarathon(time, distance) {
   return time * Math.pow(marathonDistance / distance, 1.06);
 }
 
+function getQualityPredictionIntensity(workoutType = "", repDistanceKm = 0) {
+  if (workoutType === "tempo") return 0.9;
+  if (workoutType === "tt") return 0.93;
+  if (workoutType === "build-up") return 0.94;
+  if (workoutType === "repetition") return repDistanceKm >= 0.8 ? 1.01 : 1.04;
+  return repDistanceKm >= 2 ? 0.96 : 0.985;
+}
+
+function parseQualityRepDistanceKm(plannedWorkout = "") {
+  const text = String(plannedWorkout || "");
+  const repeatedMatch = text.match(/(\d+(?:\.\d+)?)\s*(km|KM|k|K|m|M)\s*[x×X]/);
+
+  if (repeatedMatch) {
+    const rawDistance = Number(repeatedMatch[1]);
+    if (!rawDistance) return 0;
+    return /k/i.test(repeatedMatch[2]) ? rawDistance : rawDistance / 1000;
+  }
+
+  const singleMatch = text.match(/(\d+(?:\.\d+)?)\s*(km|KM|k|K|m|M)/);
+
+  if (!singleMatch) return 0;
+
+  const rawDistance = Number(singleMatch[1]);
+  if (!rawDistance) return 0;
+  return /k/i.test(singleMatch[2]) ? rawDistance : rawDistance / 1000;
+}
+
+function getRecentQualityPredictionSignal(runs = latestRuns) {
+  const cutoffMs = Date.now() - (56 * 24 * 60 * 60 * 1000);
+  const qualityCandidates = runs
+    .filter((run) => {
+      if (!(run.type === "training" && isQualityWorkout(run))) return false;
+
+      const qualityDisplay = getQualityDisplayData(run);
+      return Boolean(run.qualityPlanDate || qualityDisplay.plannedWorkout || qualityDisplay.setResults);
+    })
+    .map((run) => {
+      const runDateMs = getDateTimeValueMs(run.runDate);
+
+      if (!runDateMs || runDateMs < cutoffMs) return null;
+
+      const workoutType = run.workoutType || "interval";
+      const qualityDisplay = getQualityDisplayData(run);
+      const plannedWorkout = qualityDisplay.plannedWorkout || "";
+      const setResults = qualityDisplay.setResults || "";
+      const repDistanceKm = parseQualityRepDistanceKm(plannedWorkout);
+      const recencyDays = Math.max(0, Math.round((Date.now() - runDateMs) / (24 * 60 * 60 * 1000)));
+      const recencyWeight = recencyDays <= 14 ? 1 : recencyDays <= 28 ? 0.88 : 0.74;
+      let vdot = 0;
+      let summary = "";
+      let sourceWeight = 0;
+
+      if (workoutType === "tt" && run.distance >= 3 && run.time > 0) {
+        vdot = estimateVdot(run.time, run.distance);
+        summary = `${run.runDate || ""} TT ${formatTime(run.time)} (${getDistanceLabel(run.distance)})`;
+        sourceWeight = 1.8;
+      } else {
+        const { setValues } = parseQualitySetResults(setResults);
+        const validSetMinutes = setValues
+          .map((value) => parseQualityDurationMinutes(value))
+          .filter((value) => value > 0);
+
+        if (!repDistanceKm || validSetMinutes.length < 2) return null;
+
+        const averageSetMinutes = validSetMinutes.reduce((total, value) => total + value, 0) / validSetMinutes.length;
+        const averageSetPace = averageSetMinutes / repDistanceKm;
+        const velocity = 1000 / averageSetPace;
+        const intensity = getQualityPredictionIntensity(workoutType, repDistanceKm);
+
+        vdot = getOxygenCost(velocity) / intensity;
+        summary = `${run.runDate || ""} ${formatQualityWorkoutPlanText(plannedWorkout)} · 평균 ${formatTime(averageSetMinutes)} (${formatPace(averageSetPace)})`;
+
+        if (workoutType === "tempo") {
+          sourceWeight = 1.65;
+        } else if (workoutType === "build-up") {
+          sourceWeight = 1.45;
+        } else if (workoutType === "repetition") {
+          sourceWeight = repDistanceKm >= 0.8 ? 1.3 : 1.1;
+        } else {
+          sourceWeight = repDistanceKm >= 1 ? 1.7 : 1.35;
+        }
+
+        if (validSetMinutes.length >= 4) sourceWeight += 0.15;
+      }
+
+      if (!Number.isFinite(vdot) || vdot < 30 || vdot > 85) return null;
+
+      const marathonPace = solvePaceForVdot(vdot, 0.8);
+      if (!marathonPace) return null;
+
+      const conservativeFactor = workoutType === "tt" ? 1.005 : workoutType === "tempo" ? 1.01 : 1.015;
+
+      return {
+        run,
+        vdot,
+        summary,
+        predictedTime: marathonPace * 42.195 * conservativeFactor,
+        weight: sourceWeight * recencyWeight
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => (b.weight - a.weight) || (getDateTimeValueMs(b.run.runDate) - getDateTimeValueMs(a.run.runDate)))
+    .slice(0, 3);
+
+  if (!qualityCandidates.length) return null;
+
+  const totalWeight = qualityCandidates.reduce((total, candidate) => total + candidate.weight, 0);
+  const predictedTime = qualityCandidates.reduce((total, candidate) => total + (candidate.predictedTime * candidate.weight), 0) / totalWeight;
+  const bestCandidate = qualityCandidates[0];
+  const blendRatio = Math.min(0.18, Math.max(0.1, totalWeight / 12));
+
+  return {
+    predictedTime,
+    blendRatio,
+    summary: bestCandidate.summary,
+    count: qualityCandidates.length
+  };
+}
+
 function getMarathonPredictionBasis() {
   const sources = getMarathonPredictionSources();
+  const qualitySignal = getRecentQualityPredictionSignal();
 
-  if (!sources.length) return null;
+  if (!sources.length && !qualitySignal) return null;
 
   const totalWeight = sources.reduce((total, source) => total + source.weight, 0);
-  const basePredictedTime = sources.reduce((total, source) => {
+  const recordBasedPredictedTime = totalWeight ? sources.reduce((total, source) => {
     return total + (source.predictedTime * source.weight);
-  }, 0) / totalWeight;
+  }, 0) / totalWeight : 0;
+  const basePredictedTime = qualitySignal && recordBasedPredictedTime
+    ? (recordBasedPredictedTime * (1 - qualitySignal.blendRatio)) + (qualitySignal.predictedTime * qualitySignal.blendRatio)
+    : recordBasedPredictedTime || (qualitySignal.predictedTime * 1.015);
   const mileageAdjustment = getMarathonMileageAdjustment(latestRuns);
   const predictedTime = basePredictedTime * mileageAdjustment.factor;
-  const label = "[예측 기록 참고용 데이터]";
+  const label = qualitySignal
+    ? "[예측 기록 참고용 데이터]<br>입력된 화요 정훈 결과가 있는 경우 정훈 기록도 함께 반영했습니다."
+    : "[예측 기록 참고용 데이터]";
 
   return {
     label,
+    recordBasedPredictedTime,
     basePredictedTime,
     predictedTime,
     mileageAdjustment,
-    sources
+    sources,
+    qualitySignal
+  };
+}
+
+function getPersonalBestMapFromRuns(runs = []) {
+  const pbMap = {
+    "5K": null,
+    "10K": null,
+    HALF: null,
+    FULL: null
+  };
+
+  runs.forEach((run) => {
+    if (run.rankingEligible === false) return;
+
+    PB_CATEGORIES.forEach((category) => {
+      const courseRecord = getCourseRecordForDistance(run.distance, run.time, category.distance);
+
+      if (!courseRecord) return;
+
+      if (!pbMap[category.key] || courseRecord.time < pbMap[category.key].time) {
+        pbMap[category.key] = {
+          ...courseRecord,
+          sourceRunId: run.id || "",
+          runDate: run.runDate || "",
+          type: run.type || "training",
+          raceName: run.raceName || ""
+        };
+      }
+    });
+  });
+
+  return pbMap;
+}
+
+function getMarathonPredictionSourcesFromPb(pbMap = {}) {
+  const sourceDefinitions = [
+    { key: "FULL", label: "풀코스 PB", distance: 42.195, weight: 4 },
+    { key: "HALF", label: "하프 PB", distance: 21.097, weight: 3 },
+    { key: "10K", label: "10K PB", distance: 10, weight: 2 },
+    { key: "5K", label: "5K PB", distance: 5, weight: 1 }
+  ];
+
+  return sourceDefinitions
+    .filter((source) => pbMap[source.key])
+    .map((source) => {
+      const record = pbMap[source.key];
+      const predictedTime = source.key === "FULL"
+        ? record.time
+        : predictMarathon(record.time, source.distance);
+
+      return {
+        ...source,
+        recordTime: record.time,
+        predictedTime
+      };
+    });
+}
+
+function getMemberMarathonPredictionBasis(runs = []) {
+  const memberPb = getPersonalBestMapFromRuns(runs);
+  const sources = getMarathonPredictionSourcesFromPb(memberPb);
+  const qualitySignal = getRecentQualityPredictionSignal(runs);
+
+  if (!sources.length && !qualitySignal) return null;
+
+  const totalWeight = sources.reduce((total, source) => total + source.weight, 0);
+  const recordBasedPredictedTime = totalWeight ? sources.reduce((total, source) => {
+    return total + (source.predictedTime * source.weight);
+  }, 0) / totalWeight : 0;
+  const basePredictedTime = qualitySignal && recordBasedPredictedTime
+    ? (recordBasedPredictedTime * (1 - qualitySignal.blendRatio)) + (qualitySignal.predictedTime * qualitySignal.blendRatio)
+    : recordBasedPredictedTime || (qualitySignal.predictedTime * 1.015);
+  const mileageAdjustment = getMarathonMileageAdjustment(runs);
+
+  return {
+    predictedTime: basePredictedTime * mileageAdjustment.factor,
+    mileageAdjustment,
+    qualitySignal
+  };
+}
+
+function getMemberPredictionGroupSummary(member, runs = []) {
+  const actualGroup = getRunningGroupByMemberName(member.name);
+  const basis = getMemberMarathonPredictionBasis(runs);
+  const predictedGroup = basis ? getRunningGroup(basis.predictedTime) : null;
+  const actualIndex = getRunningGroupIndex(actualGroup);
+  const predictedIndex = getRunningGroupIndex(predictedGroup);
+  let shiftText = "예상조 계산용 기록이 아직 부족합니다.";
+  let shiftClass = "member-group-match";
+
+  if (predictedGroup && actualGroup) {
+    if (predictedIndex < actualIndex) {
+      shiftText = "예상조가 실제 조보다 높게 계산됩니다.";
+      shiftClass = "member-group-shift";
+    } else if (predictedIndex > actualIndex) {
+      shiftText = "예상조가 실제 조보다 낮게 계산됩니다.";
+      shiftClass = "member-group-shift";
+    } else {
+      shiftText = "예상조와 실제 조가 같습니다.";
+    }
+  } else if (predictedGroup && !actualGroup) {
+    shiftText = "실제 조편성은 아직 미배정입니다.";
+    shiftClass = "member-group-shift";
+  } else if (!predictedGroup && actualGroup) {
+    shiftText = "실제 조는 있으나 예상조 계산 기록이 부족합니다.";
+  }
+
+  return {
+    actualGroup,
+    predictedGroup,
+    shiftText,
+    shiftClass,
+    hasChange: shiftClass === "member-group-shift"
   };
 }
 
@@ -7517,42 +8236,11 @@ function getMarathonMileageAdjustment(runs) {
 function getMileageAdjustmentText(adjustment) {
   if (!adjustment) return "";
 
-  const percent = Math.round(Math.abs(adjustment.factor - 1) * 1000) / 10;
-  let adjustmentText = "기록 예측 유지";
-
-  if (adjustment.factor < 1) {
-    adjustmentText = `${percent}% 단축 보정`;
-  }
-
-  if (adjustment.factor > 1) {
-    adjustmentText = `${percent}% 여유 보정`;
-  }
-
   return `최근 훈련량과 기록 흐름을 함께 참고한 예측입니다. 최근 30일 마일리지 ${formatMileage(adjustment.recentMileage)}도 반영되었습니다.`;
 }
 
 function getMarathonPredictionSources() {
-  const sourceDefinitions = [
-    { key: "FULL", label: "풀코스 PB", distance: 42.195, weight: 4 },
-    { key: "HALF", label: "하프 PB", distance: 21.097, weight: 3 },
-    { key: "10K", label: "10K PB", distance: 10, weight: 2 },
-    { key: "5K", label: "5K PB", distance: 5, weight: 1 }
-  ];
-
-  return sourceDefinitions
-    .filter((source) => pb[source.key])
-    .map((source) => {
-      const record = pb[source.key];
-      const predictedTime = source.key === "FULL"
-        ? record.time
-        : predictMarathon(record.time, source.distance);
-
-      return {
-        ...source,
-        recordTime: record.time,
-        predictedTime
-      };
-    });
+  return getMarathonPredictionSourcesFromPb(pb);
 }
 
 function getRunningGroup(predictedTime) {

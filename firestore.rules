@@ -373,7 +373,15 @@ service cloud.firestore {
         "userId",
         "name",
         "email",
-        "updatedAt"
+        "createdAt",
+        "updatedAt",
+        "photoDataUrl",
+        "photoMimeType",
+        "photoWidth",
+        "photoHeight",
+        "photoSizeBytes",
+        "photoDateKey",
+        "photoExpiresAt"
       ])
       && request.resource.data.mood in ["good", "okay", "tired", "rest"]
       && request.resource.data.content is string
@@ -383,7 +391,23 @@ service cloud.firestore {
       && request.resource.data.name is string
       && request.resource.data.name.size() > 0
       && request.resource.data.name.size() <= 40
-      && request.resource.data.email is string;
+      && request.resource.data.email is string
+      && (!request.resource.data.keys().hasAny(["photoDataUrl"]) || (
+        request.resource.data.photoDataUrl is string
+        && request.resource.data.photoDataUrl.size() <= 450000
+      ))
+      && (!request.resource.data.keys().hasAny(["photoMimeType"]) || request.resource.data.photoMimeType is string)
+      && (!request.resource.data.keys().hasAny(["photoWidth"]) || request.resource.data.photoWidth is int)
+      && (!request.resource.data.keys().hasAny(["photoHeight"]) || request.resource.data.photoHeight is int)
+      && (!request.resource.data.keys().hasAny(["photoSizeBytes"]) || request.resource.data.photoSizeBytes is int)
+      && (!request.resource.data.keys().hasAny(["photoDateKey"]) || (
+        request.resource.data.photoDateKey is string
+        && request.resource.data.photoDateKey.size() <= 20
+      ))
+      && (!request.resource.data.keys().hasAny(["photoExpiresAt"]) || (
+        request.resource.data.photoExpiresAt == null
+        || request.resource.data.photoExpiresAt is timestamp
+      ));
     }
 
     function validHealingCheckinData() {
