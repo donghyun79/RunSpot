@@ -732,6 +732,8 @@ function beginQualityRunEdit(run) {
   qualitySecondInput.value = totalSeconds % 60 || "";
   qualitySetResultsInput.value = run.qualitySetResults || "";
   fillQualitySetInputs(run.qualitySetResults || "");
+  setQualityRoutineInputs("Warmup", run.qualityWarmupDistance, run.qualityWarmupTime);
+  setQualityRoutineInputs("Cooldown", run.qualityCooldownDistance, run.qualityCooldownTime);
   if (qualityManualTotalsToggle) {
     qualityManualTotalsToggle.checked = !run.qualitySetResults;
   }
@@ -1357,6 +1359,39 @@ function isQualityManualTotalsModeEnabled() {
   return Boolean(document.getElementById("qualityManualTotalsToggle")?.checked);
 }
 
+function parseQualityRoutineMinutes(minuteValue = "", secondValue = "") {
+  const minutes = Math.max(0, Number.parseInt(String(minuteValue || "").trim() || "0", 10) || 0);
+  const seconds = Math.max(0, Math.min(59, Number.parseInt(String(secondValue || "").trim() || "0", 10) || 0));
+
+  if (!minutes && !seconds) return 0;
+  return minutes + (seconds / 60);
+}
+
+function getQualityRoutineData(prefix = "Warmup") {
+  const distance = Number(document.getElementById(`quality${prefix}Distance`)?.value || 0);
+  const minute = document.getElementById(`quality${prefix}Minute`)?.value || "";
+  const second = document.getElementById(`quality${prefix}Second`)?.value || "";
+  const time = parseQualityRoutineMinutes(minute, second);
+
+  return {
+    distance: Number.isFinite(distance) && distance > 0 ? Number(distance.toFixed(2)) : 0,
+    time,
+    minute,
+    second
+  };
+}
+
+function setQualityRoutineInputs(prefix = "Warmup", distance = 0, timeMinutes = 0) {
+  const distanceInput = document.getElementById(`quality${prefix}Distance`);
+  const minuteInput = document.getElementById(`quality${prefix}Minute`);
+  const secondInput = document.getElementById(`quality${prefix}Second`);
+  const totalSeconds = Math.round((Number(timeMinutes) || 0) * 60);
+
+  if (distanceInput) distanceInput.value = Number(distance) > 0 ? Number(distance) : "";
+  if (minuteInput) minuteInput.value = totalSeconds ? Math.floor(totalSeconds / 60) : "";
+  if (secondInput) secondInput.value = totalSeconds ? totalSeconds % 60 : "";
+}
+
 function updateQualityTotalsInputMode() {
   const manualMode = isQualityManualTotalsModeEnabled();
   const qualityDistanceInput = document.getElementById("qualityDistance");
@@ -1394,8 +1429,8 @@ function updateQualityTotalsInputMode() {
   }
   if (qualityTotalsGuide) {
     qualityTotalsGuide.innerText = manualMode
-      ? "이 모드에서는 전체 거리와 전체 시간을 직접 입력합니다."
-      : "총 거리와 총 시간은 세트 기록과 리커버리 시간을 기준으로 자동 계산됩니다. 별도로 입력하지 않아도 됩니다.";
+      ? "이 모드에서는 전체 거리와 전체 시간을 직접 입력합니다. 워밍업과 쿨다운이 있다면 전체 합산값으로 입력해주세요."
+      : "총 거리와 총 시간은 워밍업, 세트 기록, 리커버리, 쿨다운까지 포함해 자동 계산됩니다. 별도로 입력하지 않아도 됩니다.";
   }
 }
 
@@ -1640,8 +1675,13 @@ function updateQualityCalculatedTotals() {
   if (isQualityManualTotalsModeEnabled()) return;
 
   const structure = getQualityWorkoutStructure(plannedWorkout, workoutType);
+  const warmup = getQualityRoutineData("Warmup");
+  const cooldown = getQualityRoutineData("Cooldown");
   let totalDistance = 0;
   let totalTime = 0;
+
+  totalDistance += warmup.distance;
+  totalTime += warmup.time;
 
   Array.from(document.querySelectorAll(".quality-set-field")).forEach((field) => {
     const setTime = parseQualityDurationMinutes(getQualityDurationValueFromField(field, "set"));
@@ -1657,6 +1697,9 @@ function updateQualityCalculatedTotals() {
       totalDistance += structure.recoveryDistanceKm || 0;
     }
   });
+
+  totalDistance += cooldown.distance;
+  totalTime += cooldown.time;
 
   qualityDistanceInput.value = totalDistance ? Number(totalDistance.toFixed(2)) : "";
   setQualityTimeInputs(totalTime);
@@ -1943,7 +1986,9 @@ function getQualityVdotAssessment(run) {
   const qualityDisplay = getQualityDisplayData(run);
   const plannedWorkout = qualityDisplay.plannedWorkout;
   const setResults = qualityDisplay.setResults;
-  const actualPace = parseFirstSetPace(setResults, plannedWorkout);
+  const actualPace =
+    getQualityMainSetAveragePace(run) ||
+    parseFirstSetPace(setResults, plannedWorkout);
 
   if (!actualPace) {
     return isQualityTimeTrialPlan(plannedWorkout)
@@ -2480,6 +2525,18 @@ document.addEventListener("DOMContentLoaded", () => {
   qualityPlannedWorkoutInput.addEventListener("input", () => {
     renderQualitySetInputs(qualityPlannedWorkoutInput.value, getQualitySetResultsFromInputs());
   });
+  [
+    "qualityWarmupDistance",
+    "qualityWarmupMinute",
+    "qualityWarmupSecond",
+    "qualityCooldownDistance",
+    "qualityCooldownMinute",
+    "qualityCooldownSecond"
+  ].forEach((elementId) => {
+    document.getElementById(elementId)?.addEventListener("input", () => {
+      updateQualityCalculatedTotals();
+    });
+  });
   trainingInputSubtab?.addEventListener("click", () => {
     setSectionSubtab("training", "input", [
       { button: trainingInputSubtab, name: "input" },
@@ -2914,6 +2971,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const plannedWorkout = qualityPlannedWorkoutInput.value.trim();
     const manualTotalsMode = isQualityManualTotalsModeEnabled();
     const setResults = manualTotalsMode ? "" : getQualitySetResultsFromInputs();
+    const warmup = getQualityRoutineData("Warmup");
+    const cooldown = getQualityRoutineData("Cooldown");
     qualitySetResultsInput.value = setResults;
     if (!manualTotalsMode) {
       updateQualityCalculatedTotals();
@@ -2926,7 +2985,15 @@ document.addEventListener("DOMContentLoaded", () => {
     const selfRating = qualitySelfRatingSelect.value;
     const reflection = qualityReflectionInput.value.trim();
     const workoutDetail = buildQualityWorkoutDetail({
-      plannedWorkout,
+      plannedWorkout: [
+        plannedWorkout,
+        warmup.distance || warmup.time
+          ? `워밍업 ${warmup.distance ? `${formatMileage(warmup.distance)} / ` : ""}${warmup.time ? formatTime(warmup.time) : ""}`.replace(/ \/ $/, "")
+          : "",
+        cooldown.distance || cooldown.time
+          ? `쿨다운 ${cooldown.distance ? `${formatMileage(cooldown.distance)} / ` : ""}${cooldown.time ? formatTime(cooldown.time) : ""}`.replace(/ \/ $/, "")
+          : ""
+      ].filter(Boolean).join(" | "),
       setResults,
       selfRating,
       reflection
@@ -2992,6 +3059,10 @@ document.addEventListener("DOMContentLoaded", () => {
         qualityPlanDate,
         qualityPlannedWorkout: plannedWorkout,
         qualitySetResults: setResults,
+        qualityWarmupDistance: warmup.distance || 0,
+        qualityWarmupTime: warmup.time || 0,
+        qualityCooldownDistance: cooldown.distance || 0,
+        qualityCooldownTime: cooldown.time || 0,
         qualitySelfRating: selfRating,
         qualityReflection: reflection,
         rankingEligible: isRankingEligibleQualityTimeTrial(plannedWorkout),
@@ -3362,6 +3433,7 @@ function renderRunList() {
       }
 
       document.getElementById("trainingTab")?.click();
+      document.getElementById("trainingInputSubtab")?.click();
       beginRunEdit(run);
     });
     actionTd.appendChild(editBtn);
@@ -3419,6 +3491,8 @@ function resetQualityForm() {
   qualitySecondInput.value = "";
   qualitySetResultsInput.value = "";
   fillQualitySetInputs("");
+  setQualityRoutineInputs("Warmup");
+  setQualityRoutineInputs("Cooldown");
   if (qualityManualTotalsToggle) {
     qualityManualTotalsToggle.checked = false;
   }
@@ -3453,7 +3527,7 @@ function renderQualityRuns() {
   qualityStatus.innerText = `${qualityRuns.length}개 정훈 결과`;
 
   qualityRuns.forEach((run) => {
-    const pace = run.time / run.distance;
+    const pace = getQualityMainSetAveragePace(run) || (run.time / run.distance);
     const qualityDisplay = getQualityDisplayData(run);
     const tr = document.createElement("tr");
     const cells = [
@@ -6185,6 +6259,10 @@ function buildRunRecord(id, data, fallbackMember = null) {
     qualityPlanDate: data.qualityPlanDate || "",
     qualityPlannedWorkout: data.qualityPlannedWorkout || "",
     qualitySetResults: data.qualitySetResults || "",
+    qualityWarmupDistance: Number(data.qualityWarmupDistance) || 0,
+    qualityWarmupTime: Number(data.qualityWarmupTime) || 0,
+    qualityCooldownDistance: Number(data.qualityCooldownDistance) || 0,
+    qualityCooldownTime: Number(data.qualityCooldownTime) || 0,
     qualitySelfRating: data.qualitySelfRating || "",
     qualityReflection: data.qualityReflection || "",
     rankingEligible: getSavedRankingEligibility(data),
@@ -6229,6 +6307,8 @@ function renderMemberRuns() {
     editBtn.className = "table-action";
     editBtn.innerText = "수정";
     editBtn.addEventListener("click", () => {
+      document.getElementById("trainingTab")?.click();
+      document.getElementById("trainingInputSubtab")?.click();
       beginRunEdit(run);
     });
     actionTd.appendChild(editBtn);
@@ -6958,6 +7038,121 @@ function hasRecentPersonalBest(runs, days) {
   return filterRunsBetween(runs, startDate, endDate).some((run) => getPersonalBestCategoriesForRun(run).length > 0);
 }
 
+function isSameRunIdentity(left = {}, right = {}) {
+  if (!left || !right) return false;
+  if (left.id && right.id) return left.id === right.id;
+
+  return (left.runDate || "") === (right.runDate || "")
+    && Math.abs(Number(left.distance) - Number(right.distance)) < 0.001
+    && Math.abs(Number(left.time) - Number(right.time)) < 0.001
+    && (left.type || "") === (right.type || "")
+    && (left.raceName || "") === (right.raceName || "");
+}
+
+function getPreviousPbRecordForCategory(runs, category, latestRun) {
+  return runs
+    .filter((run) => run.rankingEligible !== false && !isSameRunIdentity(run, latestRun))
+    .map((run) => {
+      const courseRecord = getCourseRecordForDistance(run.distance, run.time, category.distance);
+
+      return courseRecord ? { run, courseRecord } : null;
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.courseRecord.time - b.courseRecord.time)[0] || null;
+}
+
+function getPbImprovementBand(diffMinutes) {
+  if (!Number.isFinite(diffMinutes) || diffMinutes <= 0) return "new";
+  if (diffMinutes >= 1.5) return "big";
+  if (diffMinutes >= 0.5) return "solid";
+  return "narrow";
+}
+
+function buildPbCelebrationMessage(runs, latestEntry) {
+  const latestRun = latestEntry?.run;
+  const categories = latestEntry?.categories || [];
+  const firstCategory = categories[0];
+  const best = firstCategory ? pb[firstCategory.key] : null;
+
+  if (!latestRun || !firstCategory || !best) return "";
+
+  const previousPb = getPreviousPbRecordForCategory(runs, firstCategory, latestRun);
+  const improvement = previousPb ? previousPb.courseRecord.time - best.time : 0;
+  const improvementBand = getPbImprovementBand(improvement);
+  const categoryLabels = categories.map((category) => category.label).join(", ");
+  const isRace = latestRun.type === "race";
+  const raceLabel = String(latestRun.raceName || "").trim();
+  const multiplePbText = categories.length > 1
+    ? getFriendlyMessage([
+        `같은 날 ${categoryLabels} 흐름이 함께 좋아졌어요.`,
+        `한 번에 ${categoryLabels} PB가 같이 움직였네요.`,
+        `${categoryLabels} 구간이 동시에 살아난 날입니다.`
+      ], `pb-multi-${latestRun.runDate}-${categoryLabels}`)
+    : "";
+  const improvementText = improvement > 0
+    ? getFriendlyMessage([
+        `이전 최고보다 ${formatTime(improvement)} 앞당겼습니다.`,
+        `직전 PB 대비 ${formatTime(improvement)}를 줄였어요.`,
+        `기존 최고 기록을 ${formatTime(improvement)} 단축했습니다.`
+      ], `pb-diff-${firstCategory.key}-${Math.round(improvement * 100)}`)
+    : "";
+  const sourceText = best.isAdjusted
+    ? `환산 기준 기록은 ${formatTime(best.time)}이고, 원기록은 ${Number(best.originalDistance).toFixed(best.originalDistance % 1 ? 2 : 0)}km ${formatTime(best.originalTime)}입니다.`
+    : `${formatTime(best.time)} (${formatPace(best.pace)})로 새 기준을 세웠어요.`;
+  const lead = (() => {
+    if (isRace && raceLabel) {
+      return getFriendlyMessage([
+        `${categoryLabels} PB 갱신! ${raceLabel}에서 기록이 시원하게 나왔어요.`,
+        `${categoryLabels} PB 갱신! ${raceLabel}에서 준비한 흐름이 잘 터졌습니다.`,
+        `${categoryLabels} PB 갱신! ${raceLabel} 무대에서 좋은 결과를 만들었네요.`
+      ], `pb-race-${firstCategory.key}-${latestRun.runDate}`);
+    }
+
+    if (improvementBand === "big") {
+      return getFriendlyMessage([
+        `${categoryLabels} PB 갱신! 기록이 크게 움직인 반가운 날입니다.`,
+        `${categoryLabels} PB 갱신! 눈에 띄는 도약이 나왔어요.`,
+        `${categoryLabels} PB 갱신! 훈련 흐름이 기록으로 확실히 이어졌습니다.`
+      ], `pb-big-${firstCategory.key}-${latestRun.runDate}`);
+    }
+
+    if (improvementBand === "solid") {
+      return getFriendlyMessage([
+        `${categoryLabels} PB 갱신! 안정적으로 한 단계 올라섰어요.`,
+        `${categoryLabels} PB 갱신! 꾸준함이 기록을 다시 밀어올렸습니다.`,
+        `${categoryLabels} PB 갱신! 차분하게 쌓은 흐름이 보상을 받았네요.`
+      ], `pb-solid-${firstCategory.key}-${latestRun.runDate}`);
+    }
+
+    if (improvementBand === "narrow") {
+      return getFriendlyMessage([
+        `${categoryLabels} PB 갱신! 작은 차이지만 분명한 전진입니다.`,
+        `${categoryLabels} PB 갱신! 기록이 다시 앞으로 움직이기 시작했어요.`,
+        `${categoryLabels} PB 갱신! 근소하지만 의미 있는 업데이트입니다.`
+      ], `pb-narrow-${firstCategory.key}-${latestRun.runDate}`);
+    }
+
+    return getFriendlyMessage([
+      `${categoryLabels} PB 갱신! 새로운 기준 기록이 생겼어요.`,
+      `${categoryLabels} 첫 PB 등록! 이제 이 기록이 다음 훈련의 기준점이 됩니다.`,
+      `${categoryLabels} 기록이 새로 만들어졌어요. 앞으로 비교할 기준이 생겼습니다.`
+    ], `pb-new-${firstCategory.key}-${latestRun.runDate}`);
+  })();
+  const follow = getFriendlyMessage([
+    "지금은 무리하게 더 끌어올리기보다 좋은 흐름을 몇 주 더 안정적으로 이어가면 좋겠습니다.",
+    "다음 단계는 한 번의 강한 훈련보다 회복과 반복 리듬을 지키는 것입니다.",
+    "기록이 올라온 뒤에는 몸을 잘 회복시키는 것이 다음 PB를 준비하는 가장 빠른 길입니다."
+  ], `pb-follow-${firstCategory.key}-${latestRun.runDate}`);
+
+  return [
+    lead,
+    `${latestRun.runDate} ${firstCategory.label} 기준 ${sourceText}`,
+    improvementText,
+    multiplePbText,
+    follow
+  ].filter(Boolean).join(" ");
+}
+
 function updatePbCelebration(runs) {
   const pbCelebration = document.getElementById("pbCelebration");
 
@@ -6981,13 +7176,7 @@ function updatePbCelebration(runs) {
   }
 
   const latest = recentPbRuns[0];
-  const categoryLabels = latest.categories.map((category) => category.label).join(", ");
-  const firstCategory = latest.categories[0];
-  const best = pb[firstCategory.key];
-  const sourceText = best?.isAdjusted
-    ? `, 원기록 ${best.originalDistance}km ${formatTime(best.originalTime)}`
-    : "";
-  pbCelebration.innerText = `${categoryLabels} PB 갱신! ${latest.run.runDate} ${firstCategory.label} 기록 ${formatTime(best.time)} (${formatPace(best.pace)}${sourceText})으로 좋은 흐름입니다.`;
+  pbCelebration.innerText = buildPbCelebrationMessage(runs, latest);
   pbCelebration.classList.remove("hidden");
 }
 
@@ -8361,7 +8550,14 @@ function getQualityPredictionIntensity(workoutType = "", repDistanceKm = 0) {
 
 function parseQualityRepDistanceKm(plannedWorkout = "") {
   const text = String(plannedWorkout || "");
+  const bareRepeatedMatch = text.match(/(\d+(?:\.\d+)?)\s*[x×X]\s*\d+/);
   const repeatedMatch = text.match(/(\d+(?:\.\d+)?)\s*(km|KM|k|K|m|M)\s*[x×X]/);
+
+  if (bareRepeatedMatch) {
+    const rawDistance = Number(bareRepeatedMatch[1]);
+    if (!rawDistance) return 0;
+    return rawDistance >= 100 ? rawDistance / 1000 : rawDistance;
+  }
 
   if (repeatedMatch) {
     const rawDistance = Number(repeatedMatch[1]);
@@ -8376,6 +8572,30 @@ function parseQualityRepDistanceKm(plannedWorkout = "") {
   const rawDistance = Number(singleMatch[1]);
   if (!rawDistance) return 0;
   return /k/i.test(singleMatch[2]) ? rawDistance : rawDistance / 1000;
+}
+
+function getQualityMainSetAveragePace(run) {
+  const qualityDisplay = getQualityDisplayData(run);
+  const plannedWorkout = qualityDisplay.plannedWorkout || "";
+  const setResults = qualityDisplay.setResults || "";
+
+  if (isQualityTimeTrialPlan(plannedWorkout) && run.distance > 0 && run.time > 0) {
+    return run.time / run.distance;
+  }
+
+  if (!setResults) return 0;
+
+  const repDistanceKm = parseQualityRepDistanceKm(plannedWorkout);
+  const { setValues } = parseQualitySetResults(setResults);
+  const validSetMinutes = setValues
+    .map((value) => parseQualityDurationMinutes(value))
+    .filter((value) => value > 0);
+
+  if (!repDistanceKm || !validSetMinutes.length) return 0;
+
+  const averageSetMinutes = validSetMinutes.reduce((total, value) => total + value, 0) / validSetMinutes.length;
+
+  return averageSetMinutes / repDistanceKm;
 }
 
 function getRecentQualityPredictionSignal(runs = latestRuns) {
@@ -8786,8 +9006,79 @@ function getRecordComparisonText(row) {
   ], `target-gap-${row.key}-${Math.round(diff * 10)}`);
 }
 
+function getRecentLongestRunDistance(runs = latestRuns, days = 42) {
+  const startDate = getDateDaysAgo(days - 1);
+  const endDate = getDateDaysAgo(0);
+  endDate.setHours(23, 59, 59, 999);
+
+  return filterRunsBetween(runs, startDate, endDate).reduce((longest, run) => {
+    return Math.max(longest, Number(run.distance) || 0);
+  }, 0);
+}
+
+function getTargetCommentProfile(rows, targetTime, basis = getMarathonPredictionBasis()) {
+  const rowMap = Object.fromEntries(rows.map((row) => [row.key, row]));
+  const speedRows = ["5K", "10K"].map((key) => rowMap[key]).filter((row) => row?.current);
+  const enduranceRows = ["HALF", "FULL"].map((key) => rowMap[key]).filter((row) => row?.current);
+  const speedGaps = speedRows.map((row) => row.current - row.target);
+  const enduranceGaps = enduranceRows.map((row) => row.current - row.target);
+  const averageSpeedGap = speedGaps.length ? speedGaps.reduce((total, gap) => total + gap, 0) / speedGaps.length : null;
+  const averageEnduranceGap = enduranceGaps.length ? enduranceGaps.reduce((total, gap) => total + gap, 0) / enduranceGaps.length : null;
+  const profileDiff = Number.isFinite(averageSpeedGap) && Number.isFinite(averageEnduranceGap)
+    ? averageEnduranceGap - averageSpeedGap
+    : null;
+  const recentMileage = basis?.mileageAdjustment?.recentMileage || 0;
+  const weeklyStats = calculateRunStats(filterRunsByPeriod(latestRuns, "week"));
+  const longestRecentRun = getRecentLongestRunDistance(latestRuns, 42);
+  const sourceCount = basis?.sources?.length || 0;
+  const hasQualitySignal = Boolean(basis?.qualitySignal);
+  let profileType = "balanced";
+
+  if (Number.isFinite(profileDiff)) {
+    if (profileDiff >= 6) {
+      profileType = "speed";
+    } else if (profileDiff <= -4) {
+      profileType = "endurance";
+    }
+  }
+
+  let confidence = 42;
+  if (rowMap.FULL?.current) confidence += 18;
+  else if (rowMap.HALF?.current) confidence += 12;
+  if (sourceCount >= 3) confidence += 8;
+  else if (sourceCount === 2) confidence += 4;
+  if (hasQualitySignal) confidence += 6;
+  if (recentMileage >= 160) confidence += 8;
+  else if (recentMileage >= 100) confidence += 4;
+  if (longestRecentRun >= 24) confidence += 8;
+  else if (longestRecentRun >= 18) confidence += 4;
+  confidence = clamp(confidence, 25, 92);
+
+  const consistency = weeklyStats.count >= 4 || recentMileage >= 160
+    ? "high"
+    : weeklyStats.count >= 2 || recentMileage >= 90
+      ? "mid"
+      : "low";
+  const predictionGap = basis ? basis.predictedTime - targetTime : null;
+
+  return {
+    profileType,
+    confidence,
+    consistency,
+    recentMileage,
+    weeklyStats,
+    longestRecentRun,
+    sourceCount,
+    hasQualitySignal,
+    averageSpeedGap,
+    averageEnduranceGap,
+    predictionGap
+  };
+}
+
 function getTargetAnalysisSummary(rows, targetTime) {
   const recordedRows = rows.filter((row) => row.current);
+  const profile = getTargetCommentProfile(rows, targetTime);
 
   if (!recordedRows.length) {
     return getFriendlyMessage([
@@ -8805,28 +9096,33 @@ function getTargetAnalysisSummary(rows, targetTime) {
     .slice()
     .sort((a, b) => (a.current - a.target) - (b.current - b.target))[0];
   const weakest = gapRows[0];
+  const profileHint = profile.profileType === "speed"
+    ? "짧은 거리 쪽은 상대적으로 좋고, 마라톤으로 갈수록 버티는 힘을 더 키우면 좋아집니다."
+    : profile.profileType === "endurance"
+      ? "오래 가는 힘은 괜찮고, 목표 페이스를 더 편하게 만드는 스피드 보완이 도움이 됩니다."
+      : "속도와 지구력의 균형은 비교적 고르게 잡혀 있습니다.";
 
   if (readyRows.length === recordedRows.length) {
     return getFriendlyMessage([
-      `저장된 기록은 전반적으로 목표권입니다. 특히 ${strongest.label} 기록이 좋은 근거가 됩니다.`,
-      `현재 기록 흐름만 보면 목표 페이스를 감당할 기본기는 있습니다. 이제는 레이스 운영과 후반 유지가 핵심입니다.`,
-      `속도 기준은 잘 맞아 있습니다. 남은 훈련은 무리한 상승보다 컨디션을 오래 지키는 쪽이 좋습니다.`
-    ], `target-summary-ready-${targetTime}-${readyRows.length}`);
+      `저장된 기록은 전반적으로 목표권입니다. 특히 ${strongest.label} 기록이 좋은 근거가 됩니다. ${profileHint}`,
+      `현재 기록 흐름만 보면 목표 페이스를 감당할 기본기는 있습니다. 이제는 레이스 운영과 후반 유지가 핵심입니다. ${profileHint}`,
+      `속도 기준은 잘 맞아 있습니다. 남은 훈련은 무리한 상승보다 컨디션을 오래 지키는 쪽이 좋습니다. ${profileHint}`
+    ], `target-summary-ready-${targetTime}-${readyRows.length}-${profile.profileType}`);
   }
 
   if (readyRows.length > 0 && weakest) {
     return getFriendlyMessage([
-      `${strongest.label}는 강점이고 ${weakest.label}는 보완 포인트입니다. 강점은 유지하고 약한 구간을 차분히 채워가면 됩니다.`,
-      `목표에 닿는 기록과 부족한 기록이 섞여 있어요. 지금은 한 방의 훈련보다 꾸준한 반복이 더 크게 작용합니다.`,
-      `${weakest.label} 기준에서 간격이 가장 큽니다. 다음 몇 주는 그 구간을 좁히는 훈련으로 잡아보세요.`
-    ], `target-summary-mixed-${targetTime}-${weakest.key}`);
+      `${strongest.label}는 강점이고 ${weakest.label}는 보완 포인트입니다. 강점은 유지하고 약한 구간을 차분히 채워가면 됩니다. ${profileHint}`,
+      `목표에 닿는 기록과 부족한 기록이 섞여 있어요. 지금은 한 방의 훈련보다 꾸준한 반복이 더 크게 작용합니다. ${profileHint}`,
+      `${weakest.label} 기준에서 간격이 가장 큽니다. 다음 몇 주는 그 구간을 좁히는 훈련으로 잡아보세요. ${profileHint}`
+    ], `target-summary-mixed-${targetTime}-${weakest.key}-${profile.profileType}`);
   }
 
   return getFriendlyMessage([
-    `${weakest.label} 기준 간격이 가장 큽니다. 목표는 유지하되 중간 목표를 하나 두면 훈련이 안정됩니다.`,
-    "저장된 기록 기준으로는 아직 목표가 공격적입니다. 속도보다 먼저 반복 가능한 주간 루틴을 만드는 게 좋겠습니다.",
-    "목표까지 거리가 있지만 방향은 잡을 수 있습니다. 지금은 기록 욕심보다 마일리지와 회복 리듬이 우선입니다."
-  ], `target-summary-gap-${targetTime}-${weakest?.key || "all"}`);
+    `${weakest.label} 기준 간격이 가장 큽니다. 목표는 유지하되 중간 목표를 하나 두면 훈련이 안정됩니다. ${profileHint}`,
+    `저장된 기록 기준으로는 아직 목표가 공격적입니다. 속도보다 먼저 반복 가능한 주간 루틴을 만드는 게 좋겠습니다. ${profileHint}`,
+    `목표까지 거리가 있지만 방향은 잡을 수 있습니다. 지금은 기록 욕심보다 마일리지와 회복 리듬이 우선입니다. ${profileHint}`
+  ], `target-summary-gap-${targetTime}-${weakest?.key || "all"}-${profile.profileType}`);
 }
 
 function createTargetAnalysisHtml(targetTime, required5K, required10K, requiredHalf) {
@@ -8862,38 +9158,41 @@ function analyzeGoalProbability(targetTime) {
 
   const diff = basis.predictedTime - targetTime;
   const diffRate = diff / targetTime;
-  const recentMileage = basis.mileageAdjustment?.recentMileage || 0;
+  const profile = getTargetCommentProfile(getTargetRecordRows(targetTime, reverseRiegel(targetTime, 5), reverseRiegel(targetTime, 10), reverseRiegel(targetTime, 21.097)), targetTime, basis);
+  const recentMileage = profile.recentMileage;
   let probability;
   let comment;
 
   if (diff <= 0) {
-    probability = clamp(Math.round(82 + Math.abs(diffRate) * 180), 82, 95);
+    probability = clamp(Math.round(80 + Math.abs(diffRate) * 180 + (profile.confidence - 50) * 0.15), 80, 96);
     comment = getFriendlyMessage([
-      "현재 기록 흐름으로는 목표 달성 가능성이 좋아 보여요. 레이스 당일 컨디션과 보급 전략까지 챙기면 더 안정적입니다.",
-      "기록 기준은 목표 안쪽에 있습니다. 이제 남은 변수는 오버페이스를 참는 운영과 후반 보급입니다.",
-      "목표권에 들어온 상태입니다. 더 강하게 밀기보다 몸 상태를 일정하게 유지하는 것이 성공 확률을 높입니다."
-    ], `goal-prob-ready-${targetTime}-${Math.round(recentMileage)}`);
+      `현재 기록 흐름으로는 목표 달성 가능성이 좋아 보여요. 레이스 당일 컨디션과 보급 전략까지 챙기면 더 안정적입니다. 최근 42일 최장거리 ${formatMileage(profile.longestRecentRun)}도 긍정적이에요.`,
+      `기록 기준은 목표 안쪽에 있습니다. 이제 남은 변수는 오버페이스를 참는 운영과 후반 보급입니다. ${profile.consistency === "high" ? "주간 루틴도 안정적이라 신뢰도가 높습니다." : "주간 루틴만 조금 더 일정하면 더 좋겠습니다."}`,
+      `목표권에 들어온 상태입니다. 더 강하게 밀기보다 몸 상태를 일정하게 유지하는 것이 성공 확률을 높입니다. ${profile.hasQualitySignal ? "최근 화요 정훈 반영 흐름도 긍정적입니다." : ""}`
+    ], `goal-prob-ready-${targetTime}-${Math.round(recentMileage)}-${profile.consistency}`);
   } else {
-    probability = clamp(Math.round(80 - diffRate * 500), 10, 78);
+    probability = clamp(Math.round(79 - diffRate * 500 + (profile.confidence - 50) * 0.12), 12, 79);
+    if (profile.consistency === "low") probability = Math.max(10, probability - 5);
+    if (profile.longestRecentRun < 16) probability = Math.max(10, probability - 4);
 
     if (probability >= 60) {
       comment = getFriendlyMessage([
-        "목표에 가까운 편입니다. 몇 주 동안 핵심 훈련을 꾸준히 가져가면 충분히 도전권에 들어올 수 있어요.",
-        "간격은 크지 않습니다. 화요 정훈과 주말 롱런을 끊기지 않게 이어가면 확률이 올라갑니다.",
-        "지금은 마지막 한 끗을 만드는 구간입니다. 강도보다 반복성과 회복을 같이 챙겨주세요."
-      ], `goal-prob-close-${targetTime}-${Math.round(diff * 10)}`);
+        `목표에 가까운 편입니다. 몇 주 동안 핵심 훈련을 꾸준히 가져가면 충분히 도전권에 들어올 수 있어요. ${profile.profileType === "speed" ? "특히 롱런 완성도가 확률을 더 끌어올릴 포인트입니다." : "특히 목표 페이스 적응 훈련이 마지막 퍼즐이 될 수 있어요."}`,
+        `간격은 크지 않습니다. 화요 정훈과 주말 롱런을 끊기지 않게 이어가면 확률이 올라갑니다. 최근 30일 마일리지 ${formatMileage(recentMileage)} 흐름도 함께 봤습니다.`,
+        `지금은 마지막 한 끗을 만드는 구간입니다. 강도보다 반복성과 회복을 같이 챙겨주세요. ${profile.hasQualitySignal ? "정훈 기록이 이미 보정 신호로 들어오고 있어요." : ""}`
+      ], `goal-prob-close-${targetTime}-${Math.round(diff * 10)}-${profile.profileType}`);
     } else if (probability >= 35) {
       comment = getFriendlyMessage([
-        "아직은 조금 여유가 필요합니다. 무리하게 당기기보다 속도와 지구력을 차근차근 쌓는 쪽이 좋습니다.",
-        "도전은 가능하지만 준비 구간이 더 필요합니다. 기록 욕심보다 꾸준한 주간 마일리지가 먼저입니다.",
-        "목표까지 중간 간격이 있습니다. 10K 리듬과 하프 이후 버티는 힘을 함께 키워야 합니다."
-      ], `goal-prob-mid-${targetTime}-${Math.round(diff * 10)}`);
+        `아직은 조금 여유가 필요합니다. 무리하게 당기기보다 속도와 지구력을 차근차근 쌓는 쪽이 좋습니다. ${profile.profileType === "endurance" ? "스피드 보완이 더 큰 차이를 만들 수 있어요." : "후반 유지력을 키우는 쪽이 더 중요해 보입니다."}`,
+        `도전은 가능하지만 준비 구간이 더 필요합니다. 기록 욕심보다 꾸준한 주간 마일리지가 먼저입니다. 이번 주 빈도 ${profile.weeklyStats.count}회도 함께 반영했습니다.`,
+        `목표까지 중간 간격이 있습니다. 10K 리듬과 하프 이후 버티는 힘을 함께 키워야 합니다. 최근 최장거리 ${formatMileage(profile.longestRecentRun)} 기준으로는 조금 더 길게 가볼 여지가 있습니다.`
+      ], `goal-prob-mid-${targetTime}-${Math.round(diff * 10)}-${profile.profileType}`);
     } else {
       comment = getFriendlyMessage([
-        "현재 기록 기준으로는 목표가 꽤 공격적입니다. 목표를 유지하되 중간 목표를 하나 더 두면 훈련이 안정적이에요.",
-        "지금 목표는 도전성이 높습니다. 먼저 완주 안정성과 후반 페이스 유지력을 만드는 쪽이 좋겠습니다.",
-        "목표를 바로 당기기보다 단계 목표를 두는 편이 안전합니다. 훈련이 쌓이면 확률은 다시 올라갑니다."
-      ], `goal-prob-far-${targetTime}-${Math.round(diff * 10)}`);
+        `현재 기록 기준으로는 목표가 꽤 공격적입니다. 목표를 유지하되 중간 목표를 하나 더 두면 훈련이 안정적이에요. 지금은 ${profile.confidence >= 60 ? "기록 신뢰도는 괜찮지만" : "기록 기준도 조금 더 쌓아야 해서"} 장기 호흡이 필요합니다.`,
+        `지금 목표는 도전성이 높습니다. 먼저 완주 안정성과 후반 페이스 유지력을 만드는 쪽이 좋겠습니다. 최근 30일 마일리지 ${formatMileage(recentMileage)}는 출발점으로 보고 있어요.`,
+        `목표를 바로 당기기보다 단계 목표를 두는 편이 안전합니다. 훈련이 쌓이면 확률은 다시 올라갑니다. ${profile.profileType === "speed" ? "지구력 보강이 우선순위입니다." : profile.profileType === "endurance" ? "스피드 보강이 우선순위입니다." : "지속 가능한 주간 루틴이 우선입니다."}`
+      ], `goal-prob-far-${targetTime}-${Math.round(diff * 10)}-${profile.profileType}`);
     }
   }
 
@@ -8906,6 +9205,7 @@ function analyzeGoalProbability(targetTime) {
     `예상 확률: ${probability}% (${probabilityLabel})`,
     `분석 기준: ${basis.label}`,
     `기준 예상 기록: ${formatTime(basis.predictedTime)}`,
+    `기록 신뢰도: ${profile.confidence}% / ${profile.profileType === "speed" ? "속도형" : profile.profileType === "endurance" ? "지구력형" : "균형형"} 프로필`,
     getMileageAdjustmentText(basis.mileageAdjustment),
     gapText,
     comment
@@ -8938,6 +9238,7 @@ function getTrainingFocusData(pb, targetTime, required10K, requiredHalf) {
 
 function recommendTraining(pb, targetTime, required10K, requiredHalf) {
   const focus = getTrainingFocusData(pb, targetTime, required10K, requiredHalf);
+  const profile = getTargetCommentProfile(getTargetRecordRows(targetTime, reverseRiegel(targetTime, 5), required10K, requiredHalf), targetTime, focus.basis);
   const officialTrainingComment = getOfficialTrainingCommentText(getMarathonPredictionBasis()?.predictedTime);
   const mileageText = `최근 30일 마일리지는 ${formatMileage(focus.recentMileage)}입니다.`;
   const weekText = focus.weekStats.count
@@ -8964,11 +9265,11 @@ function recommendTraining(pb, targetTime, required10K, requiredHalf) {
         "목표 기록까지 가려면 속도와 지구력을 함께 키워야 해요.",
         "10K와 하프 기준이 모두 조금 부족합니다. 빠르게 달리는 힘과 오래 버티는 힘을 같이 올려야 합니다.",
         "지금은 특정 한 구간보다 전체 러닝 체력을 다시 넓히는 게 핵심입니다."
-      ], `coach-both-${targetTime}-${Math.round(focus.speedGap * 10)}-${Math.round(focus.enduranceGap * 10)}`),
+      ], `coach-both-${targetTime}-${Math.round(focus.speedGap * 10)}-${Math.round(focus.enduranceGap * 10)}-${profile.consistency}`),
       `10K는 약 ${formatTime(focus.speedGap)} 단축, 하프는 약 ${formatTime(focus.enduranceGap)} 단축이 필요합니다. ${mileageText}`,
-      "이번 주 핵심은 화요일 나빌러닝 정훈의 인터벌입니다. 빠른 한 번보다 마지막 반복까지 차분하게 페이스를 지켜보세요.",
-      "주말 롱런은 욕심내서 빠르게 뛰기보다 오래 안정적으로 버티는 쪽이 더 좋습니다.",
-      "잘 쉬는 것도 훈련입니다. 페이서는 그 균형을 더 중요하게 볼게요."
+      `이번 주 핵심은 화요일 나빌러닝 정훈의 인터벌입니다. 빠른 한 번보다 마지막 반복까지 차분하게 페이스를 지켜보세요. ${profile.hasQualitySignal ? "최근 정훈 입력도 잘 쌓이고 있어 강도 조절 기준이 더 분명합니다." : ""}`,
+      `주말 롱런은 욕심내서 빠르게 뛰기보다 오래 안정적으로 버티는 쪽이 더 좋습니다. 최근 최장거리 ${formatMileage(profile.longestRecentRun)}에서 한 단계만 넓혀가도 좋겠습니다.`,
+      `잘 쉬는 것도 훈련입니다. 페이서는 그 균형을 더 중요하게 볼게요. ${profile.consistency === "low" ? "지금은 훈련 강도보다 주간 빈도를 먼저 고정하는 게 더 중요합니다." : ""}`
     ].join("\n");
   }
 
@@ -8978,11 +9279,11 @@ function recommendTraining(pb, targetTime, required10K, requiredHalf) {
         "10K 기록을 보면 목표 마라톤 페이스에 필요한 스피드 여유를 조금 더 만들어두면 좋겠어요.",
         "지구력보다 스피드 쪽 간격이 더 눈에 띕니다. 짧은 반복에서 목표 페이스보다 빠른 리듬을 익혀야 합니다.",
         "후반 체력보다 목표 페이스 자체를 편하게 만드는 작업이 먼저입니다."
-      ], `coach-speed-${targetTime}-${Math.round(focus.speedGap * 10)}`),
+      ], `coach-speed-${targetTime}-${Math.round(focus.speedGap * 10)}-${profile.consistency}`),
       `10K 기준으로 약 ${formatTime(focus.speedGap)} 간격이 있습니다. ${weekText}`,
       `${officialTrainingComment} 이번 주 핵심 훈련으로 가져가세요.`,
-      "목표는 최고 속도를 찍는 것이 아니라 같은 페이스를 여러 번 반복하는 것입니다.",
-      "인터벌 다음 날은 기록 욕심을 내려놓고 회복에 집중하세요. 그래야 다음 훈련이 살아납니다."
+      `목표는 최고 속도를 찍는 것이 아니라 같은 페이스를 여러 번 반복하는 것입니다. ${profile.profileType === "endurance" ? "원래 지구력 쪽은 괜찮은 편이라 스피드만 열리면 변화가 빠를 수 있어요." : ""}`,
+      `인터벌 다음 날은 기록 욕심을 내려놓고 회복에 집중하세요. 그래야 다음 훈련이 살아납니다. ${focus.recentMileage < 100 ? "마일리지 기반이 아직 크지 않아 회복 관리가 더 중요합니다." : ""}`
     ].join("\n");
   }
 
@@ -8992,11 +9293,11 @@ function recommendTraining(pb, targetTime, required10K, requiredHalf) {
         "하프 기록을 보면 후반 유지력을 조금 더 키우면 목표에 더 가까워질 수 있어요.",
         "스피드는 어느 정도 보이지만 오래 버티는 쪽에서 보완점이 있습니다.",
         "마라톤 목표에는 하프 이후의 안정감이 중요합니다. 지금은 롱런과 지속주가 답에 가깝습니다."
-      ], `coach-endurance-${targetTime}-${Math.round(focus.enduranceGap * 10)}`),
+      ], `coach-endurance-${targetTime}-${Math.round(focus.enduranceGap * 10)}-${profile.consistency}`),
       `하프 기준으로 약 ${formatTime(focus.enduranceGap)} 간격이 있습니다. ${mileageText}`,
       `${officialTrainingComment} 화요일에는 리듬을 만들고, 주말 롱런에서 오래 버티는 감각을 쌓아보세요.`,
-      "롱런은 초반을 참는 훈련입니다. 마지막 5km까지 자세를 지키는 게 더 중요해요.",
-      "천천히 오래 가는 힘이 결국 마라톤의 자신감이 됩니다."
+      `롱런은 초반을 참는 훈련입니다. 마지막 5km까지 자세를 지키는 게 더 중요해요. 최근 최장거리 ${formatMileage(profile.longestRecentRun)}가 짧다면 주말에 조금씩 넓혀가세요.`,
+      `천천히 오래 가는 힘이 결국 마라톤의 자신감이 됩니다. ${profile.profileType === "speed" ? "짧은 거리 쪽 강점은 이미 있으니 롱런 완성도가 더 큰 차이를 만들 겁니다." : ""}`
     ].join("\n");
   }
 
@@ -9005,11 +9306,11 @@ function recommendTraining(pb, targetTime, required10K, requiredHalf) {
       "현재 기록은 목표 마라톤 기록에 꽤 가까운 편이에요.",
       "기록 기준은 목표권 안에 있습니다. 이제는 훈련을 더 세게 하기보다 흔들리지 않게 유지하는 단계입니다.",
       "목표를 향한 기본 기록은 잘 맞아 있습니다. 남은 핵심은 컨디션 관리와 레이스 운영입니다."
-    ], `coach-ready-${targetTime}-${Math.round(focus.recentMileage)}`),
+    ], `coach-ready-${targetTime}-${Math.round(focus.recentMileage)}-${profile.consistency}`),
     `${mileageText} ${weekText}`,
-    "무리해서 강도를 올리기보다 화요일 나빌러닝 정훈, 주중 템포런, 주말 롱런의 균형을 유지해보세요.",
-    "컨디션이 좋은 날에도 계획보다 많이 뛰기보다는 다음 훈련을 살리는 쪽이 좋습니다.",
-    "지금 흐름을 차분히 이어가면 충분히 좋은 레이스를 만들 수 있습니다."
+    `무리해서 강도를 올리기보다 화요일 나빌러닝 정훈, 주중 템포런, 주말 롱런의 균형을 유지해보세요. ${profile.profileType === "balanced" ? "지금은 한쪽 보완보다 전체 균형 유지가 더 중요합니다." : ""}`,
+    `컨디션이 좋은 날에도 계획보다 많이 뛰기보다는 다음 훈련을 살리는 쪽이 좋습니다. ${profile.consistency === "high" ? "이미 루틴이 좋아서 작은 무리만 줄여도 안정감이 더 올라갑니다." : ""}`,
+    `지금 흐름을 차분히 이어가면 충분히 좋은 레이스를 만들 수 있습니다. ${profile.hasQualitySignal ? "정훈 기록도 예측에 긍정적으로 반영되고 있습니다." : ""}`
   ].join("\n");
 }
 
