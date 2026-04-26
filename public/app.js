@@ -90,6 +90,8 @@ let latestEnvironment = null;
 let pendingHealingCheckinPhoto = null;
 let pendingHealingCheckinPhotoRemoved = false;
 const HEALING_POPUP_STORAGE_KEY_PREFIX = "naviheal-healing-popup";
+let dismissedQualityAttendancePromptKey = "";
+let completedQualityAttendancePromptKey = "";
 const CLUB_INVITE_CODE = "NAVIHEAL";
 const HOST_EMAIL = "dhseo@skku.edu";
 const HOST_NAME = "서동현";
@@ -273,6 +275,20 @@ function getUserName(user) {
 function getProfileName(user, profile) {
   if (isHostUser(user)) return HOST_NAME;
   return profile?.name || user?.displayName || user?.email || "이름 없음";
+}
+
+function getFriendlyCallName(name = "") {
+  const rawName = String(name || "").trim();
+
+  if (!rawName || rawName.includes("@")) return "회원님";
+
+  const compactName = rawName.replace(/\s+/g, "");
+
+  if (/^[가-힣]{2,4}$/.test(compactName) && compactName.length >= 2) {
+    return `${compactName.slice(1)}님`;
+  }
+
+  return `${compactName}님`;
 }
 
 function getLoginStatusText(user, profile = null) {
@@ -548,6 +564,10 @@ function getRunFormElements() {
     distanceSelect: document.getElementById("distanceSelect"),
     distanceInput: document.getElementById("distance"),
     raceFields: document.getElementById("raceFields"),
+    trainingDetailFields: document.getElementById("trainingDetailFields"),
+    trainingWorkoutTypeSelect: document.getElementById("trainingWorkoutType"),
+    trainingWorkoutCustomField: document.getElementById("trainingWorkoutCustomField"),
+    trainingWorkoutCustomInput: document.getElementById("trainingWorkoutCustom"),
     raceNameInput: document.getElementById("raceName"),
     raceDateInput: document.getElementById("raceDate"),
     hourInput: document.getElementById("hour"),
@@ -582,6 +602,10 @@ function resetRunForm() {
     distanceSelect,
     distanceInput,
     raceFields,
+    trainingDetailFields,
+    trainingWorkoutTypeSelect,
+    trainingWorkoutCustomField,
+    trainingWorkoutCustomInput,
     raceNameInput,
     raceDateInput,
     hourInput,
@@ -597,6 +621,10 @@ function resetRunForm() {
   distanceInput.disabled = false;
   distanceInput.placeholder = "km";
   raceFields.classList.add("hidden");
+  trainingDetailFields.classList.remove("hidden");
+  trainingWorkoutTypeSelect.value = "";
+  trainingWorkoutCustomField.classList.add("hidden");
+  trainingWorkoutCustomInput.value = "";
   raceNameInput.value = "";
   raceNameInput.disabled = true;
   raceDateInput.value = "";
@@ -623,6 +651,10 @@ function beginRunEdit(run) {
     runDateInput,
     runTypeSelect,
     raceFields,
+    trainingDetailFields,
+    trainingWorkoutTypeSelect,
+    trainingWorkoutCustomField,
+    trainingWorkoutCustomInput,
     raceNameInput,
     raceDateInput,
     hourInput,
@@ -638,6 +670,10 @@ function beginRunEdit(run) {
   runTypeSelect.value = run.type || "training";
   setRunFormDistance(Number(run.distance));
   raceFields.classList.toggle("hidden", runTypeSelect.value !== "race");
+  trainingDetailFields.classList.toggle("hidden", runTypeSelect.value === "race");
+  trainingWorkoutTypeSelect.value = getManualTrainingWorkoutType(run);
+  trainingWorkoutCustomField.classList.toggle("hidden", trainingWorkoutTypeSelect.value !== "other-run");
+  trainingWorkoutCustomInput.value = trainingWorkoutTypeSelect.value === "other-run" ? (run.workoutDetail || "") : "";
   raceNameInput.disabled = runTypeSelect.value !== "race";
   raceDateInput.disabled = runTypeSelect.value !== "race";
   raceNameInput.value = run.raceName || "";
@@ -715,6 +751,14 @@ function getSuggestionTypeLabel(type) {
 
 function getWorkoutTypeLabel(type) {
   const labels = {
+    jog: "조깅",
+    steady: "조깅",
+    "recovery-run": "회복주",
+    "long-run": "롱런",
+    "build-up-run": "빌드업",
+    "tempo-run": "템포주",
+    "hill-run": "언덕훈련",
+    "other-run": "직접 입력",
     steady: "일반주",
     interval: "인터벌",
     repetition: "레피티션",
@@ -725,7 +769,7 @@ function getWorkoutTypeLabel(type) {
     other: "기타"
   };
 
-  return labels[type] || "일반주";
+  return labels[type] || "훈련";
 }
 
 function getRunDetailDisplay(run) {
@@ -733,8 +777,19 @@ function getRunDetailDisplay(run) {
     return run.raceName || "-";
   }
 
-  if ((run.workoutType || "steady") === "steady" && !run.workoutDetail && run.rankingEligible !== false) {
+  const qualityDisplay = getQualityDisplayData(run);
+  const qualitySummary = getQualityWorkoutSummaryForList(run.workoutType, qualityDisplay.plannedWorkout);
+
+  if (qualitySummary) {
+    return qualitySummary;
+  }
+
+  if (["", "steady", "jog"].includes(run.workoutType || "") && !run.workoutDetail && run.rankingEligible !== false) {
     return "-";
+  }
+
+  if ((run.workoutType || "") === "other-run") {
+    return run.workoutDetail || "-";
   }
 
   const label = getWorkoutTypeLabel(run.workoutType || "steady");
@@ -1694,6 +1749,45 @@ function formatQualityWorkoutPlanText(planText = "") {
   return details.length ? `${baseText} (${details.join(" / ")})` : text;
 }
 
+function getQualityWorkoutSummaryForList(workoutType = "", planText = "") {
+  const text = String(planText || "").trim();
+
+  if (!text) return "";
+
+  const label = getWorkoutTypeLabel(workoutType || "steady");
+  const normalized = text.split("(")[0].trim();
+  const repMatch = normalized.match(/(\d+(?:\.\d+)?)\s*(k|km|m)?\s*(?:x|×)\s*(\d+)/i);
+  const ttMatch = normalized.match(/(\d+(?:\.\d+)?)\s*(k|km)\s*TT/i);
+
+  if (repMatch) {
+    const [, distanceValue, distanceUnit = "", setCount] = repMatch;
+    const unit = String(distanceUnit || "").toLowerCase();
+    const formattedUnit = unit === "km" || unit === "k" ? "K" : unit === "m" ? "m" : "";
+    return `${label} ${distanceValue}${formattedUnit ? ` ${formattedUnit}` : ""} x ${setCount}세트`;
+  }
+
+  if (ttMatch) {
+    const [, distanceValue, distanceUnit = "K"] = ttMatch;
+    return `${label} ${distanceValue}${String(distanceUnit).toUpperCase()}`;
+  }
+
+  return label;
+}
+
+function getManualTrainingWorkoutType(run = {}) {
+  const type = String(run.workoutType || "").trim();
+
+  if (["jog", "recovery-run", "long-run", "build-up-run", "tempo-run", "hill-run", "other-run"].includes(type)) {
+    return type;
+  }
+
+  if (type === "steady" && run.workoutDetail) {
+    return "other-run";
+  }
+
+  return type === "steady" ? "jog" : "";
+}
+
 function getQualityWorkoutStructure(planText = "", workoutType = "") {
   const text = String(planText || "").trim();
   const type = String(workoutType || "").trim();
@@ -2063,6 +2157,15 @@ document.addEventListener("DOMContentLoaded", () => {
   const qualityView = document.getElementById("qualityView");
   const healingView = document.getElementById("healingView");
   const suggestionView = document.getElementById("suggestionView");
+  const trainingInputSubtab = document.getElementById("trainingInputSubtab");
+  const trainingRecordsSubtab = document.getElementById("trainingRecordsSubtab");
+  const trainingAnalysisSubtab = document.getElementById("trainingAnalysisSubtab");
+  const qualityPlanSubtab = document.getElementById("qualityPlanSubtab");
+  const qualityInputSubtab = document.getElementById("qualityInputSubtab");
+  const qualityHistorySubtab = document.getElementById("qualityHistorySubtab");
+  const healingEventSubtab = document.getElementById("healingEventSubtab");
+  const healingCheckinSubtab = document.getElementById("healingCheckinSubtab");
+  const healingCheerSubtab = document.getElementById("healingCheerSubtab");
   const qualityDateInput = document.getElementById("qualityDate");
   const qualityPlanSelect = document.getElementById("qualityPlanSelect");
   const qualityWorkoutTypeSelect = document.getElementById("qualityWorkoutType");
@@ -2081,6 +2184,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const editGroupStandardsBtn = document.getElementById("editGroupStandards");
   const saveGroupStandardsBtn = document.getElementById("saveGroupStandards");
   const cancelGroupStandardEditBtn = document.getElementById("cancelGroupStandardEdit");
+  const trainingInputGuide = document.getElementById("trainingInputGuide");
   healingEventHostForm = document.getElementById("healingEventHostForm");
   healingEventTitleInput = document.getElementById("healingEventTitle");
   healingEventTypeSelect = document.getElementById("healingEventType");
@@ -2112,6 +2216,7 @@ document.addEventListener("DOMContentLoaded", () => {
   updateQualityTotalsInputMode();
   updateMonthlyChallengeMonthLabel();
   renderHealingCheckinPhotoPreview();
+  updateTrainingInputGuide(null);
 
   function openUpdateNotice() {
     if (!updateModal) return;
@@ -2147,9 +2252,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const closeHealingPopupBtn = document.getElementById("closeHealingPopup");
   const openHealingPopupBtn = document.getElementById("openHealingPopup");
   const healingPopupOpenTabBtn = document.getElementById("healingPopupOpenTab");
-  const healingPopupTitle = document.getElementById("healingPopupTitle");
-  const healingPopupLead = document.getElementById("healingPopupLead");
-  const healingPopupList = document.getElementById("healingPopupList");
+  const qualityAttendancePopupModal = document.getElementById("qualityAttendancePopupModal");
+  const closeQualityAttendancePopupBtn = document.getElementById("closeQualityAttendancePopup");
+  const qualityAttendancePopupOpenTabBtn = document.getElementById("qualityAttendancePopupOpenTab");
 
   function openHealingPopup() {
     if (!healingPopupModal) return;
@@ -2179,6 +2284,59 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
+  function closeQualityAttendancePopup() {
+    if (!qualityAttendancePopupModal) return;
+
+    qualityAttendancePopupModal.classList.add("hidden");
+  }
+
+  closeQualityAttendancePopupBtn?.addEventListener("click", () => {
+    const currentWorkoutKey = qualityAttendancePopupModal?.dataset.workoutKey || "";
+
+    if (currentWorkoutKey) {
+      dismissedQualityAttendancePromptKey = currentWorkoutKey;
+    }
+
+    closeQualityAttendancePopup();
+  });
+  qualityAttendancePopupOpenTabBtn?.addEventListener("click", () => {
+    const currentWorkoutKey = qualityAttendancePopupModal?.dataset.workoutKey || "";
+
+    if (currentWorkoutKey) {
+      dismissedQualityAttendancePromptKey = currentWorkoutKey;
+    }
+
+    closeQualityAttendancePopup();
+    setActiveAppView("quality");
+    setSectionSubtab("quality", "plan", [
+      { button: qualityPlanSubtab, name: "plan" },
+      { button: qualityInputSubtab, name: "input" },
+      { button: qualityHistorySubtab, name: "history" }
+    ]);
+  });
+  qualityAttendancePopupModal?.addEventListener("click", (event) => {
+    if (event.target === qualityAttendancePopupModal) {
+      const currentWorkoutKey = qualityAttendancePopupModal?.dataset.workoutKey || "";
+
+      if (currentWorkoutKey) {
+        dismissedQualityAttendancePromptKey = currentWorkoutKey;
+      }
+
+      closeQualityAttendancePopup();
+    }
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !qualityAttendancePopupModal?.classList.contains("hidden")) {
+      const currentWorkoutKey = qualityAttendancePopupModal?.dataset.workoutKey || "";
+
+      if (currentWorkoutKey) {
+        dismissedQualityAttendancePromptKey = currentWorkoutKey;
+      }
+
+      closeQualityAttendancePopup();
+    }
+  });
+
   function setAuthenticatedView(isLoggedIn) {
     document.body.classList.toggle("is-authenticated", isLoggedIn);
     authView.classList.toggle("hidden", isLoggedIn);
@@ -2187,6 +2345,13 @@ document.addEventListener("DOMContentLoaded", () => {
     authView.style.display = isLoggedIn ? "none" : "";
     appHeader.style.display = isLoggedIn ? "flex" : "none";
     dashboardView.style.display = isLoggedIn ? "block" : "none";
+  }
+
+  function updateTrainingInputGuide(user, profile = null) {
+    if (!trainingInputGuide) return;
+
+    const callName = user ? getFriendlyCallName(getProfileName(user, profile)) : "회원님";
+    trainingInputGuide.innerHTML = `${callName}~ 입력하는 건 훈련기록 이거 하나뿐이에요~<br>페이서가 기록은 꼼꼼히 보고, 계획은 영리하게 짜서 부상 없이 목표까지 잘 모셔드릴게요! 😊`;
   }
 
   function updateHostView(user) {
@@ -2198,6 +2363,16 @@ document.addEventListener("DOMContentLoaded", () => {
       document.getElementById("memberList").innerHTML = "";
       clearMemberRunsPanel();
     }
+  }
+
+  function setSectionSubtab(prefix, activeName, buttons = []) {
+    document.querySelectorAll(`[data-${prefix}-subtab]`).forEach((element) => {
+      element.classList.toggle("subtab-hidden", element.dataset[`${prefix}Subtab`] !== activeName);
+    });
+
+    buttons.forEach(({ button, name }) => {
+      button?.classList.toggle("active", name === activeName);
+    });
   }
 
   function setActiveAppView(viewName) {
@@ -2233,10 +2408,15 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function updateRaceFields() {
     const isRace = runTypeSelect.value === "race";
+    const { trainingDetailFields, trainingWorkoutTypeSelect, trainingWorkoutCustomField, trainingWorkoutCustomInput } = getRunFormElements();
 
     raceFields.classList.toggle("hidden", !isRace);
     raceNameInput.disabled = !isRace;
     raceDateInput.disabled = !isRace;
+    trainingDetailFields.classList.toggle("hidden", isRace);
+    trainingWorkoutTypeSelect.disabled = isRace;
+    trainingWorkoutCustomInput.disabled = isRace || trainingWorkoutTypeSelect.value !== "other-run";
+    trainingWorkoutCustomField.classList.toggle("hidden", isRace || trainingWorkoutTypeSelect.value !== "other-run");
 
     if (isRace && !raceDateInput.value) {
       raceDateInput.value = runDateInput.value;
@@ -2245,6 +2425,18 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!isRace) {
       raceNameInput.value = "";
       raceDateInput.value = "";
+    }
+  }
+
+  function updateTrainingWorkoutFields() {
+    const { trainingWorkoutTypeSelect, trainingWorkoutCustomField, trainingWorkoutCustomInput } = getRunFormElements();
+    const needsCustom = trainingWorkoutTypeSelect.value === "other-run";
+
+    trainingWorkoutCustomField.classList.toggle("hidden", !needsCustom);
+    trainingWorkoutCustomInput.disabled = !needsCustom;
+
+    if (!needsCustom) {
+      trainingWorkoutCustomInput.value = "";
     }
   }
 
@@ -2257,6 +2449,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   runTypeSelect.addEventListener("change", updateRaceFields);
+  document.getElementById("trainingWorkoutType")?.addEventListener("change", updateTrainingWorkoutFields);
   distanceSelect.addEventListener("change", updateDistanceInput);
   editGroupStandardsBtn.addEventListener("click", () => {
     renderRunningGroupStandards(auth.currentUser, true);
@@ -2287,6 +2480,69 @@ document.addEventListener("DOMContentLoaded", () => {
   qualityPlannedWorkoutInput.addEventListener("input", () => {
     renderQualitySetInputs(qualityPlannedWorkoutInput.value, getQualitySetResultsFromInputs());
   });
+  trainingInputSubtab?.addEventListener("click", () => {
+    setSectionSubtab("training", "input", [
+      { button: trainingInputSubtab, name: "input" },
+      { button: trainingRecordsSubtab, name: "records" },
+      { button: trainingAnalysisSubtab, name: "analysis" }
+    ]);
+  });
+  trainingRecordsSubtab?.addEventListener("click", () => {
+    setSectionSubtab("training", "records", [
+      { button: trainingInputSubtab, name: "input" },
+      { button: trainingRecordsSubtab, name: "records" },
+      { button: trainingAnalysisSubtab, name: "analysis" }
+    ]);
+  });
+  trainingAnalysisSubtab?.addEventListener("click", () => {
+    setSectionSubtab("training", "analysis", [
+      { button: trainingInputSubtab, name: "input" },
+      { button: trainingRecordsSubtab, name: "records" },
+      { button: trainingAnalysisSubtab, name: "analysis" }
+    ]);
+  });
+  qualityPlanSubtab?.addEventListener("click", () => {
+    setSectionSubtab("quality", "plan", [
+      { button: qualityPlanSubtab, name: "plan" },
+      { button: qualityInputSubtab, name: "input" },
+      { button: qualityHistorySubtab, name: "history" }
+    ]);
+  });
+  qualityInputSubtab?.addEventListener("click", () => {
+    setSectionSubtab("quality", "input", [
+      { button: qualityPlanSubtab, name: "plan" },
+      { button: qualityInputSubtab, name: "input" },
+      { button: qualityHistorySubtab, name: "history" }
+    ]);
+  });
+  qualityHistorySubtab?.addEventListener("click", () => {
+    setSectionSubtab("quality", "history", [
+      { button: qualityPlanSubtab, name: "plan" },
+      { button: qualityInputSubtab, name: "input" },
+      { button: qualityHistorySubtab, name: "history" }
+    ]);
+  });
+  healingEventSubtab?.addEventListener("click", () => {
+    setSectionSubtab("healing", "event", [
+      { button: healingEventSubtab, name: "event" },
+      { button: healingCheckinSubtab, name: "checkin" },
+      { button: healingCheerSubtab, name: "cheer" }
+    ]);
+  });
+  healingCheckinSubtab?.addEventListener("click", () => {
+    setSectionSubtab("healing", "checkin", [
+      { button: healingEventSubtab, name: "event" },
+      { button: healingCheckinSubtab, name: "checkin" },
+      { button: healingCheerSubtab, name: "cheer" }
+    ]);
+  });
+  healingCheerSubtab?.addEventListener("click", () => {
+    setSectionSubtab("healing", "cheer", [
+      { button: healingEventSubtab, name: "event" },
+      { button: healingCheckinSubtab, name: "checkin" },
+      { button: healingCheerSubtab, name: "cheer" }
+    ]);
+  });
   trainingTab.addEventListener("click", () => {
     setActiveAppView("training");
   });
@@ -2305,7 +2561,23 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
   updateRaceFields();
+  updateTrainingWorkoutFields();
   updateDistanceInput();
+  setSectionSubtab("training", "input", [
+    { button: trainingInputSubtab, name: "input" },
+    { button: trainingRecordsSubtab, name: "records" },
+    { button: trainingAnalysisSubtab, name: "analysis" }
+  ]);
+  setSectionSubtab("quality", "plan", [
+    { button: qualityPlanSubtab, name: "plan" },
+    { button: qualityInputSubtab, name: "input" },
+    { button: qualityHistorySubtab, name: "history" }
+  ]);
+  setSectionSubtab("healing", "event", [
+    { button: healingEventSubtab, name: "event" },
+    { button: healingCheckinSubtab, name: "checkin" },
+    { button: healingCheerSubtab, name: "cheer" }
+  ]);
 
   for (let min = 180; min <= 300; min += 10) {
     const option = document.createElement("option");
@@ -2450,6 +2722,8 @@ document.addEventListener("DOMContentLoaded", () => {
     if (user) {
       if (signupInProgress) return;
 
+      dismissedQualityAttendancePromptKey = "";
+      completedQualityAttendancePromptKey = "";
       setAuthenticatedView(true);
       updateHostView(user);
       loadNowonEnvironment();
@@ -2467,6 +2741,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         status.innerText = getLoginStatusText(user, profile);
+        updateTrainingInputGuide(user, profile);
 
         if (profile?.disabled && !isHostUser(user)) {
           alert("이용이 정지된 회원입니다. 호스트에게 문의해주세요.");
@@ -2489,13 +2764,18 @@ document.addEventListener("DOMContentLoaded", () => {
         await loadClubRanking(user).catch(showDashboardLoadError);
         await loadWeeklyRanking(user).catch(showDashboardLoadError);
         await loadSuggestions(user).catch(showDashboardLoadError);
+        await maybeOpenQualityAttendancePopup(user).catch(showDashboardLoadError);
         await loadHealingHub(user).catch(showDashboardLoadError);
 
       } catch (e) {
         showDashboardLoadError(e);
       }
     } else {
+      dismissedQualityAttendancePromptKey = "";
+      completedQualityAttendancePromptKey = "";
+      document.getElementById("qualityAttendancePopupModal")?.classList.add("hidden");
       status.innerText = "로그아웃 상태";
+      updateTrainingInputGuide(null);
       setActiveAppView("training");
       setAuthenticatedView(false);
       updateHostView(null);
@@ -2513,6 +2793,8 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     const runType = runTypeSelect.value;
+    const trainingWorkoutType = document.getElementById("trainingWorkoutType")?.value || "";
+    const trainingWorkoutCustom = document.getElementById("trainingWorkoutCustom")?.value.trim() || "";
     const runDate = runDateInput.value;
     const raceName = raceNameInput.value.trim();
     const raceDate = raceDateInput.value || runDate;
@@ -2545,6 +2827,11 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
+    if (runType === "training" && trainingWorkoutType === "other-run" && !trainingWorkoutCustom) {
+      alert("직접 입력할 훈련 이름을 적어주세요.");
+      return;
+    }
+
     try {
       const runOwner = editingRun
         ? {
@@ -2564,8 +2851,16 @@ document.addEventListener("DOMContentLoaded", () => {
         runDate,
         distance,
         type: runType,
-        workoutType: runType === "race" ? "" : isQualityWorkout(editingRun || {}) ? editingRun.workoutType : "steady",
-        workoutDetail: runType === "race" ? "" : isQualityWorkout(editingRun || {}) ? editingRun.workoutDetail || "" : "",
+        workoutType: runType === "race"
+          ? ""
+          : isQualityWorkout(editingRun || {})
+            ? editingRun.workoutType
+            : (trainingWorkoutType || "jog"),
+        workoutDetail: runType === "race"
+          ? ""
+          : isQualityWorkout(editingRun || {})
+            ? editingRun.workoutDetail || ""
+            : (trainingWorkoutType === "other-run" ? trainingWorkoutCustom : ""),
         rankingEligible: runType === "race" ? true : isQualityWorkout(editingRun || {}) ? editingRun.rankingEligible !== false : true,
         time,
         updatedAt: new Date()
@@ -3272,10 +3567,11 @@ function renderQualityMonthlyPlan() {
         : userGroup
         ? `<div>${userGroup.group}조 기준: 인터벌 ${userGroup.intervalPace} / 리커버리 ${userGroup.recoveryPace}</div>`
         : '<div>조별 기준표에서 내 조 페이스를 확인해 주세요.</div>',
+      '<div class="quality-plan-meta">훈련 전: 10~15분 조깅, 가벼운 질주, 동적 스트레칭으로 몸을 풀어주세요.</div>',
       recoveryDistanceLabel ? `<div class="quality-plan-meta">세트 후 리커버리: ${recoveryDistanceLabel} 조깅</div>` : "",
       groupSetLabel ? `<div class="quality-plan-meta">세트 조정: ${groupSetLabel}</div>` : "",
       !isTimeTrial && userGroup?.source === "prediction" ? '<div class="quality-plan-meta">조별 명단에 이름이 없어 최근 기록 기반 예상 조로 안내합니다.</div>' : "",
-      '<div class="quality-plan-meta">본 훈련 전 조깅, 질주, 스트레칭으로 충분히 몸을 풀고 진행해 주세요.</div>',
+      '<div class="quality-plan-meta">훈련 후: 10분 안팎 쿨다운 조깅과 가벼운 정리 스트레칭으로 마무리해 주세요.</div>',
       '<div class="quality-plan-meta">정훈 당일 참석이 어려운 경우 같은 달 안에 해당 프로그램으로 보완 입력할 수 있습니다.</div>',
       '<div class="quality-plan-meta">날짜를 누르면 이 프로그램이 정훈 결과 입력에도 자동으로 들어갑니다.</div>'
     ].filter(Boolean).join("");
@@ -3396,13 +3692,14 @@ function createQualityNoticeArticle(workout, userGroup) {
 
   article.className = "quality-plan-item quality-notice";
   article.innerHTML = [
-    '<div class="quality-plan-title">다음 정훈 공지</div>',
+    '<div class="quality-plan-title">이번주 훈련 안내</div>',
     `<div>${workout.date} ${formatQualityWorkoutPlanText(workout.text)}</div>`,
     workout.schedule?.purpose ? `<div class="quality-plan-meta">훈련 목적: ${workout.schedule.purpose}</div>` : "",
     `<div class="quality-plan-meta">${paceGuide}</div>`,
+    '<div class="quality-plan-meta">훈련 전: 10~15분 조깅, 가벼운 질주, 동적 스트레칭으로 몸을 풀어주세요.</div>',
     recoveryDistanceLabel ? `<div class="quality-plan-meta">세트 후 리커버리: ${recoveryDistanceLabel} 조깅</div>` : "",
     groupSetLabel ? `<div class="quality-plan-meta">세트 조정: ${groupSetLabel}</div>` : "",
-    '<div class="quality-plan-meta">본 훈련 전 조깅, 질주, 스트레칭으로 충분히 몸을 풀고 진행해 주세요.</div>',
+    '<div class="quality-plan-meta">훈련 후: 10분 안팎 쿨다운 조깅과 가벼운 정리 스트레칭으로 마무리해 주세요.</div>',
     '<div class="quality-plan-meta">정훈 당일 참석이 어려운 경우 같은 달 안에 해당 프로그램으로 보완 입력할 수 있습니다.</div>'
   ].filter(Boolean).join("");
   appendQualityNoticeVotePanel(article, workout);
@@ -3469,6 +3766,9 @@ async function saveQualityNoticeVote(workout, voteValue, article) {
       updatedAt: new Date()
     }, { merge: true });
 
+    completedQualityAttendancePromptKey = workoutKey;
+    dismissedQualityAttendancePromptKey = workoutKey;
+    document.getElementById("qualityAttendancePopupModal")?.classList.add("hidden");
     await loadQualityNoticeVotes(workout, article);
   } catch (e) {
     console.error(e);
@@ -3870,29 +4170,92 @@ function renderRunningGroupStandards(user = auth.currentUser, editing = false) {
 
   runningGroupStandards.forEach((standard) => {
     const tr = document.createElement("tr");
-    const fields = [
-      ["group", standard.group],
-      ["targetLabel", standard.targetLabel],
-      ["intervalPace", standard.intervalPace],
-      ["recoveryPace", standard.recoveryPace],
-      ["monthlyMileage", standard.monthlyMileage],
-      ["members", standard.members || ""]
-    ];
 
-    fields.forEach(([field, value]) => {
-      const td = document.createElement("td");
+    const groupTd = document.createElement("td");
+    const targetTd = document.createElement("td");
+    const membersTd = document.createElement("td");
+    const paceTd = document.createElement("td");
+    const mileageTd = document.createElement("td");
 
-      if (editing && canEdit) {
-        const input = document.createElement("input");
-        input.value = value;
-        input.dataset.field = field;
-        td.appendChild(input);
-      } else {
-        td.innerText = value;
-      }
+    if (editing && canEdit) {
+      const groupInput = document.createElement("input");
+      groupInput.value = standard.group;
+      groupInput.dataset.field = "group";
+      groupTd.appendChild(groupInput);
 
-      tr.appendChild(td);
-    });
+      const targetInput = document.createElement("input");
+      targetInput.value = standard.targetLabel;
+      targetInput.dataset.field = "targetLabel";
+      targetTd.appendChild(targetInput);
+
+      const membersInput = document.createElement("input");
+      membersInput.value = standard.members || "";
+      membersInput.dataset.field = "members";
+      membersTd.appendChild(membersInput);
+
+      const paceWrap = document.createElement("div");
+      paceWrap.className = "group-standard-pace-cell";
+
+      const intervalRow = document.createElement("div");
+      intervalRow.className = "group-standard-pace-row";
+      const intervalLabel = document.createElement("span");
+      intervalLabel.className = "group-standard-pace-label";
+      intervalLabel.innerText = "I";
+      const intervalInput = document.createElement("input");
+      intervalInput.value = standard.intervalPace;
+      intervalInput.dataset.field = "intervalPace";
+      intervalRow.append(intervalLabel, intervalInput);
+
+      const recoveryRow = document.createElement("div");
+      recoveryRow.className = "group-standard-pace-row";
+      const recoveryLabel = document.createElement("span");
+      recoveryLabel.className = "group-standard-pace-label";
+      recoveryLabel.innerText = "R";
+      const recoveryInput = document.createElement("input");
+      recoveryInput.value = standard.recoveryPace;
+      recoveryInput.dataset.field = "recoveryPace";
+      recoveryRow.append(recoveryLabel, recoveryInput);
+
+      paceWrap.append(intervalRow, recoveryRow);
+      paceTd.appendChild(paceWrap);
+
+      const mileageInput = document.createElement("input");
+      mileageInput.value = standard.monthlyMileage;
+      mileageInput.dataset.field = "monthlyMileage";
+      mileageTd.appendChild(mileageInput);
+    } else {
+      groupTd.innerText = standard.group;
+      targetTd.innerText = standard.targetLabel;
+      membersTd.innerText = standard.members || "";
+
+      const paceWrap = document.createElement("div");
+      paceWrap.className = "group-standard-pace-cell";
+      [
+        ["I", standard.intervalPace],
+        ["R", standard.recoveryPace]
+      ].forEach(([label, value]) => {
+        const row = document.createElement("div");
+        row.className = "group-standard-pace-row";
+        const labelSpan = document.createElement("span");
+        labelSpan.className = "group-standard-pace-label";
+        labelSpan.innerText = label;
+        const valueSpan = document.createElement("span");
+        valueSpan.innerText = value;
+        row.append(labelSpan, valueSpan);
+        paceWrap.appendChild(row);
+      });
+      paceTd.appendChild(paceWrap);
+
+      mileageTd.innerText = standard.monthlyMileage;
+    }
+
+    groupTd.dataset.label = "조";
+    targetTd.dataset.label = "목표 기록";
+    membersTd.dataset.label = "명단";
+    paceTd.dataset.label = "인터벌/리커버리";
+    mileageTd.dataset.label = "권장 월 마일리지";
+
+    tr.append(groupTd, targetTd, membersTd, paceTd, mileageTd);
 
     groupStandardList.appendChild(tr);
   });
@@ -4184,6 +4547,40 @@ function summarizeHealingPopupText(text = "", maxLength = 24) {
   return `${normalizedText.slice(0, maxLength).trim()}...`;
 }
 
+function hasBlockingNoticeModalOpen() {
+  return ["updateModal", "healingPopupModal", "qualityAttendancePopupModal"]
+    .some((id) => {
+      const element = document.getElementById(id);
+
+      return element && !element.classList.contains("hidden");
+    });
+}
+
+async function maybeOpenQualityAttendancePopup(user = auth.currentUser, workout = getQualityNoticeWorkout()) {
+  if (!user || !workout) return;
+
+  const qualityAttendancePopupModal = document.getElementById("qualityAttendancePopupModal");
+
+  if (!qualityAttendancePopupModal) return;
+
+  const workoutKey = getQualityWorkoutKey(workout);
+
+  if (!workoutKey) return;
+  if (dismissedQualityAttendancePromptKey === workoutKey || completedQualityAttendancePromptKey === workoutKey) return;
+  if (hasBlockingNoticeModalOpen()) return;
+
+  const voteDoc = await getDocFromServer(doc(db, "qualityVotes", `${workoutKey}_${user.uid}`));
+
+  if (voteDoc.exists() && voteDoc.data()?.vote) {
+    completedQualityAttendancePromptKey = workoutKey;
+    return;
+  }
+
+  qualityAttendancePopupModal.dataset.workoutKey = workoutKey;
+  qualityAttendancePopupModal.classList.remove("hidden");
+  document.getElementById("qualityAttendancePopupOpenTab")?.focus();
+}
+
 function maybeOpenHealingPopup(user = auth.currentUser) {
   if (!user) return;
 
@@ -4193,6 +4590,7 @@ function maybeOpenHealingPopup(user = auth.currentUser) {
   const healingPopupList = document.getElementById("healingPopupList");
 
   if (!healingPopupModal || !healingPopupTitle || !healingPopupLead || !healingPopupList) return;
+  if (hasBlockingNoticeModalOpen()) return;
 
   const popupMeta = getHealingPopupMeta();
 
@@ -5517,6 +5915,10 @@ async function loadMembers() {
       cells.forEach((value, index) => {
         const td = document.createElement("td");
         td.innerText = value;
+
+        if (index === 1) {
+          td.classList.add("member-email-col");
+        }
 
         if (index === 2 && member.disabled) {
           td.classList.add("member-disabled");
@@ -7842,10 +8244,14 @@ function clearDashboard() {
   document.getElementById("loadMoreWeeklyRanking").classList.add("hidden");
   document.getElementById("monthlyAthleteList").innerHTML = "";
   document.getElementById("monthlyAthleteStatus").innerText = "로그인 후 이달의 선수 예상을 확인할 수 있습니다.";
-  document.getElementById("athleteHallSummaryList").innerHTML = "";
-  document.getElementById("athleteHallSummaryStatus").innerText = "로그인 후 명예의 전당을 확인할 수 있습니다.";
-  document.getElementById("athleteHallList").innerHTML = "";
-  document.getElementById("athleteHallStatus").innerText = "로그인 후 명예의 전당을 확인할 수 있습니다.";
+  const athleteHallSummaryList = document.getElementById("athleteHallSummaryList");
+  const athleteHallSummaryStatus = document.getElementById("athleteHallSummaryStatus");
+  const athleteHallList = document.getElementById("athleteHallList");
+  const athleteHallStatus = document.getElementById("athleteHallStatus");
+  if (athleteHallSummaryList) athleteHallSummaryList.innerHTML = "";
+  if (athleteHallSummaryStatus) athleteHallSummaryStatus.innerText = "로그인 후 명예의 전당을 확인할 수 있습니다.";
+  if (athleteHallList) athleteHallList.innerHTML = "";
+  if (athleteHallStatus) athleteHallStatus.innerText = "로그인 후 명예의 전당을 확인할 수 있습니다.";
   document.getElementById("qualityRunList").innerHTML = "";
   document.getElementById("qualityStatus").innerText = "로그인 후 정훈 결과를 확인할 수 있습니다.";
   renderVdotTrainingGuide();

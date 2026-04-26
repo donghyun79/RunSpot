@@ -522,6 +522,10 @@
       white-space: normal;
     }
 
+    .member-email-col {
+      word-break: break-all;
+    }
+
     .member-group-summary {
       display: grid;
       gap: 4px;
@@ -938,7 +942,7 @@
     }
 
     .group-standard-table {
-      min-width: 900px;
+      min-width: 860px;
     }
 
     .group-standard-table input {
@@ -952,12 +956,42 @@
       text-align: center;
     }
 
-    .group-standard-table td:nth-child(6),
-    .group-standard-table th:nth-child(6) {
+    .group-standard-table td[data-label]::before {
+      content: attr(data-label);
+      display: none;
+      font-weight: 700;
+      color: #2146b7;
+    }
+
+    .group-standard-table td:nth-child(3),
+    .group-standard-table th:nth-child(3) {
       min-width: 210px;
       text-align: left;
       white-space: normal;
       overflow-wrap: anywhere;
+    }
+
+    .group-standard-table td:nth-child(4),
+    .group-standard-table th:nth-child(4) {
+      min-width: 180px;
+      white-space: normal;
+    }
+
+    .group-standard-pace-cell {
+      display: grid;
+      gap: 6px;
+    }
+
+    .group-standard-pace-row {
+      display: flex;
+      justify-content: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .group-standard-pace-label {
+      font-weight: 700;
+      color: #2146b7;
     }
 
     .suggestion-card {
@@ -1531,6 +1565,34 @@
       font-size: 12px;
       font-weight: 700;
       line-height: 1.45;
+    }
+
+    .section-subtabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 0 0 16px;
+    }
+
+    .section-subtab {
+      min-height: 38px;
+      padding: 8px 14px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--surface);
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .section-subtab.active {
+      border-color: var(--brand);
+      background: var(--brand-soft);
+      color: var(--brand);
+    }
+
+    .subtab-hidden {
+      display: none !important;
     }
 
     .table-wrap { width: 100%; overflow-x: auto; }
@@ -2165,12 +2227,14 @@
 
     .update-modal-actions {
       display: flex;
-      justify-content: flex-end;
+      justify-content: space-between;
       align-items: center;
+      gap: 10px;
       margin-top: 12px;
     }
 
     .update-modal-actions button {
+      flex: 1 1 0;
       min-height: 34px;
       padding: 7px 16px;
       font-size: 14px;
@@ -2522,7 +2586,10 @@
       h3 { font-size: 17px; }
       table { min-width: 680px; }
       .member-table {
-        min-width: 520px;
+        min-width: 0;
+      }
+      .member-email-col {
+        display: none;
       }
       .weekly-table {
         min-width: 0;
@@ -2567,7 +2634,10 @@
         font-size: 16px;
       }
       .member-action-cell {
-        min-width: 96px;
+        min-width: 88px;
+      }
+      .member-group-cell {
+        min-width: 180px;
       }
       .member-action-stack {
         flex-direction: column;
@@ -2578,6 +2648,56 @@
         margin: 0;
         padding: 5px 7px;
         font-size: 12px;
+      }
+      .quality-grid > [data-quality-subtab="plan"] {
+        min-width: 0;
+      }
+      .group-standard-table {
+        min-width: 0;
+      }
+      .group-standard-table thead {
+        display: none;
+      }
+      .group-standard-table,
+      .group-standard-table tbody,
+      .group-standard-table tr,
+      .group-standard-table td {
+        display: block;
+        width: 100%;
+      }
+      .group-standard-table tr {
+        margin-bottom: 12px;
+        border: 1px solid rgba(33, 70, 183, 0.12);
+        border-radius: 16px;
+        background: #f8fbff;
+        overflow: hidden;
+      }
+      .group-standard-table td {
+        display: grid;
+        grid-template-columns: 118px minmax(0, 1fr);
+        gap: 12px;
+        align-items: start;
+        padding: 10px 12px;
+        border-bottom: 1px solid rgba(33, 70, 183, 0.08);
+        text-align: left;
+      }
+      .group-standard-table td:last-child {
+        border-bottom: 0;
+      }
+      .group-standard-table td[data-label]::before {
+        display: block;
+      }
+      .group-standard-table td:nth-child(3),
+      .group-standard-table th:nth-child(3),
+      .group-standard-table td:nth-child(4),
+      .group-standard-table th:nth-child(4) {
+        min-width: 0;
+      }
+      .group-standard-pace-row {
+        justify-content: flex-start;
+      }
+      .group-standard-table input {
+        text-align: left;
       }
       .healing-section-grid {
         grid-template-columns: 1fr;
@@ -2797,6 +2917,20 @@
     </section>
   </div>
 
+  <div id="qualityAttendancePopupModal" class="update-modal hidden" role="dialog" aria-modal="true" aria-labelledby="qualityAttendancePopupTitle">
+    <section class="update-modal-panel">
+      <p class="update-modal-kicker">화요 정훈 안내</p>
+      <h2 id="qualityAttendancePopupTitle" class="update-modal-title">이번 주 화요 정훈, 함께하실까요?</h2>
+      <p class="update-modal-date">참석 여부 선택 안내</p>
+      <p id="qualityAttendancePopupLead" class="update-modal-lead">참석 여부를 아직 선택하지 않으셨어요. 참석/불참/식사 포함 참석 중 하나를 선택해주세요.</p>
+      <p class="update-modal-note"><strong>훈련 준비와 식사 인원 파악에 도움이 됩니다.</strong></p>
+      <div class="update-modal-actions">
+        <button id="qualityAttendancePopupOpenTab" type="button">지금 선택하기</button>
+        <button id="closeQualityAttendancePopup" type="button">나중에</button>
+      </div>
+    </section>
+  </div>
+
   <main class="page">
     <section id="authView" class="auth-view">
       <div class="auth-copy">
@@ -2883,21 +3017,14 @@
       <button id="suggestionTab" class="app-tab" type="button">제안</button>
     </nav>
     <div id="trainingView">
-    <section class="hall-summary-section" aria-labelledby="athleteHallSummaryTitle">
-      <div class="hall-summary-head">
-        <div>
-          <h2 id="athleteHallSummaryTitle">명예의 전당</h2>
-          <p class="section-guide">최근 확정된 이달의 선수를 먼저 확인하고 오늘의 훈련을 시작하세요.</p>
-        </div>
-        <div class="hall-summary-kicker">월간 수상자</div>
-      </div>
-      <div id="athleteHallSummaryStatus" class="goal-status">로그인 후 명예의 전당을 확인할 수 있습니다.</div>
-      <div id="athleteHallSummaryList" class="hall-summary-list" aria-live="polite"></div>
-    </section>
-
-    <section class="section">
+    <div class="section-subtabs" aria-label="내 훈련 세부 메뉴">
+      <button id="trainingInputSubtab" class="section-subtab active" type="button">기록 입력</button>
+      <button id="trainingRecordsSubtab" class="section-subtab" type="button">기록 보기</button>
+      <button id="trainingAnalysisSubtab" class="section-subtab" type="button">분석</button>
+    </div>
+    <section class="section" data-training-subtab="input">
       <h2>내 훈련 기록 입력</h2>
-      <p class="section-guide">회원님~ 입력하는 건 훈련기록 이거 하나뿐이에요~<br>나머지는 제가 다 알아서 할께요! 😊</p>
+      <p id="trainingInputGuide" class="section-guide">회원님~ 입력하는 건 훈련기록 이거 하나뿐이에요~<br>페이서가 기록은 꼼꼼히 보고, 계획은 영리하게 짜서 부상 없이 목표까지 잘 모셔드릴게요! 😊</p>
       <div class="form-panel">
         <div class="input-grid run-meta-grid">
           <label>운동일 <input id="runDate" type="date"></label>
@@ -2926,6 +3053,24 @@
           <label>대회일 <input id="raceDate" type="date"></label>
         </div>
 
+        <div id="trainingDetailFields" class="input-grid">
+          <label>훈련 종류
+            <select id="trainingWorkoutType">
+              <option value="">선택 안 함</option>
+              <option value="jog">조깅</option>
+              <option value="recovery-run">회복주</option>
+              <option value="long-run">롱런</option>
+              <option value="build-up-run">빌드업</option>
+              <option value="tempo-run">템포주</option>
+              <option value="hill-run">언덕훈련</option>
+              <option value="other-run">직접 입력</option>
+            </select>
+          </label>
+          <label id="trainingWorkoutCustomField" class="field-wide hidden">직접 입력
+            <input id="trainingWorkoutCustom" maxlength="80" placeholder="예: 크루즈 인터벌, 계단훈련">
+          </label>
+        </div>
+
         <div class="input-grid time-grid">
           <label>시간 <input id="hour" type="number" placeholder="h"></label>
           <label>분 <input id="minute" type="number" placeholder="m" max="59"></label>
@@ -2934,10 +3079,18 @@
           <button id="cancelRunEdit" class="button-secondary hidden" type="button">수정 취소</button>
         </div>
         <div id="runEditStatus" class="goal-status hidden">기록 수정 중입니다.</div>
+
+        <h3>월 마일리지 목표</h3>
+        <div class="goal-panel">
+          <input id="monthlyGoal" type="number" placeholder="목표 km">
+          <button id="saveMonthlyGoal">목표 저장</button>
+          <div id="monthlyGoalStatus" class="goal-status">목표 입력 전</div>
+          <p class="goal-note">월 마일리지 목표는 매월 1회만 저장할 수 있으며, 저장 후에는 이번 달 수정이 제한됩니다.</p>
+        </div>
       </div>
     </section>
 
-    <section class="section">
+    <section class="section" data-training-subtab="records">
       <h2>나의 러닝 기록</h2>
       <div id="mileageSummary" class="summary-line">운동일 기준(오늘: 2026-04-12) 마일리지<br>주간: -, 월간: -, 연간: -</div>
 
@@ -2956,14 +3109,6 @@
           <div class="engagement-title">오늘의 추천</div>
           <div id="dailyRecommendation" class="engagement-text">오늘 몸에 맞는 러닝과 회복을 살짝 골라드릴게요.</div>
         </div>
-      </div>
-
-      <h3>월 마일리지 목표</h3>
-      <div class="goal-panel">
-        <input id="monthlyGoal" type="number" placeholder="목표 km">
-        <button id="saveMonthlyGoal">목표 저장</button>
-        <div id="monthlyGoalStatus" class="goal-status">목표 입력 전</div>
-        <p class="goal-note">월 마일리지 목표는 매월 1회만 저장할 수 있으며, 저장 후에는 이번 달 수정이 제한됩니다.</p>
       </div>
 
       <h3>주간 통계</h3>
@@ -3026,7 +3171,7 @@
       </div>
     </section>
 
-    <section class="section">
+    <section class="section" data-training-subtab="records">
       <h2>개인 최고 기록</h2>
       <ul class="pb-list">
         <li><span class="pb-label">5K</span><span id="pb5k" class="pb-value">-</span></li>
@@ -3037,7 +3182,47 @@
       <div id="pbCelebration" class="pb-celebration hidden"></div>
     </section>
 
-    <section class="section">
+    <section class="section subtab-hidden" data-training-subtab="analysis">
+      <h2>마라톤 예상 기록</h2>
+      <div id="marathonPrediction">-</div>
+    </section>
+
+    <section class="section subtab-hidden" data-training-subtab="analysis">
+      <h2>마라톤 목표 설정</h2>
+      <p class="section-guide">준비하는 마라톤 대회를 상상하며 목표치를 넣어보세요.</p>
+      <div class="filter-bar">
+        <select id="targetTime"></select>
+        <button id="calcTarget">목표 분석</button>
+        <a class="button-link" href="http://marathon.pe.kr/index_calendar.html" target="_blank" rel="noopener noreferrer">접수중 대회일정 보기</a>
+      </div>
+      <div id="targetResult" class="hidden"></div>
+    </section>
+
+    <section class="section subtab-hidden" data-training-subtab="analysis">
+      <h2>페이스 그래프</h2>
+      <p class="section-guide">페이스 변화 추이를 통해 훈련 성과와 컨디션 흐름을 확인하고, 무리한 목표나 회복이 필요한 시점을 판단할 수 있습니다.</p>
+      <div class="filter-bar">
+        <select id="filterPeriod">
+          <option value="all">전체 기간</option>
+          <option value="week">주간</option>
+          <option value="month">월간</option>
+          <option value="year">연간</option>
+        </select>
+        <select id="filterDistance">
+          <option value="all">전체</option>
+          <option value="5">5K</option>
+          <option value="10">10K</option>
+          <option value="21.097">Half</option>
+          <option value="42.195">Full</option>
+        </select>
+      </div>
+      <div id="chartSummary" class="chart-summary-grid"></div>
+      <canvas id="runChart" width="400" height="200"></canvas>
+      <p id="chartCoachNote" class="chart-coach-note hidden"></p>
+      <p id="chartEmpty" class="chart-empty hidden">선택한 조건의 기록이 없습니다.</p>
+    </section>
+
+    <section class="section subtab-hidden" data-training-subtab="analysis">
       <h2>나빌러닝 PB 랭킹</h2>
       <div class="form-row">
         <select id="rankingDistance">
@@ -3076,7 +3261,7 @@
       </div>
     </section>
 
-    <section class="section">
+    <section class="section subtab-hidden" data-training-subtab="analysis">
       <h2>월간 조별 챌린지 랭킹 <span id="monthlyChallengeMonthLabel" class="section-title-sub">-</span></h2>
       <p class="section-guide">이번 달 누적 거리와 출석 일수를 전체 또는 조별로 확인하세요.</p>
       <div class="filter-bar challenge-filter-bar">
@@ -3114,7 +3299,7 @@
       </div>
     </section>
 
-    <section class="section">
+    <section class="section subtab-hidden" data-training-subtab="analysis">
       <h2>이달의 선수 예상</h2>
       <p class="section-guide">전체 점수는 월말 예상과 현재 확정을 함께 보여주고, 세부 항목은 오늘까지 실제 반영된 점수만 보여줍니다.</p>
       <div id="monthlyAthleteStatus" class="goal-status">로그인 후 이달의 선수 예상을 확인할 수 있습니다.</div>
@@ -3155,7 +3340,7 @@
       </details>
     </section>
 
-    <section class="section hall-feature-section">
+    <section class="section hall-feature-section subtab-hidden" data-training-subtab="analysis">
       <h2>명예의 전당</h2>
       <p class="section-guide">2026년 4월부터 확정된 이달의 선수를 월별로 누적 관리합니다. 현재 달 수상자는 다음 달이 시작된 뒤 반영됩니다.</p>
       <div id="athleteHallStatus" class="goal-status">로그인 후 명예의 전당을 확인할 수 있습니다.</div>
@@ -3180,47 +3365,7 @@
       </div>
     </section>
 
-    <section class="section">
-      <h2>마라톤 예상 기록</h2>
-      <div id="marathonPrediction">-</div>
-    </section>
-
-    <section class="section">
-      <h2>마라톤 목표 설정</h2>
-      <p class="section-guide">준비하는 마라톤 대회를 상상하며 목표치를 넣어보세요.</p>
-      <div class="filter-bar">
-        <select id="targetTime"></select>
-        <button id="calcTarget">목표 분석</button>
-        <a class="button-link" href="http://marathon.pe.kr/index_calendar.html" target="_blank" rel="noopener noreferrer">접수중 대회일정 보기</a>
-      </div>
-      <div id="targetResult" class="hidden"></div>
-    </section>
-
-    <section class="section">
-      <h2>페이스 그래프</h2>
-      <p class="section-guide">페이스 변화 추이를 통해 훈련 성과와 컨디션 흐름을 확인하고, 무리한 목표나 회복이 필요한 시점을 판단할 수 있습니다.</p>
-      <div class="filter-bar">
-        <select id="filterPeriod">
-          <option value="all">전체 기간</option>
-          <option value="week">주간</option>
-          <option value="month">월간</option>
-          <option value="year">연간</option>
-        </select>
-        <select id="filterDistance">
-          <option value="all">전체</option>
-          <option value="5">5K</option>
-          <option value="10">10K</option>
-          <option value="21.097">Half</option>
-          <option value="42.195">Full</option>
-        </select>
-      </div>
-      <div id="chartSummary" class="chart-summary-grid"></div>
-      <canvas id="runChart" width="400" height="200"></canvas>
-      <p id="chartCoachNote" class="chart-coach-note hidden"></p>
-      <p id="chartEmpty" class="chart-empty hidden">선택한 조건의 기록이 없습니다.</p>
-    </section>
-
-    <section id="memberManagement" class="section hidden">
+    <section id="memberManagement" class="section hidden" data-training-subtab="records">
       <details class="admin-details">
         <summary>회원 관리 열기 <span class="host-badge">Host</span></summary>
         <h2>회원 관리</h2>
@@ -3233,7 +3378,7 @@
             <thead>
               <tr>
                 <th>이름</th>
-                <th>이메일</th>
+                <th class="member-email-col">이메일</th>
                 <th>상태</th>
                 <th>조편성</th>
                 <th>기록/관리</th>
@@ -3249,42 +3394,50 @@
     <div id="qualityView" class="hidden">
     <section class="section">
       <h2>화요 정훈</h2>
-      <p class="section-guide">나빌러닝 정훈 내용(훈련 프로그램, 조별 페이스)을 확인하시고 결과를 입력해 보세요.</p>
-      <div id="vdotTrainingGuide" class="goal-status">VDOT 참고값을 계산할 기록이 아직 부족해요. 훈련 기록을 조금 더 입력하면 개인별 훈련 페이스를 안내해드릴게요.</div>
-      <p class="vdot-guide-note">VDOT은 최근 기록을 바탕으로 현재 달리기 능력을 추정해 훈련 페이스를 잡는 참고값입니다. E는 이지, M은 마라톤, T는 템포, I는 인터벌, R은 반복 훈련 페이스를 뜻합니다. 컨디션, 날씨, 코스에 따라 여유 있게 조절해 주세요.</p>
-
-      <div class="group-standard-header">
-        <h3>나빌러닝 조별 기준표</h3>
-        <div id="groupStandardActions" class="group-standard-actions hidden">
-          <button id="editGroupStandards" class="button-secondary" type="button">기준표 수정</button>
-          <button id="saveGroupStandards" type="button" class="hidden">저장</button>
-          <button id="cancelGroupStandardEdit" class="button-secondary hidden" type="button">취소</button>
-        </div>
+      <p class="section-guide">화요 정기 훈련(매주 화요일 19시, 서울과기대) 기록 관리 공간입니다.</p>
+      <div class="section-subtabs" aria-label="화요 정훈 세부 메뉴">
+        <button id="qualityPlanSubtab" class="section-subtab active" type="button">이번 주 정훈</button>
+        <button id="qualityInputSubtab" class="section-subtab" type="button">결과 입력</button>
+        <button id="qualityHistorySubtab" class="section-subtab" type="button">지난 결과</button>
       </div>
-      <div id="groupStandardStatus" class="goal-status">조별 기준표를 불러오는 중입니다.</div>
-      <div class="table-wrap">
-        <table class="group-standard-table">
-          <thead>
-            <tr>
-              <th>조</th>
-              <th>목표 기록</th>
-              <th>인터벌 페이스</th>
-              <th>리커버리 조깅</th>
-              <th>권장 월간 마일리지</th>
-              <th>조별 명단</th>
-            </tr>
-          </thead>
-          <tbody id="groupStandardList"></tbody>
-        </table>
-      </div>
-
       <div class="quality-grid">
-        <div>
-          <h3>앞으로의 계획</h3>
+        <div data-quality-subtab="plan">
           <div id="qualityMonthlyPlan" class="quality-plan"></div>
         </div>
 
-        <div>
+        <div data-quality-subtab="plan">
+          <div class="group-standard-header">
+            <h3>나빌러닝 조별 기준표</h3>
+            <div id="groupStandardActions" class="group-standard-actions hidden">
+              <button id="editGroupStandards" class="button-secondary" type="button">기준표 수정</button>
+              <button id="saveGroupStandards" type="button" class="hidden">저장</button>
+              <button id="cancelGroupStandardEdit" class="button-secondary hidden" type="button">취소</button>
+            </div>
+          </div>
+          <div id="groupStandardStatus" class="goal-status">조별 기준표를 불러오는 중입니다.</div>
+          <div class="table-wrap">
+            <table class="group-standard-table">
+              <thead>
+                <tr>
+                  <th>조</th>
+                  <th>목표 기록</th>
+                  <th>명단</th>
+                  <th>인터벌/리커버리 페이스</th>
+                  <th>권장 월 마일리지</th>
+                </tr>
+              </thead>
+              <tbody id="groupStandardList"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div data-quality-subtab="plan">
+          <h3>회원 맞춤 페이스 안내</h3>
+          <div id="vdotTrainingGuide" class="goal-status">VDOT 참고값을 계산할 기록이 아직 부족해요. 훈련 기록을 조금 더 입력하면 개인별 훈련 페이스를 안내해드릴게요.</div>
+          <p class="vdot-guide-note">VDOT은 최근 기록을 바탕으로 현재 달리기 능력을 추정해 훈련 페이스를 잡는 참고값입니다. E는 이지, M은 마라톤, T는 템포, I는 인터벌, R은 반복 훈련 페이스를 뜻합니다. 컨디션, 날씨, 코스에 따라 여유 있게 조절해 주세요.</p>
+        </div>
+
+        <div class="subtab-hidden" data-quality-subtab="input">
           <h3>정훈 결과 입력</h3>
           <div class="form-panel quality-form">
             <div class="quality-form-section">계획 선택</div>
@@ -3346,9 +3499,9 @@
         </div>
       </div>
 
-      <h3 class="record-table-title">지난 정훈 결과</h3>
-      <div id="qualityStatus" class="goal-status">정훈 결과를 불러오는 중입니다.</div>
-      <div class="table-wrap">
+      <h3 class="record-table-title subtab-hidden" data-quality-subtab="history">지난 정훈 결과</h3>
+      <div id="qualityStatus" class="goal-status subtab-hidden" data-quality-subtab="history">정훈 결과를 불러오는 중입니다.</div>
+      <div class="table-wrap subtab-hidden" data-quality-subtab="history">
         <table class="quality-table">
           <thead>
             <tr>
@@ -3377,8 +3530,14 @@
         <p>훈련을 잘하는 것만큼 오래 즐기고 함께 연결되는 것도 중요합니다. 번개 모임, 한 줄 체크인, 응원 한마디로 나빌러닝의 관계와 회복 문화를 함께 만들어가요.</p>
       </div>
 
+      <div class="section-subtabs" aria-label="힐링 세부 메뉴">
+        <button id="healingEventSubtab" class="section-subtab active" type="button">번개 공지</button>
+        <button id="healingCheckinSubtab" class="section-subtab" type="button">한줄 체크인</button>
+        <button id="healingCheerSubtab" class="section-subtab" type="button">응원 남기기</button>
+      </div>
+
       <div class="healing-section-grid">
-        <section class="healing-card">
+        <section class="healing-card" data-healing-subtab="event">
           <h3>번개 공지</h3>
           <div id="healingEventStatus" class="goal-status">번개 공지를 불러오는 중입니다.</div>
           <div id="healingEventHostForm" class="healing-form hidden">
@@ -3411,7 +3570,7 @@
           <div id="healingEventList" class="healing-list"></div>
         </section>
 
-        <section class="healing-card">
+        <section class="healing-card subtab-hidden" data-healing-subtab="checkin">
           <h3>한 줄 체크인</h3>
           <div id="healingCheckinStatus" class="goal-status">한 줄 체크인을 불러오는 중입니다.</div>
           <div id="healingCheckinForm" class="healing-form">
@@ -3443,7 +3602,7 @@
           <div id="healingCheckinList" class="healing-list"></div>
         </section>
 
-        <section class="healing-card">
+        <section class="healing-card subtab-hidden" data-healing-subtab="cheer">
           <h3>응원 한마디</h3>
           <div id="healingCheerStatus" class="goal-status">응원 한마디를 불러오는 중입니다.</div>
           <div id="healingCheerForm" class="healing-form">
@@ -3525,11 +3684,11 @@
     second.addEventListener("input", updateTime);
   </script>
 
-  <script type="module" src="app.js?v=20260426-host-member-groups-v221"></script>
+  <script type="module" src="app.js?v=20260426-quality-attendance-popup-v235"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
-        navigator.serviceWorker.register("service-worker.js?v=20260426-host-member-groups-v221").then((registration) => {
+        navigator.serviceWorker.register("service-worker.js?v=20260426-quality-attendance-popup-v235").then((registration) => {
           registration.update().catch(() => {});
         }).catch(() => {});
       });
@@ -3538,7 +3697,7 @@
     if ("caches" in window) {
       caches.keys().then((keys) => {
         keys
-          .filter((key) => key.startsWith("naviheal-runners-") && key !== "naviheal-runners-v221")
+          .filter((key) => key.startsWith("naviheal-runners-") && key !== "naviheal-runners-v235")
           .forEach((key) => caches.delete(key));
       }).catch(() => {});
     }
