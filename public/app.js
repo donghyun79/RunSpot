@@ -2573,7 +2573,7 @@ document.addEventListener("DOMContentLoaded", () => {
     { button: qualityInputSubtab, name: "input" },
     { button: qualityHistorySubtab, name: "history" }
   ]);
-  setSectionSubtab("healing", "event", [
+  setSectionSubtab("healing", "checkin", [
     { button: healingEventSubtab, name: "event" },
     { button: healingCheckinSubtab, name: "checkin" },
     { button: healingCheerSubtab, name: "cheer" }

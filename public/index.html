@@ -3531,46 +3531,13 @@
       </div>
 
       <div class="section-subtabs" aria-label="힐링 세부 메뉴">
-        <button id="healingEventSubtab" class="section-subtab active" type="button">번개 공지</button>
-        <button id="healingCheckinSubtab" class="section-subtab" type="button">한줄 체크인</button>
+        <button id="healingCheckinSubtab" class="section-subtab active" type="button">한줄 체크인</button>
         <button id="healingCheerSubtab" class="section-subtab" type="button">응원 남기기</button>
+        <button id="healingEventSubtab" class="section-subtab" type="button">번개 공지</button>
       </div>
 
       <div class="healing-section-grid">
-        <section class="healing-card" data-healing-subtab="event">
-          <h3>번개 공지</h3>
-          <div id="healingEventStatus" class="goal-status">번개 공지를 불러오는 중입니다.</div>
-          <div id="healingEventHostForm" class="healing-form hidden">
-            <label>번개 제목
-              <input id="healingEventTitle" maxlength="80" placeholder="예: 토요일 아침 회복조깅 번개">
-            </label>
-            <label>유형
-              <select id="healingEventType">
-                <option value="run">러닝</option>
-                <option value="coffee">커피</option>
-                <option value="meal">식사</option>
-                <option value="walk">산책</option>
-                <option value="culture">문화</option>
-              </select>
-            </label>
-            <label>모임 일정
-              <input id="healingEventDate" type="datetime-local">
-            </label>
-            <label>장소
-              <input id="healingEventLocation" maxlength="80" placeholder="예: 노원문화의거리 입구">
-            </label>
-            <label class="field-wide">설명
-              <textarea id="healingEventDescription" maxlength="400" placeholder="가볍게 모임 취지를 적어주세요."></textarea>
-            </label>
-            <div class="healing-action-row">
-              <button id="saveHealingEvent" type="button">번개 등록</button>
-              <button id="cancelHealingEventEdit" type="button" class="button-secondary hidden">수정 취소</button>
-            </div>
-          </div>
-          <div id="healingEventList" class="healing-list"></div>
-        </section>
-
-        <section class="healing-card subtab-hidden" data-healing-subtab="checkin">
+        <section class="healing-card" data-healing-subtab="checkin">
           <h3>한 줄 체크인</h3>
           <div id="healingCheckinStatus" class="goal-status">한 줄 체크인을 불러오는 중입니다.</div>
           <div id="healingCheckinForm" class="healing-form">
@@ -3615,6 +3582,39 @@
             </div>
           </div>
           <div id="healingCheerList" class="healing-list"></div>
+        </section>
+
+        <section class="healing-card subtab-hidden" data-healing-subtab="event">
+          <h3>번개 공지</h3>
+          <div id="healingEventStatus" class="goal-status">번개 공지를 불러오는 중입니다.</div>
+          <div id="healingEventHostForm" class="healing-form hidden">
+            <label>번개 제목
+              <input id="healingEventTitle" maxlength="80" placeholder="예: 토요일 아침 회복조깅 번개">
+            </label>
+            <label>유형
+              <select id="healingEventType">
+                <option value="run">러닝</option>
+                <option value="coffee">커피</option>
+                <option value="meal">식사</option>
+                <option value="walk">산책</option>
+                <option value="culture">문화</option>
+              </select>
+            </label>
+            <label>모임 일정
+              <input id="healingEventDate" type="datetime-local">
+            </label>
+            <label>장소
+              <input id="healingEventLocation" maxlength="80" placeholder="예: 노원문화의거리 입구">
+            </label>
+            <label class="field-wide">설명
+              <textarea id="healingEventDescription" maxlength="400" placeholder="가볍게 모임 취지를 적어주세요."></textarea>
+            </label>
+            <div class="healing-action-row">
+              <button id="saveHealingEvent" type="button">번개 등록</button>
+              <button id="cancelHealingEventEdit" type="button" class="button-secondary hidden">수정 취소</button>
+            </div>
+          </div>
+          <div id="healingEventList" class="healing-list"></div>
         </section>
       </div>
     </section>
