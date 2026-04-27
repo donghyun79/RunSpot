@@ -673,7 +673,7 @@ function beginRunEdit(run) {
   trainingDetailFields.classList.toggle("hidden", runTypeSelect.value === "race");
   trainingWorkoutTypeSelect.value = getManualTrainingWorkoutType(run);
   trainingWorkoutCustomField.classList.toggle("hidden", trainingWorkoutTypeSelect.value !== "other-run");
-  trainingWorkoutCustomInput.value = trainingWorkoutTypeSelect.value === "other-run" ? (run.workoutDetail || "") : "";
+  trainingWorkoutCustomInput.value = trainingWorkoutTypeSelect.value === "other-run" ? getManualTrainingCustomValue(run) : "";
   raceNameInput.disabled = runTypeSelect.value !== "race";
   raceDateInput.disabled = runTypeSelect.value !== "race";
   raceNameInput.value = run.raceName || "";
@@ -742,6 +742,7 @@ function beginQualityRunEdit(run) {
   updateQualityTotalsInputMode();
   updateQualityFormMode();
   document.getElementById("qualityTab")?.click();
+  document.getElementById("qualityInputSubtab")?.click();
   document.getElementById("qualityView")?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
@@ -774,24 +775,110 @@ function getWorkoutTypeLabel(type) {
   return labels[type] || "훈련";
 }
 
+function isManualTrainingWorkoutType(type = "") {
+  return ["other-run", "other", "직접 입력"].includes(String(type || "").trim());
+}
+
+function getManualTrainingCustomValue(run = {}) {
+  const detail = String(run.workoutDetail || "").trim();
+
+  if (detail && detail !== "직접 입력") {
+    return detail;
+  }
+
+  const workoutType = String(run.workoutType || "").trim();
+
+  if (workoutType === "직접 입력") {
+    return "";
+  }
+
+  if (workoutType && !["jog", "steady", "recovery-run", "long-run", "build-up-run", "tempo-run", "hill-run", "other-run", "other"].includes(workoutType)) {
+    return workoutType;
+  }
+
+  const legacyRaceName = String(run.raceName || "").trim();
+
+  if (legacyRaceName && !legacyRaceName.startsWith("[고강도]")) {
+    return legacyRaceName;
+  }
+
+  return "";
+}
+
+function normalizeTrainingRunFields(type = "training", workoutType = "", workoutDetail = "", raceName = "") {
+  if (type !== "training") {
+    return {
+      workoutType: String(workoutType || "").trim(),
+      workoutDetail: String(workoutDetail || "").trim()
+    };
+  }
+
+  const normalizedType = String(workoutType || "").trim();
+  const normalizedDetail = String(workoutDetail || "").trim();
+  const normalizedRaceName = String(raceName || "").trim();
+  const manualTrainingTypes = ["jog", "steady", "recovery-run", "long-run", "build-up-run", "tempo-run", "hill-run"];
+  const qualityWorkoutTypes = ["interval", "repetition", "build-up", "tt", "tempo", "long", "recovery", "other"];
+
+  if (normalizedRaceName.startsWith("[고강도]")) {
+    return {
+      workoutType: normalizedType || "other",
+      workoutDetail: normalizedDetail || normalizedRaceName.replace(/^\[고강도\]\s*/, "")
+    };
+  }
+
+  if (isManualTrainingWorkoutType(normalizedType)) {
+    return {
+      workoutType: "other-run",
+      workoutDetail: normalizedDetail === "직접 입력" ? "" : normalizedDetail
+    };
+  }
+
+  if (qualityWorkoutTypes.includes(normalizedType)) {
+    return {
+      workoutType: normalizedType,
+      workoutDetail: normalizedDetail
+    };
+  }
+
+  if (normalizedType && !manualTrainingTypes.includes(normalizedType)) {
+    return {
+      workoutType: "other-run",
+      workoutDetail: normalizedDetail || normalizedType
+    };
+  }
+
+  if (normalizedDetail === "직접 입력" && normalizedRaceName) {
+    return {
+      workoutType: "other-run",
+      workoutDetail: normalizedRaceName
+    };
+  }
+
+  return {
+    workoutType: normalizedType || "steady",
+    workoutDetail: normalizedDetail
+  };
+}
+
 function getRunDetailDisplay(run) {
   if (run.type === "race") {
     return run.raceName || "-";
   }
 
-  const qualityDisplay = getQualityDisplayData(run);
-  const qualitySummary = getQualityWorkoutSummaryForList(run.workoutType, qualityDisplay.plannedWorkout);
+  if (isQualityWorkout(run)) {
+    const qualityDisplayText = getQualityWorkoutDisplayText(run);
 
-  if (qualitySummary) {
-    return qualitySummary;
+    if (qualityDisplayText.summary) {
+      return qualityDisplayText.summary;
+    }
   }
 
   if (["", "steady", "jog"].includes(run.workoutType || "") && !run.workoutDetail && run.rankingEligible !== false) {
     return "-";
   }
 
-  if ((run.workoutType || "") === "other-run") {
-    return run.workoutDetail || "-";
+  if (isManualTrainingWorkoutType(run.workoutType)) {
+    return getManualTrainingCustomValue(run) || "-";
   }
 
   const label = getWorkoutTypeLabel(run.workoutType || "steady");
@@ -1817,6 +1904,16 @@ function getQualityWorkoutSummaryForList(workoutType = "", planText = "") {
   return label;
 }
 
+function getQualityWorkoutDisplayText(run = {}) {
+  const qualityDisplay = getQualityDisplayData(run);
+  const summary = getQualityWorkoutSummaryForList(run.workoutType, qualityDisplay.plannedWorkout);
+
+  return {
+    summary: summary || getWorkoutTypeLabel(run.workoutType || "steady"),
+    fullText: formatQualityWorkoutPlanText(qualityDisplay.plannedWorkout || "")
+  };
+}
+
 function getManualTrainingWorkoutType(run = {}) {
   const type = String(run.workoutType || "").trim();
 
@@ -1824,7 +1921,15 @@ function getManualTrainingWorkoutType(run = {}) {
     return type;
   }
 
+  if (isManualTrainingWorkoutType(type)) {
+    return "other-run";
+  }
+
   if (type === "steady" && run.workoutDetail) {
+    return "other-run";
+  }
+
+  if (type) {
     return "other-run";
   }
 
@@ -3460,8 +3565,22 @@ function renderRunList() {
   loadMoreRunsBtn.classList.toggle("hidden", visibleRunCount >= filteredRuns.length);
 }
 
-function isQualityWorkout(run) {
-  return ["interval", "repetition", "build-up", "tt", "tempo", "other"].includes(run.workoutType);
+function isQualityWorkout(run = {}) {
+  if (["interval", "repetition", "build-up", "tt", "tempo", "other"].includes(run.workoutType)) {
+    return true;
+  }
+
+  if ((run.type || "training") !== "training") {
+    return false;
+  }
+
+  const qualityDisplay = getQualityDisplayData(run);
+
+  return Boolean(
+    run.qualityPlanDate
+    || (qualityDisplay.plannedWorkout && qualityDisplay.plannedWorkout !== "-")
+    || qualityDisplay.setResults
+  );
 }
 
 function resetQualityForm() {
@@ -3529,6 +3648,7 @@ function renderQualityRuns() {
   qualityRuns.forEach((run) => {
     const pace = getQualityMainSetAveragePace(run) || (run.time / run.distance);
     const qualityDisplay = getQualityDisplayData(run);
+    const qualityDisplayText = getQualityWorkoutDisplayText(run);
     const tr = document.createElement("tr");
     const cells = [
       { value: run.runDate || "-", className: "quality-date-cell" },
@@ -3536,16 +3656,19 @@ function renderQualityRuns() {
       { value: `${run.distance}km`, className: "quality-number-cell" },
       { value: formatTime(run.time), className: "quality-number-cell" },
       { value: formatPace(pace), className: "quality-number-cell" },
-      { value: formatQualityWorkoutPlanText(qualityDisplay.plannedWorkout), className: "quality-text-cell" },
+      { value: qualityDisplayText.summary, className: "quality-text-cell", title: qualityDisplayText.fullText },
       { value: getQualityVdotAssessment(run), className: "quality-vdot-cell" },
       { value: qualityDisplay.selfRating, className: "quality-rating-cell" },
       { value: qualityDisplay.reflection, className: "quality-text-cell" }
     ];
 
-    cells.forEach(({ value, className }) => {
+    cells.forEach(({ value, className, title }) => {
       const td = document.createElement("td");
       td.className = className;
       td.innerText = value;
+      if (title && title !== value) {
+        td.title = title;
+      }
       tr.appendChild(td);
     });
 
@@ -6247,15 +6370,22 @@ async function loadMemberRuns(member, memberRow = null) {
 function buildRunRecord(id, data, fallbackMember = null) {
   const distance = Number(data.distance);
   const time = Number(data.time);
+  const type = data.type || "training";
+  const normalizedTrainingFields = normalizeTrainingRunFields(
+    type,
+    data.workoutType || "",
+    data.workoutDetail || "",
+    data.raceName || ""
+  );
 
   return {
     id,
     distance,
     time,
     runDate: getSavedRunDate(data),
-    type: data.type || "training",
-    workoutType: data.workoutType || (data.type === "training" && String(data.raceName || "").startsWith("[고강도]") ? "other" : "steady"),
-    workoutDetail: data.workoutDetail || (data.type === "training" && String(data.raceName || "").startsWith("[고강도]") ? String(data.raceName).replace(/^\[고강도\]\s*/, "") : ""),
+    type,
+    workoutType: normalizedTrainingFields.workoutType,
+    workoutDetail: normalizedTrainingFields.workoutDetail,
     qualityPlanDate: data.qualityPlanDate || "",
     qualityPlannedWorkout: data.qualityPlannedWorkout || "",
     qualitySetResults: data.qualitySetResults || "",
