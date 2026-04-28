@@ -562,6 +562,17 @@
       border-top: 0;
     }
 
+    .member-run-action-cell {
+      min-width: 86px;
+    }
+
+    .member-run-action-stack {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      align-items: center;
+    }
+
     .admin-details {
       border-top: 1px solid var(--line);
     }
@@ -2649,6 +2660,19 @@
         padding: 5px 7px;
         font-size: 12px;
       }
+      .member-run-action-cell {
+        min-width: 72px;
+      }
+      .member-run-action-stack {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .member-run-action-stack .table-action {
+        width: 100%;
+        margin: 0;
+        padding: 5px 7px;
+        font-size: 12px;
+      }
       .quality-grid > [data-quality-subtab="plan"] {
         min-width: 0;
       }
@@ -3312,6 +3336,7 @@
               <th>예상 / 확정</th>
               <th>출석</th>
               <th>마일리지</th>
+              <th>목표</th>
               <th>정훈</th>
               <th>성장</th>
               <th>대회</th>
@@ -3325,17 +3350,18 @@
         <summary class="target-block-title">이달의 선수 선발 기준</summary>
         <div class="criteria-body">
           이달의 선수는 누적 거리만으로 선정하지 않습니다.<br>
-          2026년 4월은 전월 비교 기준이 충분하지 않아 성장 점수를 제외하고, 월간 출석 일수 30점, 실제 조 기준 마일리지 달성률 30점과 초과 보너스 최대 5점, 화요 정훈 인정률 30점, 대회 가점 5점, 배지 가점 5점을 합산해 100점 만점으로 반영합니다.<br>
-          2026년 5월부터는 월간 출석 일수 25점, 실제 조 기준 마일리지 달성률 25점과 초과 보너스 최대 5점, 화요 정훈 인정률 25점, 전월 대비 성장도 15점, 대회 가점 5점, 배지 가점 5점 기준으로 성장 항목을 함께 반영합니다.<br>
-          출석은 16일 만점을 기준으로 하루 단위로 세분화하고, 마일리지는 목표 100%까지 비례 반영한 뒤 100% 초과분 10%마다 0.5점씩 최대 5점을 추가합니다.<br>
+          2026년 4월은 전월 비교 기준이 충분하지 않아 성장 점수를 제외하고, 월간 출석 일수 30점, 실제 조 기준 마일리지 달성률 30점과 초과 보너스 최대 5점, 화요 정훈 인정률 30점, 대회 가점 5점, 배지 가점 5점에 더해 월 마일리지 목표 보정 ±5점을 함께 반영합니다.<br>
+          2026년 5월부터는 월간 출석 일수 25점, 실제 조 기준 마일리지 달성률 25점과 초과 보너스 최대 5점, 화요 정훈 인정률 25점, 전월 대비 성장도 15점, 대회 가점 5점, 배지 가점 5점에 더해 월 마일리지 목표 보정 ±5점을 함께 반영합니다.<br>
+          출석은 24일 만점을 기준으로 하루 단위로 세분화하고, 마일리지는 목표 100%까지 비례 반영한 뒤 100% 초과분 10%마다 0.5점씩 최대 5점을 추가합니다.<br>
+          개인이 저장한 월 마일리지 목표는 현재 날짜 기준 진행률과 월말 예상 완료율을 함께 보고, 목표 페이스를 맞추면 최대 +5점, 미달이 크면 최대 -5점까지 보정합니다. 목표를 저장하지 않은 회원은 0점으로 처리합니다.<br>
           월중에는 전체 점수에 한해 현재 페이스를 월말까지 환산한 예상 점수와 오늘까지 실제 반영된 확정 점수를 함께 보여주며, 예상 점수는 변별력을 위해 소수 1자리까지 계산합니다.<br>
           정훈 당일에 참여해 입력한 기록은 100%, 같은 달 안에서 같은 정훈 계획을 선택해 다른 날 완료 입력한 보완 훈련은 70%로 인정합니다.<br>
           같은 정훈 계획을 여러 번 입력해도 가장 높은 인정률 1개만 반영합니다.<br>
           대회 기록 입력 시 대회명을 입력하고 실적을 저장한 달에는 5K 1점, 10K 2점, Half 3점, Full 5점, 기타 1점으로 거리별 가점을 부여합니다. 대회 가점은 월 최대 5점입니다.<br>
-          월간 배지 획득 수량은 참여와 기록 습관을 격려하기 위한 보조 가점으로 반영합니다. 1~2개는 1점, 3~4개는 3점, 5개 이상은 5점이며 배지 가점은 월 최대 5점입니다.<br>
+          월간 배지 획득 수량은 참여와 기록 습관을 격려하기 위한 보조 가점으로 반영합니다. 1~2개는 1점, 3~4개는 2점, 5~6개는 3점, 7~9개는 4점, 10개 이상은 5점이며 배지 가점은 월 최대 5점입니다.<br>
           같은 날 여러 번 뛴 기록은 거리는 합산하되 출석은 1일로 계산합니다.<br>
           이번 달 순위는 예상으로만 보여주고, 매월 마지막 날 밤 12시가 지나 다음 달이 시작되면 명예의 전당에 확정 반영합니다.<br>
-          동점자는 정훈 인정률, 출석 일수, 조별 마일리지 달성률, 성장도, 대회 가점, 배지 가점 순으로 정하며, 그래도 같으면 공동 수상으로 공지합니다.
+          동점자는 정훈 인정률, 출석 일수, 조별 마일리지 달성률, 월 목표 보정, 성장도, 대회 가점, 배지 가점 순으로 정하며, 그래도 같으면 공동 수상으로 공지합니다.
         </div>
       </details>
     </section>
@@ -3354,6 +3380,7 @@
               <th>총점</th>
               <th>출석</th>
               <th>마일리지</th>
+              <th>목표</th>
               <th>정훈</th>
               <th>성장</th>
               <th>대회</th>
@@ -3696,11 +3723,11 @@
     second.addEventListener("input", updateTime);
   </script>
 
-  <script type="module" src="app.js?v=20260427-manual-workout-detail-v243"></script>
+  <script type="module" src="app.js?v=20260428-monthly-athlete-balance-v246"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
-        navigator.serviceWorker.register("service-worker.js?v=20260427-manual-workout-detail-v243").then((registration) => {
+        navigator.serviceWorker.register("service-worker.js?v=20260428-monthly-athlete-balance-v246").then((registration) => {
           registration.update().catch(() => {});
         }).catch(() => {});
       });
@@ -3709,7 +3736,7 @@
     if ("caches" in window) {
       caches.keys().then((keys) => {
         keys
-          .filter((key) => key.startsWith("naviheal-runners-") && key !== "naviheal-runners-v242")
+          .filter((key) => key.startsWith("naviheal-runners-") && key !== "naviheal-runners-v246")
           .forEach((key) => caches.delete(key));
       }).catch(() => {});
     }

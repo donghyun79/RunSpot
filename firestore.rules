@@ -471,7 +471,7 @@ service cloud.firestore {
 
     match /monthlyGoals/{goalId} {
       allow get: if approvedUser();
-      allow list: if false;
+      allow list: if approvedUser();
       allow create: if approvedUser() && !exists(/databases/$(database)/documents/monthlyGoals/$(goalId)) && validMonthlyGoalData();
       allow update, delete: if false;
     }
