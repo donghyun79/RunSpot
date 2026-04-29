@@ -40,6 +40,7 @@ let chart;
 let filterDistance;
 let filterPeriod;
 let latestRuns = [];
+let latestTodayClubRuns = [];
 let monthlyGoalKm = 0;
 let monthlyGoalLocked = false;
 let rankingLoadId = 0;
@@ -90,6 +91,8 @@ let latestEnvironment = null;
 let pendingHealingCheckinPhoto = null;
 let pendingHealingCheckinPhotoRemoved = false;
 const HEALING_POPUP_STORAGE_KEY_PREFIX = "naviheal-healing-popup";
+const MAY_TRAINING_POPUP_STORAGE_KEY_PREFIX = "naviheal-may-training-popup";
+const MAY_TRAINING_POPUP_START_DATE = "2026-05-01";
 let dismissedQualityAttendancePromptKey = "";
 let completedQualityAttendancePromptKey = "";
 const CLUB_INVITE_CODE = "NAVIHEAL";
@@ -2405,6 +2408,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const qualityAttendancePopupModal = document.getElementById("qualityAttendancePopupModal");
   const closeQualityAttendancePopupBtn = document.getElementById("closeQualityAttendancePopup");
   const qualityAttendancePopupOpenTabBtn = document.getElementById("qualityAttendancePopupOpenTab");
+  const mayTrainingPopupModal = document.getElementById("mayTrainingPopupModal");
+  const closeMayTrainingPopupBtn = document.getElementById("closeMayTrainingPopup");
 
   function openHealingPopup() {
     if (!healingPopupModal) return;
@@ -2487,6 +2492,35 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
+  function closeMayTrainingPopup() {
+    if (!mayTrainingPopupModal) return;
+
+    mayTrainingPopupModal.classList.add("hidden");
+  }
+
+  closeMayTrainingPopupBtn?.addEventListener("click", () => {
+    const userId = auth.currentUser?.uid || "";
+
+    if (userId) {
+      writeMayTrainingPopupState(userId, {
+        seen: true,
+        seenAt: new Date().toISOString()
+      });
+    }
+
+    closeMayTrainingPopup();
+  });
+  mayTrainingPopupModal?.addEventListener("click", (event) => {
+    if (event.target === mayTrainingPopupModal) {
+      closeMayTrainingPopupBtn?.click();
+    }
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !mayTrainingPopupModal?.classList.contains("hidden")) {
+      closeMayTrainingPopupBtn?.click();
+    }
+  });
+
   function setAuthenticatedView(isLoggedIn) {
     document.body.classList.toggle("is-authenticated", isLoggedIn);
     authView.classList.toggle("hidden", isLoggedIn);
@@ -2506,6 +2540,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function updateHostView(user) {
     const isHost = isHostUser(user);
+    document.getElementById("monthlyAthleteRawScoreHeader")?.classList.toggle("hidden", !isHost);
     memberManagement.classList.toggle("hidden", !isHost);
     syncHealingEventFormVisibility(user);
 
@@ -2926,6 +2961,7 @@ document.addEventListener("DOMContentLoaded", () => {
         await loadClubRanking(user).catch(showDashboardLoadError);
         await loadWeeklyRanking(user).catch(showDashboardLoadError);
         await loadSuggestions(user).catch(showDashboardLoadError);
+        maybeOpenMayTrainingPopup(user);
         await maybeOpenQualityAttendancePopup(user).catch(showDashboardLoadError);
         await loadHealingHub(user).catch(showDashboardLoadError);
 
@@ -2936,6 +2972,7 @@ document.addEventListener("DOMContentLoaded", () => {
       dismissedQualityAttendancePromptKey = "";
       completedQualityAttendancePromptKey = "";
       document.getElementById("qualityAttendancePopupModal")?.classList.add("hidden");
+      document.getElementById("mayTrainingPopupModal")?.classList.add("hidden");
       status.innerText = "로그아웃 상태";
       updateTrainingInputGuide(null);
       setActiveAppView("training");
@@ -3440,6 +3477,60 @@ async function loadMyRuns(user) {
   updatePersonalBestView();
   updateMarathonPrediction();
   drawChart(runs);
+  await loadTodayClubRuns();
+}
+
+async function loadTodayClubRuns() {
+  const todayClubStatus = document.getElementById("todayClubStatus");
+  const todayClubSummary = document.getElementById("todayClubSummary");
+  const todayKey = getTodayDateString();
+
+  if (todayClubStatus) {
+    todayClubStatus.innerText = "오늘 올라온 전체 러닝 기록을 불러오는 중입니다...";
+  }
+
+  if (todayClubSummary) {
+    todayClubSummary.innerText = `${todayKey} 기준 기록 집계 중`;
+  }
+
+  try {
+    const todayRunsSnapshot = await getDocsFromServer(query(
+      collection(db, "runs"),
+      where("runDate", "==", todayKey)
+    ));
+
+    latestTodayClubRuns = [];
+
+    todayRunsSnapshot.forEach((snapshotDoc) => {
+      const run = buildRunRecord(snapshotDoc.id, snapshotDoc.data());
+
+      if (!Number.isFinite(run.distance) || !Number.isFinite(run.time) || !run.runDate) return;
+
+      latestTodayClubRuns.push(run);
+    });
+
+    latestTodayClubRuns.sort((a, b) => {
+      const nameCompare = String(a.name || "").localeCompare(String(b.name || ""), "ko");
+
+      if (nameCompare !== 0) return nameCompare;
+      if (b.distance !== a.distance) return b.distance - a.distance;
+
+      return a.time - b.time;
+    });
+
+    renderTodayClubRuns();
+  } catch (e) {
+    console.error(e);
+    latestTodayClubRuns = [];
+
+    if (todayClubStatus) {
+      todayClubStatus.innerText = "오늘의 나빌 러닝을 불러오지 못했습니다. 잠시 후 다시 확인해주세요.";
+    }
+
+    if (todayClubSummary) {
+      todayClubSummary.innerText = `${todayKey} 기준 기록 확인 실패`;
+    }
+  }
 }
 
 function getRecordPeriodStart(period) {
@@ -3567,6 +3658,49 @@ function renderRunList() {
   }
 
   loadMoreRunsBtn.classList.toggle("hidden", visibleRunCount >= filteredRuns.length);
+}
+
+function renderTodayClubRuns() {
+  const todayClubStatus = document.getElementById("todayClubStatus");
+  const todayClubSummary = document.getElementById("todayClubSummary");
+  const todayClubRunList = document.getElementById("todayClubRunList");
+
+  if (!todayClubStatus || !todayClubSummary || !todayClubRunList) return;
+
+  todayClubRunList.innerHTML = "";
+
+  if (!latestTodayClubRuns.length) {
+    todayClubStatus.innerText = "아직 오늘 등록된 나빌러닝 기록이 없습니다.";
+    todayClubSummary.innerText = `${getTodayDateString()} 기준 참여 0명`;
+    return;
+  }
+
+  const participantKeys = new Set(latestTodayClubRuns.map((run) => run.userId || run.email || run.name));
+  const totalDistance = latestTodayClubRuns.reduce((sum, run) => sum + run.distance, 0);
+
+  todayClubStatus.innerText = `${getTodayDateString()}에 올라온 전체 러닝 기록입니다.`;
+  todayClubSummary.innerText = `참여 ${participantKeys.size}명 · 기록 ${latestTodayClubRuns.length}건 · 총 ${formatMileage(totalDistance)}`;
+
+  latestTodayClubRuns.forEach((run) => {
+    const tr = document.createElement("tr");
+    const pace = run.time / run.distance;
+    const cells = [
+      run.name || "이름 없음",
+      run.type === "race" ? "대회" : "훈련",
+      formatMileage(run.distance),
+      formatTime(run.time),
+      formatPace(pace),
+      getRunDetailDisplay(run)
+    ];
+
+    cells.forEach((value) => {
+      const td = document.createElement("td");
+      td.innerText = value;
+      tr.appendChild(td);
+    });
+
+    todayClubRunList.appendChild(tr);
+  });
 }
 
 function isQualityWorkout(run = {}) {
@@ -3720,7 +3854,7 @@ function renderQualityMonthlyPlan() {
     qualityPlanSelect.innerHTML = '<option value="">직접 입력</option>';
   }
 
-  const currentMonth = new Date().getMonth() + 1;
+  const currentMonth = getQualityScheduleReferenceDate().getMonth() + 1;
   const schedule = QUALITY_MONTHLY_SCHEDULE[currentMonth];
 
   if (!schedule) {
@@ -3855,9 +3989,18 @@ function getQualityWorkoutEntries(year = new Date().getFullYear()) {
     .sort((a, b) => a.sortDate - b.sortDate);
 }
 
+function getQualityAnnouncementReferenceDate(referenceDate = new Date()) {
+  return new Date(referenceDate.getFullYear(), referenceDate.getMonth(), referenceDate.getDate());
+}
+
+function getQualityScheduleReferenceDate(referenceDate = new Date()) {
+  return new Date(referenceDate.getFullYear(), referenceDate.getMonth(), referenceDate.getDate());
+}
+
 function getUpcomingQualityWorkout(referenceDate = new Date()) {
-  const currentYear = referenceDate.getFullYear();
-  const today = new Date(currentYear, referenceDate.getMonth(), referenceDate.getDate());
+  const effectiveDate = getQualityAnnouncementReferenceDate(referenceDate);
+  const currentYear = effectiveDate.getFullYear();
+  const today = new Date(currentYear, effectiveDate.getMonth(), effectiveDate.getDate());
   const workouts = getQualityWorkoutEntries(currentYear)
     .filter((workout) => workout.sortDate && workout.sortDate >= today)
 
@@ -3865,18 +4008,19 @@ function getUpcomingQualityWorkout(referenceDate = new Date()) {
 }
 
 function getQualityNoticeWorkout(referenceDate = new Date()) {
-  const currentYear = referenceDate.getFullYear();
+  const effectiveDate = getQualityAnnouncementReferenceDate(referenceDate);
+  const currentYear = effectiveDate.getFullYear();
   const now = new Date(referenceDate);
 
   return getQualityWorkoutEntries(currentYear).find((workout) => {
     const noticeStart = new Date(workout.sortDate);
     const noticeEnd = new Date(workout.sortDate);
 
-    noticeStart.setDate(noticeStart.getDate() - 7);
-    noticeStart.setHours(20, 30, 0, 0);
-    noticeEnd.setHours(20, 29, 59, 999);
+    noticeStart.setDate(noticeStart.getDate() - 6);
+    noticeStart.setHours(0, 0, 0, 0);
+    noticeEnd.setHours(23, 59, 59, 999);
 
-    return now >= noticeStart && now <= noticeEnd;
+    return effectiveDate >= noticeStart && now <= noticeEnd;
   }) || null;
 }
 
@@ -3893,7 +4037,7 @@ function createQualityNoticeArticle(workout, userGroup) {
 
   article.className = "quality-plan-item quality-notice";
   article.innerHTML = [
-    '<div class="quality-plan-title">이번주 훈련 안내</div>',
+    '<div class="quality-plan-title">다음 훈련 안내</div>',
     `<div>${workout.date} ${formatQualityWorkoutPlanText(workout.text)}</div>`,
     workout.schedule?.purpose ? `<div class="quality-plan-meta">훈련 목적: ${workout.schedule.purpose}</div>` : "",
     `<div class="quality-plan-meta">${paceGuide}</div>`,
@@ -4681,6 +4825,10 @@ function getHealingPopupStorageKey(userId = "") {
   return `${HEALING_POPUP_STORAGE_KEY_PREFIX}:${userId || "guest"}`;
 }
 
+function getMayTrainingPopupStorageKey(userId = "") {
+  return `${MAY_TRAINING_POPUP_STORAGE_KEY_PREFIX}:${userId || "guest"}`;
+}
+
 function readHealingPopupState(userId = "") {
   try {
     const raw = localStorage.getItem(getHealingPopupStorageKey(userId));
@@ -4695,6 +4843,25 @@ function readHealingPopupState(userId = "") {
 function writeHealingPopupState(userId = "", state = {}) {
   try {
     localStorage.setItem(getHealingPopupStorageKey(userId), JSON.stringify(state));
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+function readMayTrainingPopupState(userId = "") {
+  try {
+    const raw = localStorage.getItem(getMayTrainingPopupStorageKey(userId));
+
+    return raw ? JSON.parse(raw) : {};
+  } catch (error) {
+    console.error(error);
+    return {};
+  }
+}
+
+function writeMayTrainingPopupState(userId = "", state = {}) {
+  try {
+    localStorage.setItem(getMayTrainingPopupStorageKey(userId), JSON.stringify(state));
   } catch (error) {
     console.error(error);
   }
@@ -4749,12 +4916,29 @@ function summarizeHealingPopupText(text = "", maxLength = 24) {
 }
 
 function hasBlockingNoticeModalOpen() {
-  return ["updateModal", "healingPopupModal", "qualityAttendancePopupModal"]
+  return ["updateModal", "healingPopupModal", "qualityAttendancePopupModal", "mayTrainingPopupModal"]
     .some((id) => {
       const element = document.getElementById(id);
 
       return element && !element.classList.contains("hidden");
     });
+}
+
+function maybeOpenMayTrainingPopup(user = auth.currentUser) {
+  if (!user) return;
+
+  const mayTrainingPopupModal = document.getElementById("mayTrainingPopupModal");
+
+  if (!mayTrainingPopupModal) return;
+  if (hasBlockingNoticeModalOpen()) return;
+  if (getLocalDateKey() < MAY_TRAINING_POPUP_START_DATE) return;
+
+  const popupState = readMayTrainingPopupState(user.uid);
+
+  if (popupState.seen) return;
+
+  mayTrainingPopupModal.classList.remove("hidden");
+  document.getElementById("closeMayTrainingPopup")?.focus();
 }
 
 async function maybeOpenQualityAttendancePopup(user = auth.currentUser, workout = getQualityNoticeWorkout()) {
@@ -7156,7 +7340,7 @@ function getPersonalBestCategoriesForRun(run) {
 
   return PB_CATEGORIES.filter((category) => {
     const best = pb[category.key];
-    const courseRecord = getCourseRecordForDistance(run.distance, run.time, category.distance);
+    const courseRecord = getRunCourseRecordForCategory(run, category.distance);
 
     return best
       && courseRecord
@@ -7187,7 +7371,7 @@ function getPreviousPbRecordForCategory(runs, category, latestRun) {
   return runs
     .filter((run) => run.rankingEligible !== false && !isSameRunIdentity(run, latestRun))
     .map((run) => {
-      const courseRecord = getCourseRecordForDistance(run.distance, run.time, category.distance);
+      const courseRecord = getRunCourseRecordForCategory(run, category.distance);
 
       return courseRecord ? { run, courseRecord } : null;
     })
@@ -7351,7 +7535,9 @@ function getChallengeGroupLabel(groupValue) {
 
 function updatePersonalBest(distance, time, sourceRun = {}) {
   PB_CATEGORIES.forEach((category) => {
-    const courseRecord = getCourseRecordForDistance(distance, time, category.distance);
+    const courseRecord = sourceRun && Object.keys(sourceRun).length
+      ? getRunCourseRecordForCategory({ ...sourceRun, distance, time }, category.distance)
+      : getCourseRecordForDistance(distance, time, category.distance);
 
     if (!courseRecord) return;
 
@@ -7820,15 +8006,23 @@ async function loadMonthlyAthleteCandidates(user) {
     candidates.slice(0, 10).forEach((entry, index) => {
       const tr = document.createElement("tr");
       const isMe = entry.userId === user.uid || entry.email === user.email;
+      const isHost = isHostUser(user);
 
       if (isMe) {
         tr.classList.add("my-rank");
       }
 
-      [
+      const cells = [
         `${index + 1}${isMe ? " (나)" : ""}`,
         entry.name,
-        `예상 ${formatAthleteScore(entry.totalScore)}점 / 확정 ${formatAthleteScore(entry.confirmedScore)}점`,
+        `예상 ${formatAthleteScore(entry.totalScore)}점 / 확정 ${formatAthleteScore(entry.confirmedScore)}점`
+      ];
+
+      if (isHost) {
+        cells.push(`예상 ${formatAthleteScore(entry.totalRawScore)}점 / 확정 ${formatAthleteScore(entry.confirmedRawScore)}점`);
+      }
+
+      cells.push(
         `${formatAthleteScore(entry.attendanceScore)}/${entry.attendanceMaxScore} (${entry.attendanceDays}일)`,
         `${formatAthleteScore(entry.mileageScore)}/${entry.mileageMaxScore} (${entry.groupLabel} ${entry.mileageRate}%)`,
         formatMonthlyGoalAdjustment(entry),
@@ -7836,7 +8030,9 @@ async function loadMonthlyAthleteCandidates(user) {
         formatMonthlyGrowthScore(entry),
         `+${formatAthleteScore(entry.raceBonus)}점 (${entry.raceBonusLabel})`,
         `+${entry.badgeBonus}점 (${entry.badgeCount}개)`
-      ].forEach((value) => {
+      );
+
+      cells.forEach((value) => {
         const td = document.createElement("td");
         td.innerText = value;
         tr.appendChild(td);
@@ -7846,12 +8042,9 @@ async function loadMonthlyAthleteCandidates(user) {
     });
 
     const leader = candidates[0];
-    const leaders = candidates.filter((candidate) => isSameMonthlyAthleteAwardScore(candidate, leader));
     const myRankIndex = candidates.findIndex((entry) => entry.userId === user.uid || entry.email === user.email);
     const myRankText = myRankIndex >= 0 ? ` 내 순위: ${myRankIndex + 1}위 / ${candidates.length}명.` : "";
-    const leaderText = leaders.length > 1
-      ? `${leaders.map((entry) => entry.name).join(", ")} 공동 1위`
-      : `${leader.name} 1위`;
+    const leaderText = `${leader.name} 1위`;
 
     monthlyAthleteStatus.innerText = `${formatMonthLabel(monthKey)} 이달의 선수 예상 ${leaderText}: 예상 ${formatAthleteScore(leader.totalScore)}점, 현재 확정 ${formatAthleteScore(leader.confirmedScore)}점.${myRankText} 월이 끝난 뒤 명예의 전당에 반영됩니다.`;
     renderAthleteHallOfFame(memberEntries, user, finalizedMonthKey, monthlyGoalsByUser);
@@ -7887,8 +8080,7 @@ function renderAthleteHallOfFame(memberEntries, user, currentMonthKey, monthlyGo
       if (!candidates.length) return null;
 
       const winner = candidates[0];
-      const winners = candidates.filter((candidate) => isSameMonthlyAthleteAwardScore(candidate, winner));
-      return { monthKey, winners, candidateCount: candidates.length };
+      return { monthKey, winner, candidateCount: candidates.length };
     })
     .filter(Boolean)
     .reverse();
@@ -7903,10 +8095,9 @@ function renderAthleteHallOfFame(memberEntries, user, currentMonthKey, monthlyGo
     return;
   }
 
-  hallEntries.forEach(({ monthKey, winners }) => {
+  hallEntries.forEach(({ monthKey, winner }) => {
     const tr = document.createElement("tr");
-    const primaryWinner = winners[0];
-    const isMe = winners.some((winner) => winner.userId === user.uid || winner.email === user.email);
+    const isMe = winner.userId === user.uid || winner.email === user.email;
 
     if (isMe) {
       tr.classList.add("my-rank");
@@ -7914,16 +8105,16 @@ function renderAthleteHallOfFame(memberEntries, user, currentMonthKey, monthlyGo
 
     [
       getAthleteHallMonthLabel(monthKey),
-      winners.map((winner) => `${winner.name}${winner.userId === user.uid || winner.email === user.email ? " (나)" : ""}`).join(", "),
-      getAthleteHallAchievementSummary(primaryWinner),
-      `${formatAthleteScore(primaryWinner.totalScore)}점`,
-      `${formatAthleteScore(primaryWinner.attendanceScore)}/${primaryWinner.attendanceMaxScore} (${primaryWinner.attendanceDays}일)`,
-      `${formatAthleteScore(primaryWinner.mileageScore)}/${primaryWinner.mileageMaxScore} (${primaryWinner.groupLabel} ${primaryWinner.mileageRate}%)`,
-      formatMonthlyGoalAdjustment(primaryWinner),
-      `${formatAthleteScore(primaryWinner.qualityScore)}/${primaryWinner.qualityMaxScore} (${formatQualityCredit(primaryWinner.qualityAttendanceDays)}/${primaryWinner.qualityWorkoutCount}회 인정)`,
-      formatMonthlyGrowthScore(primaryWinner),
-      `+${formatAthleteScore(primaryWinner.raceBonus)}점 (${primaryWinner.raceBonusLabel})`,
-      `+${primaryWinner.badgeBonus}점 (${primaryWinner.badgeCount}개)`
+      `${winner.name}${isMe ? " (나)" : ""}`,
+      getAthleteHallAchievementSummary(winner),
+      `${formatAthleteScore(winner.totalScore)}점`,
+      `${formatAthleteScore(winner.attendanceScore)}/${winner.attendanceMaxScore} (${winner.attendanceDays}일)`,
+      `${formatAthleteScore(winner.mileageScore)}/${winner.mileageMaxScore} (${winner.groupLabel} ${winner.mileageRate}%)`,
+      formatMonthlyGoalAdjustment(winner),
+      `${formatAthleteScore(winner.qualityScore)}/${winner.qualityMaxScore} (${formatQualityCredit(winner.qualityAttendanceDays)}/${winner.qualityWorkoutCount}회 인정)`,
+      formatMonthlyGrowthScore(winner),
+      `+${formatAthleteScore(winner.raceBonus)}점 (${winner.raceBonusLabel})`,
+      `+${winner.badgeBonus}점 (${winner.badgeCount}개)`
     ].forEach((value, cellIndex) => {
       const td = document.createElement("td");
       if (cellIndex === 0) {
@@ -8011,17 +8202,6 @@ function formatQualityCredit(value) {
   if (Number.isInteger(value)) return String(value);
 
   return value.toFixed(1);
-}
-
-function isSameMonthlyAthleteAwardScore(candidate, winner) {
-  return candidate.totalScore === winner.totalScore
-    && candidate.confirmedScore === winner.confirmedScore
-    && candidate.qualityRate === winner.qualityRate
-    && candidate.attendanceDays === winner.attendanceDays
-    && candidate.mileageRate === winner.mileageRate
-    && candidate.goalScore === winner.goalScore
-    && candidate.growthScore === winner.growthScore
-    && candidate.raceBonus === winner.raceBonus;
 }
 
 function getMonthKeysBetween(startMonthKey, endMonthKey) {
@@ -8215,13 +8395,17 @@ function calculateMonthlyAthleteScore(entry, monthKey, previousMonthKey, monthly
   const goalScore = goalKm ? getMonthlyGoalAdjustment(goalRate) : 0;
   const projectedGoalRate = getMonthlyGoalRate(projectedDistance, goalKm, monthKey);
   const projectedGoalScore = goalKm ? getMonthlyGoalAdjustment(projectedGoalRate) : 0;
-  const confirmedScore = clampScore(attendanceScore + mileageScore + qualityScore + growthScore + raceBonus + badgeBonus + goalScore, 100, 1);
-  const totalScore = clampScore(projectedAttendanceScore + projectedMileageScore + projectedQualityScore + growthScore + raceBonus + projectedBadgeBonus + projectedGoalScore, 100, 1);
+  const confirmedRawScore = attendanceScore + mileageScore + qualityScore + growthScore + raceBonus + badgeBonus + goalScore;
+  const totalRawScore = projectedAttendanceScore + projectedMileageScore + projectedQualityScore + growthScore + raceBonus + projectedBadgeBonus + projectedGoalScore;
+  const confirmedScore = clampScore(confirmedRawScore, 100, 1);
+  const totalScore = clampScore(totalRawScore, 100, 1);
 
   return {
     ...entry,
     totalScore,
+    totalRawScore,
     confirmedScore,
+    confirmedRawScore,
     attendanceDays,
     attendanceScore,
     attendanceMaxScore: scoreWeights.attendance,
@@ -8312,6 +8496,8 @@ function getMonthlyRaceBonusSummary(runs) {
 }
 
 function sortMonthlyAthleteCandidates(a, b) {
+  if (b.totalRawScore !== a.totalRawScore) return b.totalRawScore - a.totalRawScore;
+  if (b.confirmedRawScore !== a.confirmedRawScore) return b.confirmedRawScore - a.confirmedRawScore;
   if (b.totalScore !== a.totalScore) return b.totalScore - a.totalScore;
   if (b.confirmedScore !== a.confirmedScore) return b.confirmedScore - a.confirmedScore;
   if (b.qualityRate !== a.qualityRate) return b.qualityRate - a.qualityRate;
@@ -8539,11 +8725,14 @@ function hasMonthlyPersonalBest(currentRuns, previousRuns) {
 }
 
 function getBestCategoryTime(runs, distance) {
-  const categoryRuns = runs.filter((run) => run.rankingEligible !== false && isSameDistanceCategory(run.distance, distance));
+  const categoryTimes = runs
+    .filter((run) => run.rankingEligible !== false)
+    .map((run) => getRunCourseRecordForCategory(run, distance)?.time || Infinity)
+    .filter(Number.isFinite);
 
-  if (!categoryRuns.length) return Infinity;
+  if (!categoryTimes.length) return Infinity;
 
-  return categoryRuns.reduce((best, run) => Math.min(best, run.time), Infinity);
+  return categoryTimes.reduce((best, value) => Math.min(best, value), Infinity);
 }
 
 function getSavedRankingEligibility(data) {
@@ -8600,6 +8789,37 @@ function getCourseRecordForDistance(distance, time, targetDistance) {
   };
 }
 
+function getQualityTimeTrialCourseRecord(run = {}, targetDistance) {
+  const qualityDisplay = getQualityDisplayData(run);
+  const plannedWorkout = qualityDisplay.plannedWorkout || "";
+
+  if (!isRankingEligibleQualityTimeTrial(plannedWorkout)) return null;
+
+  const ttDistance = getQualityTimeTrialDistance(plannedWorkout);
+  const tolerance = getDistanceCategoryTolerance(targetDistance);
+
+  if (Math.abs(ttDistance - targetDistance) > tolerance) return null;
+
+  const { setValues } = parseQualitySetResults(qualityDisplay.setResults || "");
+  const ttTime = parseQualityDurationMinutes(setValues[0] || "");
+
+  if (!Number.isFinite(ttTime) || ttTime <= 0) return null;
+
+  return {
+    distance: targetDistance,
+    time: ttTime,
+    pace: ttTime / targetDistance,
+    originalDistance: ttDistance,
+    originalTime: ttTime,
+    isAdjusted: Math.abs(ttDistance - targetDistance) > 0.001
+  };
+}
+
+function getRunCourseRecordForCategory(run = {}, targetDistance) {
+  return getQualityTimeTrialCourseRecord(run, targetDistance)
+    || getCourseRecordForDistance(run.distance, run.time, targetDistance);
+}
+
 function getDistanceLabel(distance) {
   if (Math.abs(distance - 5) < 0.5) return "5K";
   if (Math.abs(distance - 10) < 0.5) return "10K";
@@ -8610,6 +8830,7 @@ function getDistanceLabel(distance) {
 
 function clearDashboard() {
   latestRuns = [];
+  latestTodayClubRuns = [];
   latestSuggestions = [];
   latestHealingEvents = [];
   latestHealingResponses = [];
@@ -8636,6 +8857,9 @@ function clearDashboard() {
   document.getElementById("weeklyInsight").innerText = "기록을 남기면 이번 주 흐름을 편하게 짚어드릴게요.";
   document.getElementById("weeklyBadges").innerHTML = '<span class="run-badge run-badge-waiting"><span class="run-badge-icon">✨</span><span class="run-badge-text">기록 대기 중</span></span>';
   document.getElementById("dailyRecommendation").innerText = "오늘 몸에 맞는 러닝과 회복을 살짝 골라드릴게요.";
+  document.getElementById("todayClubSummary").innerText = "오늘 기록을 모으는 중입니다.";
+  document.getElementById("todayClubStatus").innerText = "로그인 후 오늘의 나빌 러닝을 확인할 수 있습니다.";
+  document.getElementById("todayClubRunList").innerHTML = "";
   document.getElementById("monthlyGoal").value = "";
   document.getElementById("monthlyGoal").disabled = false;
   document.getElementById("saveMonthlyGoal").disabled = false;
@@ -8949,7 +9173,7 @@ function getPersonalBestMapFromRuns(runs = []) {
     if (run.rankingEligible === false) return;
 
     PB_CATEGORIES.forEach((category) => {
-      const courseRecord = getCourseRecordForDistance(run.distance, run.time, category.distance);
+      const courseRecord = getRunCourseRecordForCategory(run, category.distance);
 
       if (!courseRecord) return;
 
