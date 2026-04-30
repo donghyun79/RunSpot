@@ -65,6 +65,7 @@ let latestHealingEvents = [];
 let latestHealingResponses = [];
 let latestHealingCheckins = [];
 let latestHealingCheers = [];
+let latestAthleteHallEntries = [];
 let editingHealingEvent = null;
 let editingHealingCheckin = null;
 let editingHealingCheer = null;
@@ -92,7 +93,10 @@ let pendingHealingCheckinPhoto = null;
 let pendingHealingCheckinPhotoRemoved = false;
 const HEALING_POPUP_STORAGE_KEY_PREFIX = "naviheal-healing-popup";
 const MAY_TRAINING_POPUP_STORAGE_KEY_PREFIX = "naviheal-may-training-popup";
+const MONTHLY_ATHLETE_BANNER_STORAGE_KEY_PREFIX = "naviheal-monthly-athlete-banner";
+const MONTHLY_ATHLETE_POPUP_STORAGE_KEY_PREFIX = "naviheal-monthly-athlete-popup";
 const MAY_TRAINING_POPUP_START_DATE = "2026-05-01";
+const MONTHLY_ATHLETE_ANNOUNCEMENT_END_DAY = 7;
 let dismissedQualityAttendancePromptKey = "";
 let completedQualityAttendancePromptKey = "";
 const CLUB_INVITE_CODE = "NAVIHEAL";
@@ -2410,6 +2414,38 @@ document.addEventListener("DOMContentLoaded", () => {
   const qualityAttendancePopupOpenTabBtn = document.getElementById("qualityAttendancePopupOpenTab");
   const mayTrainingPopupModal = document.getElementById("mayTrainingPopupModal");
   const closeMayTrainingPopupBtn = document.getElementById("closeMayTrainingPopup");
+  const monthlyAthleteCelebrationPopupModal = document.getElementById("monthlyAthleteCelebrationPopupModal");
+  const closeMonthlyAthleteCelebrationPopupBtn = document.getElementById("closeMonthlyAthleteCelebrationPopup");
+  const monthlyAthleteCelebrationOpenHallBtn = document.getElementById("monthlyAthleteCelebrationOpenHall");
+  const monthlyAthleteBannerCloseBtn = document.getElementById("monthlyAthleteBannerClose");
+  const monthlyAthleteBannerOpenHallBtn = document.getElementById("monthlyAthleteBannerOpenHall");
+
+  function openMonthlyAthleteHallView() {
+    setActiveAppView("training");
+    setSectionSubtab("training", "analysis", [
+      { button: trainingInputSubtab, name: "input" },
+      { button: trainingRecordsSubtab, name: "records" },
+      { button: trainingAnalysisSubtab, name: "analysis" }
+    ]);
+    document.getElementById("athleteHallStatus")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  async function triggerDeferredNoticePopups(user = auth.currentUser) {
+    if (!user) return;
+
+    maybeOpenMonthlyAthleteCelebrationPopup(user);
+    if (hasBlockingNoticeModalOpen()) return;
+
+    maybeOpenMayTrainingPopup(user);
+    if (hasBlockingNoticeModalOpen()) return;
+
+    await maybeOpenQualityAttendancePopup(user).catch((error) => {
+      console.error(error);
+    });
+    if (hasBlockingNoticeModalOpen()) return;
+
+    maybeOpenHealingPopup(user);
+  }
 
   function openHealingPopup() {
     if (!healingPopupModal) return;
@@ -2424,18 +2460,25 @@ document.addEventListener("DOMContentLoaded", () => {
     healingPopupModal.classList.add("hidden");
   }
 
-  closeHealingPopupBtn?.addEventListener("click", closeHealingPopup);
+  closeHealingPopupBtn?.addEventListener("click", () => {
+    closeHealingPopup();
+    triggerDeferredNoticePopups();
+  });
   openHealingPopupBtn?.addEventListener("click", openHealingPopup);
   healingPopupOpenTabBtn?.addEventListener("click", () => {
     closeHealingPopup();
     setActiveAppView("healing");
   });
   healingPopupModal?.addEventListener("click", (event) => {
-    if (event.target === healingPopupModal) closeHealingPopup();
+    if (event.target === healingPopupModal) {
+      closeHealingPopup();
+      triggerDeferredNoticePopups();
+    }
   });
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && !healingPopupModal?.classList.contains("hidden")) {
       closeHealingPopup();
+      triggerDeferredNoticePopups();
     }
   });
 
@@ -2453,6 +2496,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     closeQualityAttendancePopup();
+    triggerDeferredNoticePopups();
   });
   qualityAttendancePopupOpenTabBtn?.addEventListener("click", () => {
     const currentWorkoutKey = qualityAttendancePopupModal?.dataset.workoutKey || "";
@@ -2478,6 +2522,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
 
       closeQualityAttendancePopup();
+      triggerDeferredNoticePopups();
     }
   });
   document.addEventListener("keydown", (event) => {
@@ -2489,6 +2534,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
 
       closeQualityAttendancePopup();
+      triggerDeferredNoticePopups();
     }
   });
 
@@ -2509,6 +2555,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     closeMayTrainingPopup();
+    triggerDeferredNoticePopups();
   });
   mayTrainingPopupModal?.addEventListener("click", (event) => {
     if (event.target === mayTrainingPopupModal) {
@@ -2520,6 +2567,60 @@ document.addEventListener("DOMContentLoaded", () => {
       closeMayTrainingPopupBtn?.click();
     }
   });
+
+  function closeMonthlyAthleteCelebrationPopup() {
+    if (!monthlyAthleteCelebrationPopupModal) return;
+
+    monthlyAthleteCelebrationPopupModal.classList.add("hidden");
+  }
+
+  function markMonthlyAthleteCelebrationSeen() {
+    const userId = auth.currentUser?.uid || "";
+    const announcementEntry = getCurrentMonthlyAthleteAnnouncementEntry();
+
+    if (!userId || !announcementEntry) return;
+
+    writeMonthlyAthletePopupState(userId, {
+      seenMonthKey: announcementEntry.monthKey,
+      seenAt: new Date().toISOString()
+    });
+  }
+
+  function dismissMonthlyAthleteBanner() {
+    const userId = auth.currentUser?.uid || "";
+    const announcementEntry = getCurrentMonthlyAthleteAnnouncementEntry();
+
+    if (!userId || !announcementEntry) return;
+
+    writeMonthlyAthleteBannerState(userId, {
+      dismissedMonthKey: announcementEntry.monthKey,
+      dismissedAt: new Date().toISOString()
+    });
+    updateMonthlyAthleteAnnouncementUi(auth.currentUser);
+  }
+
+  closeMonthlyAthleteCelebrationPopupBtn?.addEventListener("click", () => {
+    markMonthlyAthleteCelebrationSeen();
+    closeMonthlyAthleteCelebrationPopup();
+    triggerDeferredNoticePopups();
+  });
+  monthlyAthleteCelebrationOpenHallBtn?.addEventListener("click", () => {
+    markMonthlyAthleteCelebrationSeen();
+    closeMonthlyAthleteCelebrationPopup();
+    openMonthlyAthleteHallView();
+  });
+  monthlyAthleteCelebrationPopupModal?.addEventListener("click", (event) => {
+    if (event.target === monthlyAthleteCelebrationPopupModal) {
+      closeMonthlyAthleteCelebrationPopupBtn?.click();
+    }
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !monthlyAthleteCelebrationPopupModal?.classList.contains("hidden")) {
+      closeMonthlyAthleteCelebrationPopupBtn?.click();
+    }
+  });
+  monthlyAthleteBannerCloseBtn?.addEventListener("click", dismissMonthlyAthleteBanner);
+  monthlyAthleteBannerOpenHallBtn?.addEventListener("click", openMonthlyAthleteHallView);
 
   function setAuthenticatedView(isLoggedIn) {
     document.body.classList.toggle("is-authenticated", isLoggedIn);
@@ -2961,9 +3062,8 @@ document.addEventListener("DOMContentLoaded", () => {
         await loadClubRanking(user).catch(showDashboardLoadError);
         await loadWeeklyRanking(user).catch(showDashboardLoadError);
         await loadSuggestions(user).catch(showDashboardLoadError);
-        maybeOpenMayTrainingPopup(user);
-        await maybeOpenQualityAttendancePopup(user).catch(showDashboardLoadError);
         await loadHealingHub(user).catch(showDashboardLoadError);
+        await triggerDeferredNoticePopups(user);
 
       } catch (e) {
         showDashboardLoadError(e);
@@ -2971,6 +3071,9 @@ document.addEventListener("DOMContentLoaded", () => {
     } else {
       dismissedQualityAttendancePromptKey = "";
       completedQualityAttendancePromptKey = "";
+      latestAthleteHallEntries = [];
+      document.getElementById("monthlyAthleteBanner")?.classList.add("hidden");
+      document.getElementById("monthlyAthleteCelebrationPopupModal")?.classList.add("hidden");
       document.getElementById("qualityAttendancePopupModal")?.classList.add("hidden");
       document.getElementById("mayTrainingPopupModal")?.classList.add("hidden");
       status.innerText = "로그아웃 상태";
@@ -4829,6 +4932,14 @@ function getMayTrainingPopupStorageKey(userId = "") {
   return `${MAY_TRAINING_POPUP_STORAGE_KEY_PREFIX}:${userId || "guest"}`;
 }
 
+function getMonthlyAthleteBannerStorageKey(userId = "") {
+  return `${MONTHLY_ATHLETE_BANNER_STORAGE_KEY_PREFIX}:${userId || "guest"}`;
+}
+
+function getMonthlyAthletePopupStorageKey(userId = "") {
+  return `${MONTHLY_ATHLETE_POPUP_STORAGE_KEY_PREFIX}:${userId || "guest"}`;
+}
+
 function readHealingPopupState(userId = "") {
   try {
     const raw = localStorage.getItem(getHealingPopupStorageKey(userId));
@@ -4865,6 +4976,129 @@ function writeMayTrainingPopupState(userId = "", state = {}) {
   } catch (error) {
     console.error(error);
   }
+}
+
+function readMonthlyAthleteBannerState(userId = "") {
+  try {
+    const raw = localStorage.getItem(getMonthlyAthleteBannerStorageKey(userId));
+
+    return raw ? JSON.parse(raw) : {};
+  } catch (error) {
+    console.error(error);
+    return {};
+  }
+}
+
+function writeMonthlyAthleteBannerState(userId = "", state = {}) {
+  try {
+    localStorage.setItem(getMonthlyAthleteBannerStorageKey(userId), JSON.stringify(state));
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+function readMonthlyAthletePopupState(userId = "") {
+  try {
+    const raw = localStorage.getItem(getMonthlyAthletePopupStorageKey(userId));
+
+    return raw ? JSON.parse(raw) : {};
+  } catch (error) {
+    console.error(error);
+    return {};
+  }
+}
+
+function writeMonthlyAthletePopupState(userId = "", state = {}) {
+  try {
+    localStorage.setItem(getMonthlyAthletePopupStorageKey(userId), JSON.stringify(state));
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+function isMonthlyAthleteAnnouncementWindow(date = new Date()) {
+  const day = date.getDate();
+
+  return day >= 1 && day <= MONTHLY_ATHLETE_ANNOUNCEMENT_END_DAY;
+}
+
+function isMonthlyAthleteCelebrationPopupDay(date = new Date()) {
+  return date.getDate() === 1;
+}
+
+function getCurrentMonthlyAthleteAnnouncementEntry() {
+  const finalizedMonthKey = getLatestFinalizedMonthKey();
+
+  if (finalizedMonthKey < MONTHLY_ATHLETE_START_MONTH) return null;
+
+  return latestAthleteHallEntries.find((entry) => entry.monthKey === finalizedMonthKey) || null;
+}
+
+function getMonthlyAthleteAnnouncementSummary(entry) {
+  if (!entry?.winner) {
+    return {
+      eyebrow: "",
+      title: "",
+      body: "",
+      lead: "",
+      note: "",
+      list: []
+    };
+  }
+
+  const { monthKey, winner } = entry;
+  const monthLabel = formatMonthLabel(monthKey);
+  const achievementSummary = getAthleteHallAchievementSummary(winner);
+
+  return {
+    eyebrow: `${monthLabel} 명예의 전당`,
+    title: `${Number(monthKey.split("-")[1])}월 왕별 확정`,
+    body: `${winner.name}님이 ${formatAthleteScore(winner.totalScore)}점으로 ${monthLabel} 이달의 선수에 선정됐습니다. ${achievementSummary}`,
+    lead: `${winner.name}님이 ${monthLabel} 이달의 선수로 확정됐습니다. 한 달 동안의 꾸준함이 멋진 왕별로 이어졌어요.`,
+    note: `${MONTHLY_ATHLETE_ANNOUNCEMENT_END_DAY}일까지 메인 화면 상단 배너에서도 다시 확인할 수 있습니다.`,
+    list: [
+      `최종 점수 ${formatAthleteScore(winner.totalScore)}점`,
+      `출석 ${winner.attendanceDays}일 · 거리 ${formatMileage(winner.totalDistance)}`,
+      `정훈 ${formatQualityCredit(winner.qualityAttendanceDays)}/${winner.qualityWorkoutCount}회 인정`
+    ]
+  };
+}
+
+function updateMonthlyAthleteAnnouncementUi(user = auth.currentUser) {
+  const banner = document.getElementById("monthlyAthleteBanner");
+  const bannerEyebrow = document.getElementById("monthlyAthleteBannerEyebrow");
+  const bannerTitle = document.getElementById("monthlyAthleteBannerTitle");
+  const bannerBody = document.getElementById("monthlyAthleteBannerBody");
+  const popupTitle = document.getElementById("monthlyAthleteCelebrationPopupTitle");
+  const popupDate = document.getElementById("monthlyAthleteCelebrationPopupDate");
+  const popupLead = document.getElementById("monthlyAthleteCelebrationPopupLead");
+  const popupList = document.getElementById("monthlyAthleteCelebrationPopupList");
+  const popupNote = document.getElementById("monthlyAthleteCelebrationPopupNote");
+  const announcementEntry = getCurrentMonthlyAthleteAnnouncementEntry();
+
+  if (!banner || !bannerEyebrow || !bannerTitle || !bannerBody || !popupTitle || !popupDate || !popupLead || !popupList || !popupNote) return;
+
+  if (!user || !announcementEntry) {
+    banner.classList.add("hidden");
+    return;
+  }
+
+  const summary = getMonthlyAthleteAnnouncementSummary(announcementEntry);
+
+  bannerEyebrow.innerText = summary.eyebrow;
+  bannerTitle.innerText = summary.title;
+  bannerBody.innerText = summary.body;
+  popupTitle.innerText = `${summary.title} 축하합니다`;
+  popupDate.innerText = `${formatMonthLabel(announcementEntry.monthKey)} 이달의 선수`;
+  popupLead.innerText = summary.lead;
+  popupList.innerHTML = summary.list.map((item) => `<li>${item}</li>`).join("");
+  popupNote.innerHTML = `<strong>${summary.note}</strong>`;
+
+  const bannerState = readMonthlyAthleteBannerState(user.uid);
+  const shouldShowBanner = isMonthlyAthleteAnnouncementWindow()
+    && bannerState.dismissedMonthKey !== announcementEntry.monthKey;
+
+  banner.classList.toggle("hidden", !shouldShowBanner);
 }
 
 function getHealingPopupMeta() {
@@ -4916,12 +5150,30 @@ function summarizeHealingPopupText(text = "", maxLength = 24) {
 }
 
 function hasBlockingNoticeModalOpen() {
-  return ["updateModal", "healingPopupModal", "qualityAttendancePopupModal", "mayTrainingPopupModal"]
+  return ["updateModal", "healingPopupModal", "qualityAttendancePopupModal", "mayTrainingPopupModal", "monthlyAthleteCelebrationPopupModal"]
     .some((id) => {
       const element = document.getElementById(id);
 
       return element && !element.classList.contains("hidden");
     });
+}
+
+function maybeOpenMonthlyAthleteCelebrationPopup(user = auth.currentUser) {
+  if (!user) return;
+
+  const popupModal = document.getElementById("monthlyAthleteCelebrationPopupModal");
+  const announcementEntry = getCurrentMonthlyAthleteAnnouncementEntry();
+
+  if (!popupModal || !announcementEntry) return;
+  if (hasBlockingNoticeModalOpen()) return;
+  if (!isMonthlyAthleteCelebrationPopupDay()) return;
+
+  const popupState = readMonthlyAthletePopupState(user.uid);
+
+  if (popupState.seenMonthKey === announcementEntry.monthKey) return;
+
+  popupModal.classList.remove("hidden");
+  document.getElementById("closeMonthlyAthleteCelebrationPopup")?.focus();
 }
 
 function maybeOpenMayTrainingPopup(user = auth.currentUser) {
@@ -8000,6 +8252,7 @@ async function loadMonthlyAthleteCandidates(user) {
     if (!candidates.length) {
       monthlyAthleteStatus.innerText = `${formatMonthLabel(monthKey)} 이달의 선수 예상 기록이 아직 없습니다.`;
       renderAthleteHallOfFame(memberEntries, user, finalizedMonthKey, monthlyGoalsByUser);
+      updateMonthlyAthleteAnnouncementUi(user);
       return;
     }
 
@@ -8048,11 +8301,14 @@ async function loadMonthlyAthleteCandidates(user) {
 
     monthlyAthleteStatus.innerText = `${formatMonthLabel(monthKey)} 이달의 선수 예상 ${leaderText}: 예상 ${formatAthleteScore(leader.totalScore)}점, 현재 확정 ${formatAthleteScore(leader.confirmedScore)}점.${myRankText} 월이 끝난 뒤 명예의 전당에 반영됩니다.`;
     renderAthleteHallOfFame(memberEntries, user, finalizedMonthKey, monthlyGoalsByUser);
+    updateMonthlyAthleteAnnouncementUi(user);
   } catch (e) {
     console.error(e);
     monthlyAthleteStatus.innerText = "이달의 선수 예상을 계산하지 못했습니다. Firestore 보안 규칙에서 전체 기록 읽기가 허용되어 있는지 확인해주세요.";
     if (athleteHallStatus) athleteHallStatus.innerText = "명예의 전당을 계산하지 못했습니다.";
     if (athleteHallSummaryStatus) athleteHallSummaryStatus.innerText = "명예의 전당을 계산하지 못했습니다.";
+    latestAthleteHallEntries = [];
+    updateMonthlyAthleteAnnouncementUi(user);
   }
 }
 
@@ -8080,15 +8336,18 @@ function renderAthleteHallOfFame(memberEntries, user, currentMonthKey, monthlyGo
       if (!candidates.length) return null;
 
       const winner = candidates[0];
-      return { monthKey, winner, candidateCount: candidates.length };
+      return { monthKey, winner, winners: [winner], candidateCount: candidates.length };
     })
     .filter(Boolean)
     .reverse();
+
+  latestAthleteHallEntries = hallEntries;
 
   athleteHallList.innerHTML = "";
   if (athleteHallSummaryList) athleteHallSummaryList.innerHTML = "";
 
   if (!hallEntries.length) {
+    latestAthleteHallEntries = [];
     athleteHallStatus.innerText = "아직 확정되어 명예의 전당에 기록할 수상자가 없습니다.";
     if (athleteHallSummaryStatus) athleteHallSummaryStatus.innerText = "아직 첫 명예의 전당 수상자를 기다리고 있습니다.";
     renderAthleteHallSummary([], user);
@@ -8836,6 +9095,7 @@ function clearDashboard() {
   latestHealingResponses = [];
   latestHealingCheckins = [];
   latestHealingCheers = [];
+  latestAthleteHallEntries = [];
   monthlyGoalKm = 0;
   monthlyGoalLocked = false;
   visibleRunCount = INITIAL_VISIBLE_RUN_COUNT;
@@ -8882,6 +9142,8 @@ function clearDashboard() {
   if (athleteHallSummaryStatus) athleteHallSummaryStatus.innerText = "로그인 후 명예의 전당을 확인할 수 있습니다.";
   if (athleteHallList) athleteHallList.innerHTML = "";
   if (athleteHallStatus) athleteHallStatus.innerText = "로그인 후 명예의 전당을 확인할 수 있습니다.";
+  document.getElementById("monthlyAthleteBanner")?.classList.add("hidden");
+  document.getElementById("monthlyAthleteCelebrationPopupModal")?.classList.add("hidden");
   document.getElementById("qualityRunList").innerHTML = "";
   document.getElementById("qualityStatus").innerText = "로그인 후 정훈 결과를 확인할 수 있습니다.";
   renderVdotTrainingGuide();
