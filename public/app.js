@@ -156,7 +156,7 @@ let runningGroupStandards = [
     intervalPace: "5:20~5:40/km",
     recoveryPace: "7:00~7:40/km",
     monthlyMileage: "150~220",
-    members: "문재연, 박운정, 안효정, 장신영, 정주연"
+    members: "문재연, 박운정, 안효정, 정주연, 송경애, 이은주, 현혜인"
   },
   {
     group: "S",
@@ -165,12 +165,13 @@ let runningGroupStandards = [
     intervalPace: "6:00~6:40/km",
     recoveryPace: "7:40~8:30/km",
     monthlyMileage: "120~180",
-    members: "김나영, 송경애, 이은주, 현혜인, 조민경"
+    members: "김나영, 조민경, 장신영"
   }
 ];
 const DEFAULT_RUNNING_GROUP_STANDARDS = runningGroupStandards.map((standard) => ({ ...standard }));
 const RUNNING_GROUP_STANDARD_XLSX_PATH = "assets/나빌러닝 조별기준.xlsx";
 const RUNNING_GROUP_STANDARD_NOTE = "조편성 조정을 원하시면 코치와 상의해 주세요.";
+const RUNNING_GROUP_REASSIGNMENT_EFFECTIVE_DATE = "2026-05-01";
 const OFFICIAL_TRAINING_LABEL = "나빌러닝 정훈";
 const QUALITY_MAKEUP_CREDIT = 0.7;
 let runningGroupStandardsLoadedFromXlsx = false;
@@ -4529,12 +4530,34 @@ async function loadRunningGroupStandardsFromXlsx() {
   return normalizeRunningGroupStandards(standards);
 }
 
-function normalizeRunningGroupStandards(standards) {
-  if (!Array.isArray(standards)) {
-    return DEFAULT_RUNNING_GROUP_STANDARDS.map((standard) => ({ ...standard }));
+function applyScheduledRunningGroupAssignments(standards, dateKey = getLocalDateKey()) {
+  const clonedStandards = Array.isArray(standards)
+    ? standards.map((standard) => ({ ...standard }))
+    : [];
+  const eGroup = clonedStandards.find((standard) => standard.group === "E");
+  const sGroup = clonedStandards.find((standard) => standard.group === "S");
+
+  if (!eGroup || !sGroup) return clonedStandards;
+
+  if (dateKey >= RUNNING_GROUP_REASSIGNMENT_EFFECTIVE_DATE) {
+    eGroup.members = "문재연, 박운정, 안효정, 정주연, 송경애, 이은주, 현혜인";
+    sGroup.members = "김나영, 조민경, 장신영";
+    return clonedStandards;
   }
 
-  return standards
+  eGroup.members = "문재연, 박운정, 안효정, 정주연";
+  sGroup.members = "김나영, 송경애, 이은주, 현혜인, 조민경, 장신영";
+  return clonedStandards;
+}
+
+function normalizeRunningGroupStandards(standards) {
+  if (!Array.isArray(standards)) {
+    return applyScheduledRunningGroupAssignments(
+      DEFAULT_RUNNING_GROUP_STANDARDS.map((standard) => ({ ...standard }))
+    );
+  }
+
+  return applyScheduledRunningGroupAssignments(standards
     .map((standard, index) => ({
       group: String(standard.group || DEFAULT_RUNNING_GROUP_STANDARDS[index]?.group || "").trim(),
       targetMinutes: Number(standard.targetMinutes) || DEFAULT_RUNNING_GROUP_STANDARDS[index]?.targetMinutes || 0,
@@ -4544,7 +4567,7 @@ function normalizeRunningGroupStandards(standards) {
       monthlyMileage: String(standard.monthlyMileage || "").trim(),
       members: String(standard.members || DEFAULT_RUNNING_GROUP_STANDARDS[index]?.members || "").trim()
     }))
-    .filter((standard) => standard.group);
+    .filter((standard) => standard.group));
 }
 
 async function loadRunningGroupStandards(user = auth.currentUser) {
@@ -4567,7 +4590,7 @@ async function loadRunningGroupStandards(user = auth.currentUser) {
   }
 
   if (!user) {
-    runningGroupStandards = DEFAULT_RUNNING_GROUP_STANDARDS.map((standard) => ({ ...standard }));
+    runningGroupStandards = normalizeRunningGroupStandards(DEFAULT_RUNNING_GROUP_STANDARDS);
     renderRunningGroupStandards(user);
     renderQualityMonthlyPlan();
     return;
@@ -4580,7 +4603,7 @@ async function loadRunningGroupStandards(user = auth.currentUser) {
       const data = settingsSnapshot.data();
       runningGroupStandards = normalizeRunningGroupStandards(data.standards);
     } else {
-      runningGroupStandards = DEFAULT_RUNNING_GROUP_STANDARDS.map((standard) => ({ ...standard }));
+      runningGroupStandards = normalizeRunningGroupStandards(DEFAULT_RUNNING_GROUP_STANDARDS);
     }
 
     renderRunningGroupStandards(user);
@@ -4589,7 +4612,7 @@ async function loadRunningGroupStandards(user = auth.currentUser) {
   } catch (e) {
     console.error(e);
     runningGroupStandardsLoadedFromXlsx = false;
-    runningGroupStandards = DEFAULT_RUNNING_GROUP_STANDARDS.map((standard) => ({ ...standard }));
+    runningGroupStandards = normalizeRunningGroupStandards(DEFAULT_RUNNING_GROUP_STANDARDS);
     renderRunningGroupStandards(user);
     renderQualityMonthlyPlan();
 
@@ -9147,7 +9170,7 @@ function clearDashboard() {
   document.getElementById("qualityRunList").innerHTML = "";
   document.getElementById("qualityStatus").innerText = "로그인 후 정훈 결과를 확인할 수 있습니다.";
   renderVdotTrainingGuide();
-  runningGroupStandards = DEFAULT_RUNNING_GROUP_STANDARDS.map((standard) => ({ ...standard }));
+  runningGroupStandards = normalizeRunningGroupStandards(DEFAULT_RUNNING_GROUP_STANDARDS);
   renderRunningGroupStandards(null);
   renderQualityMonthlyPlan();
   document.getElementById("suggestionType").value = "error";
