@@ -252,6 +252,9 @@ service cloud.firestore {
         "eventDate",
         "location",
         "description",
+        "preparerIds",
+        "preparerNames",
+        "preparerEmails",
         "userId",
         "name",
         "email",
@@ -261,7 +264,7 @@ service cloud.firestore {
       && request.resource.data.title is string
       && request.resource.data.title.size() > 0
       && request.resource.data.title.size() <= 80
-      && request.resource.data.type in ["run", "coffee", "meal", "walk", "culture"]
+      && request.resource.data.type in ["run", "coffee", "meal", "walk", "culture", "event"]
       && request.resource.data.eventDate is string
       && request.resource.data.eventDate.size() > 0
       && request.resource.data.eventDate.size() <= 40
@@ -269,6 +272,18 @@ service cloud.firestore {
       && request.resource.data.location.size() <= 80
       && request.resource.data.description is string
       && request.resource.data.description.size() <= 400
+      && (!request.resource.data.keys().hasAny(["preparerIds"]) || (
+        request.resource.data.preparerIds is list
+        && request.resource.data.preparerIds.size() <= 30
+      ))
+      && (!request.resource.data.keys().hasAny(["preparerNames"]) || (
+        request.resource.data.preparerNames is list
+        && request.resource.data.preparerNames.size() <= 30
+      ))
+      && (!request.resource.data.keys().hasAny(["preparerEmails"]) || (
+        request.resource.data.preparerEmails is list
+        && request.resource.data.preparerEmails.size() <= 30
+      ))
       && request.resource.data.userId is string
       && request.resource.data.name is string
       && request.resource.data.name.size() > 0

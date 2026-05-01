@@ -65,6 +65,7 @@ let latestHealingEvents = [];
 let latestHealingResponses = [];
 let latestHealingCheckins = [];
 let latestHealingCheers = [];
+let latestHealingMemberOptions = [];
 let latestAthleteHallEntries = [];
 let editingHealingEvent = null;
 let editingHealingCheckin = null;
@@ -75,6 +76,7 @@ let healingEventTypeSelect = null;
 let healingEventDateInput = null;
 let healingEventLocationInput = null;
 let healingEventDescriptionInput = null;
+let healingEventPreparersInput = null;
 let saveHealingEventBtn = null;
 let cancelHealingEventEditBtn = null;
 let healingCheckinMoodInput = null;
@@ -107,6 +109,8 @@ const PRE_APPROVED_MEMBERS = [
 ];
 const MONTHLY_ATHLETE_START_MONTH = "2026-04";
 const MONTHLY_GROWTH_SCORE_START_MONTH = "2026-05";
+const MONTHLY_HEALING_SCORE_START_MONTH = "2026-05";
+const MONTHLY_HEALING_SCORE_MAX = 10;
 const MONTHLY_MILEAGE_OVER_TARGET_BONUS_MAX = 5;
 const NOWON_COORDINATES = {
   latitude: 37.6543,
@@ -2349,6 +2353,7 @@ document.addEventListener("DOMContentLoaded", () => {
   healingEventDateInput = document.getElementById("healingEventDate");
   healingEventLocationInput = document.getElementById("healingEventLocation");
   healingEventDescriptionInput = document.getElementById("healingEventDescription");
+  healingEventPreparersInput = document.getElementById("healingEventPreparers");
   saveHealingEventBtn = document.getElementById("saveHealingEvent");
   cancelHealingEventEditBtn = document.getElementById("cancelHealingEventEdit");
   healingCheckinMoodInput = document.getElementById("healingCheckinMood");
@@ -3422,9 +3427,10 @@ document.addEventListener("DOMContentLoaded", () => {
     saveHealingEvent();
   });
   document.getElementById("healingEventList")?.addEventListener("click", handleHealingEventListClick);
+  document.getElementById("healingEventList")?.addEventListener("change", handleHealingEventListChange);
   cancelHealingEventEditBtn?.addEventListener("click", () => {
     resetHealingEventForm();
-    setHealingStatus("event", "번개 공지 수정을 취소했습니다.");
+    setHealingStatus("event", "번개/행사 공지 수정을 취소했습니다.");
   });
 
   saveHealingCheckinBtn?.addEventListener("click", () => {
@@ -4855,7 +4861,8 @@ function getHealingEventTypeLabel(type) {
     coffee: "커피",
     meal: "식사",
     walk: "산책",
-    culture: "문화"
+    culture: "문화",
+    event: "행사"
   };
   return labels[type] || "기타";
 }
@@ -4918,10 +4925,78 @@ function canEditHealingEvent(user, event) {
   return Boolean(user && event && (isHostUser(user) || event.userId === user.uid));
 }
 
+function getHealingEventPreparerLabel(event = {}) {
+  const names = Array.isArray(event.preparerNames) ? event.preparerNames.filter(Boolean) : [];
+  return names.length ? names.join(", ") : (event.name || "작성자");
+}
+
+function getSelectedHealingEventPreparers(user = auth.currentUser) {
+  const checkedInputs = Array.from(healingEventPreparersInput?.querySelectorAll("input[type='checkbox']:checked") || []);
+  const selectedIds = checkedInputs.map((input) => input.value).filter(Boolean);
+  const fallbackOption = user
+    ? latestHealingMemberOptions.find((option) => option.userId === user.uid || option.email === user.email)
+    : null;
+  const finalIds = selectedIds.length ? selectedIds : (fallbackOption ? [fallbackOption.userId] : []);
+  const selectedOptions = finalIds
+    .map((userId) => latestHealingMemberOptions.find((option) => option.userId === userId))
+    .filter(Boolean);
+
+  if (!selectedOptions.length && user) {
+    return {
+      preparerIds: [user.uid],
+      preparerNames: [getUserName(user)],
+      preparerEmails: [user.email || ""]
+    };
+  }
+
+  return {
+    preparerIds: selectedOptions.map((option) => option.userId),
+    preparerNames: selectedOptions.map((option) => option.name),
+    preparerEmails: selectedOptions.map((option) => option.email || "")
+  };
+}
+
+function renderHealingEventPreparerOptions(selectedIds = [], user = auth.currentUser) {
+  if (!healingEventPreparersInput) return;
+
+  healingEventPreparersInput.innerHTML = "";
+
+  if (!latestHealingMemberOptions.length) {
+    const empty = document.createElement("div");
+    empty.className = "healing-empty";
+    empty.innerText = "회원 목록을 불러오면 준비자를 선택할 수 있습니다.";
+    healingEventPreparersInput.appendChild(empty);
+    return;
+  }
+
+  const selectedSet = new Set(selectedIds.filter(Boolean));
+  if (!selectedSet.size && user) {
+    const selfOption = latestHealingMemberOptions.find((option) => option.userId === user.uid || option.email === user.email);
+    if (selfOption) selectedSet.add(selfOption.userId);
+  }
+
+  latestHealingMemberOptions.forEach((option) => {
+    const label = document.createElement("label");
+    label.className = "healing-checkbox-option";
+
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.value = option.userId;
+    input.checked = selectedSet.has(option.userId);
+
+    const text = document.createElement("span");
+    text.innerText = option.name;
+
+    label.append(input, text);
+    healingEventPreparersInput.appendChild(label);
+  });
+}
+
 function syncHealingEventFormVisibility(user = auth.currentUser) {
   if (!healingEventHostForm) return;
   const showForm = Boolean(user);
   healingEventHostForm.classList.toggle("hidden", !showForm);
+  renderHealingEventPreparerOptions(editingHealingEvent?.preparerIds || [], user);
 }
 
 function getHealingCheckinMoodLabel(mood) {
@@ -5268,7 +5343,7 @@ function maybeOpenHealingPopup(user = auth.currentUser) {
     const latestTitle = summarizeHealingPopupText(latestHealingEvents[0].title, 26);
     const extraCount = Math.max(0, popupMeta.counts.event - 1);
 
-    lines.push(`번개 공지: ${latestTitle}${extraCount ? ` 외 ${extraCount}건` : ""}`);
+    lines.push(`번개/행사 공지: ${latestTitle}${extraCount ? ` 외 ${extraCount}건` : ""}`);
   }
   if (popupMeta.counts.checkin && latestHealingCheckins[0]) {
     const latestCheckin = summarizeHealingPopupText(latestHealingCheckins[0].content, 24);
@@ -5309,6 +5384,7 @@ async function loadHealingHub(user = auth.currentUser) {
     latestHealingResponses = [];
     latestHealingCheckins = [];
     latestHealingCheers = [];
+    latestHealingMemberOptions = [];
     eventList.innerHTML = "";
     checkinList.innerHTML = "";
     cheerList.innerHTML = "";
@@ -5318,22 +5394,24 @@ async function loadHealingHub(user = auth.currentUser) {
     return;
   }
 
-  eventStatus.innerText = "번개 공지를 불러오는 중입니다.";
+  eventStatus.innerText = "번개/행사 공지를 불러오는 중입니다.";
   checkinStatus.innerText = "한 줄 체크인을 불러오는 중입니다.";
   cheerStatus.innerText = "응원 한마디를 불러오는 중입니다.";
 
   try {
-    const [eventSnapshot, responseSnapshot, checkinSnapshot, cheerSnapshot] = await Promise.all([
+    const [eventSnapshot, responseSnapshot, checkinSnapshot, cheerSnapshot, memberSnapshot] = await Promise.all([
       getDocsFromServer(collection(db, "healingEvents")),
       getDocsFromServer(collection(db, "healingEventResponses")),
       getDocsFromServer(collection(db, "healingCheckins")),
-      getDocsFromServer(collection(db, "healingCheers"))
+      getDocsFromServer(collection(db, "healingCheers")),
+      getDocsFromServer(collection(db, "users"))
     ]);
 
     latestHealingEvents = [];
     latestHealingResponses = [];
     latestHealingCheckins = [];
     latestHealingCheers = [];
+    latestHealingMemberOptions = [];
 
     eventSnapshot.forEach((snapshotDoc) => {
       const data = snapshotDoc.data();
@@ -5347,6 +5425,9 @@ async function loadHealingHub(user = auth.currentUser) {
         userId: data.userId || "",
         name: data.name || data.email || "이름 없음",
         email: data.email || "",
+        preparerIds: Array.isArray(data.preparerIds) ? data.preparerIds : [],
+        preparerNames: Array.isArray(data.preparerNames) ? data.preparerNames : [],
+        preparerEmails: Array.isArray(data.preparerEmails) ? data.preparerEmails : [],
         createdAt: data.createdAt || null,
         updatedAt: data.updatedAt || null
       });
@@ -5403,9 +5484,23 @@ async function loadHealingHub(user = auth.currentUser) {
       });
     });
 
+    memberSnapshot.forEach((snapshotDoc) => {
+      const data = snapshotDoc.data();
+      const userId = data.userId || snapshotDoc.id;
+      const name = data.name || data.email || "";
+      if (!userId || !name || data.disabled === true || data.approved === false) return;
+
+      latestHealingMemberOptions.push({
+        userId,
+        name,
+        email: data.email || ""
+      });
+    });
+
     latestHealingEvents.sort((a, b) => getDateTimeValueMs(a.eventDate) - getDateTimeValueMs(b.eventDate));
     latestHealingCheckins.sort((a, b) => getDateTimeValueMs(b.updatedAt) - getDateTimeValueMs(a.updatedAt));
     latestHealingCheers.sort((a, b) => getDateTimeValueMs(b.createdAt) - getDateTimeValueMs(a.createdAt));
+    latestHealingMemberOptions.sort((a, b) => a.name.localeCompare(b.name, "ko"));
 
     renderHealingHub(user);
     maybeOpenHealingPopup(user);
@@ -5414,13 +5509,14 @@ async function loadHealingHub(user = auth.currentUser) {
     });
   } catch (e) {
     console.error(e);
-    eventStatus.innerText = "번개 공지를 불러오지 못했습니다. Firestore 권한을 확인해주세요.";
+    eventStatus.innerText = "번개/행사 공지를 불러오지 못했습니다. Firestore 권한을 확인해주세요.";
     checkinStatus.innerText = "한 줄 체크인을 불러오지 못했습니다. Firestore 권한을 확인해주세요.";
     cheerStatus.innerText = "응원 한마디를 불러오지 못했습니다. Firestore 권한을 확인해주세요.";
   }
 }
 
 function renderHealingHub(user = auth.currentUser) {
+  renderHealingEventPreparerOptions(editingHealingEvent?.preparerIds || [], user);
   renderHealingEvents(user);
   renderHealingCheckins(user);
   renderHealingCheers(user);
@@ -5720,6 +5816,16 @@ function handleHealingEventListClick(event) {
   }
 }
 
+function handleHealingEventListChange(event) {
+  const input = event.target.closest("input[data-healing-action='participate']");
+  if (!input) return;
+
+  const targetEvent = latestHealingEvents.find((item) => item.id === input.dataset.eventId);
+  if (!targetEvent) return;
+
+  saveHealingEventResponse(targetEvent, input.checked ? "attend" : "absent");
+}
+
 function handleHealingCheckinListClick(event) {
   const button = event.target.closest("button[data-healing-action]");
   if (!button) return;
@@ -5765,12 +5871,12 @@ function renderHealingEvents(user = auth.currentUser) {
   eventList.innerHTML = "";
 
   if (!latestHealingEvents.length) {
-    eventStatus.innerText = "아직 등록된 번개가 없습니다.";
+    eventStatus.innerText = "아직 등록된 번개/행사가 없습니다.";
     eventList.innerHTML = '<div class="healing-empty">가볍게 함께할 번개를 기다리고 있어요.</div>';
     return;
   }
 
-  eventStatus.innerText = `${latestHealingEvents.length}개 번개 공지`;
+  eventStatus.innerText = `${latestHealingEvents.length}개 번개/행사 공지`;
 
   latestHealingEvents.forEach((event) => {
     const responses = getHealingEventResponses(event.id);
@@ -5778,7 +5884,6 @@ function renderHealingEvents(user = auth.currentUser) {
     const myResponse = responses.find((response) => response.userId === user?.uid)?.response || "";
     const attendNames = responses.filter((response) => response.response === "attend").map((response) => response.name);
     const maybeNames = responses.filter((response) => response.response === "maybe").map((response) => response.name);
-    const absentNames = responses.filter((response) => response.response === "absent").map((response) => response.name);
 
     const card = document.createElement("article");
     card.className = "suggestion-card";
@@ -5793,7 +5898,7 @@ function renderHealingEvents(user = auth.currentUser) {
 
     const meta = document.createElement("div");
     meta.className = "healing-card-meta";
-    meta.innerText = `${getHealingEventTypeLabel(event.type)} · ${formatHealingDateTime(event.eventDate)} · ${event.location || "장소 추후 안내"}`;
+    meta.innerText = `${getHealingEventTypeLabel(event.type)} · ${formatHealingDateTime(event.eventDate)} · ${event.location || "장소 추후 안내"}\n준비: ${getHealingEventPreparerLabel(event)}`;
     card.appendChild(meta);
 
     if (event.description) {
@@ -5805,7 +5910,7 @@ function renderHealingEvents(user = auth.currentUser) {
 
     const pillRow = document.createElement("div");
     pillRow.className = "healing-pill-row";
-    [`참석 ${counts.attend}`, `미정 ${counts.maybe}`, `불참 ${counts.absent}`].forEach((label) => {
+    [`참여 ${counts.attend}`].forEach((label) => {
       const pill = document.createElement("span");
       pill.className = "healing-pill";
       pill.innerText = label;
@@ -5813,35 +5918,31 @@ function renderHealingEvents(user = auth.currentUser) {
     });
     card.appendChild(pillRow);
 
-    if (attendNames.length || maybeNames.length || absentNames.length) {
+    if (attendNames.length || maybeNames.length) {
       const attendee = document.createElement("div");
       attendee.className = "suggestion-body";
       attendee.innerText = [
-        attendNames.length ? `참석: ${attendNames.join(", ")}` : "",
-        maybeNames.length ? `미정: ${maybeNames.join(", ")}` : "",
-        absentNames.length ? `불참: ${absentNames.join(", ")}` : ""
+        attendNames.length ? `참여: ${attendNames.join(", ")}` : "",
+        maybeNames.length ? `미정: ${maybeNames.join(", ")}` : ""
       ].filter(Boolean).join("\n");
       card.appendChild(attendee);
     }
 
     const actionRow = document.createElement("div");
     actionRow.className = "healing-action-row";
-    [
-      { value: "attend", label: "참석" },
-      { value: "maybe", label: "미정" },
-      { value: "absent", label: "불참" }
-    ].forEach((option) => {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = myResponse === option.value ? "button-secondary" : "table-action";
-      button.dataset.healingAction = "respond";
-      button.dataset.eventId = event.id;
-      button.dataset.response = option.value;
-      button.innerText = myResponse === option.value
-        ? `${getHealingEventResponseLabel(option.value)} 선택됨`
-        : getHealingEventResponseLabel(option.value);
-      actionRow.appendChild(button);
-    });
+
+    const participateLabel = document.createElement("label");
+    participateLabel.className = "healing-checkbox-option healing-participation-option";
+    const participateInput = document.createElement("input");
+    participateInput.type = "checkbox";
+    participateInput.dataset.healingAction = "participate";
+    participateInput.dataset.eventId = event.id;
+    participateInput.checked = myResponse === "attend";
+    participateInput.disabled = !user;
+    const participateText = document.createElement("span");
+    participateText.innerText = myResponse === "attend" ? "참여 신청됨" : "참여 신청";
+    participateLabel.append(participateInput, participateText);
+    actionRow.appendChild(participateLabel);
 
     if (canEditHealingEvent(user, event)) {
       const editButton = document.createElement("button");
@@ -5999,12 +6100,12 @@ async function saveHealingEvent() {
   const isEditing = Boolean(editingHealingEvent?.id);
 
   if (!user) {
-    setHealingStatus("event", "로그인 후 번개 공지를 작성하거나 수정할 수 있습니다.");
+    setHealingStatus("event", "로그인 후 번개/행사 공지를 작성하거나 수정할 수 있습니다.");
     return;
   }
 
   if (!isEditing && !user) {
-    setHealingStatus("event", "로그인 후 번개 공지를 등록할 수 있습니다.");
+    setHealingStatus("event", "로그인 후 번개/행사 공지를 등록할 수 있습니다.");
     return;
   }
 
@@ -6018,6 +6119,7 @@ async function saveHealingEvent() {
   const eventDate = document.getElementById("healingEventDate")?.value || "";
   const location = document.getElementById("healingEventLocation")?.value.trim() || "";
   const description = document.getElementById("healingEventDescription")?.value.trim() || "";
+  const preparerPayload = getSelectedHealingEventPreparers(user);
 
   if (!title) {
     setHealingStatus("event", "번개 제목을 입력해주세요.");
@@ -6040,6 +6142,7 @@ async function saveHealingEvent() {
         eventDate,
         location,
         description,
+        ...preparerPayload,
         userId: editingHealingEvent.userId,
         name: editingHealingEvent.name,
         email: editingHealingEvent.email,
@@ -6053,6 +6156,7 @@ async function saveHealingEvent() {
         eventDate,
         location,
         description,
+        ...preparerPayload,
         userId: user.uid,
         name: getUserName(user),
         email: user.email,
@@ -6063,12 +6167,12 @@ async function saveHealingEvent() {
 
     resetHealingEventForm();
     await loadHealingHub(user);
-    setHealingStatus("event", isEditing ? "번개 공지를 수정했습니다." : "번개 공지를 등록했습니다.");
+    setHealingStatus("event", isEditing ? "번개/행사 공지를 수정했습니다." : "번개/행사 공지를 등록했습니다.");
   } catch (e) {
     console.error(e);
     setHealingStatus("event", editingHealingEvent?.id
-      ? "번개 공지 수정이 되지 않았습니다. 잠시 후 다시 시도해주세요."
-      : "번개 공지 등록이 되지 않았습니다. 잠시 후 다시 시도해주세요.");
+      ? "번개/행사 공지 수정이 되지 않았습니다. 잠시 후 다시 시도해주세요."
+      : "번개/행사 공지 등록이 되지 않았습니다. 잠시 후 다시 시도해주세요.");
   } finally {
     if (saveButton) saveButton.disabled = false;
   }
@@ -8268,13 +8372,14 @@ async function loadMonthlyAthleteCandidates(user) {
       console.warn("monthlyGoals read skipped in monthly athlete scoring", goalError);
     }
 
+    const healingContributions = await loadMonthlyHealingContributions();
     const memberEntries = Array.from(runsByUser.values());
-    const candidates = getMonthlyAthleteCandidatesForMonth(memberEntries, monthKey, monthlyGoalsByUser);
+    const candidates = getMonthlyAthleteCandidatesForMonth(memberEntries, monthKey, monthlyGoalsByUser, healingContributions);
     const finalizedMonthKey = getLatestFinalizedMonthKey();
 
     if (!candidates.length) {
       monthlyAthleteStatus.innerText = `${formatMonthLabel(monthKey)} 이달의 선수 예상 기록이 아직 없습니다.`;
-      renderAthleteHallOfFame(memberEntries, user, finalizedMonthKey, monthlyGoalsByUser);
+      renderAthleteHallOfFame(memberEntries, user, finalizedMonthKey, monthlyGoalsByUser, healingContributions);
       updateMonthlyAthleteAnnouncementUi(user);
       return;
     }
@@ -8305,7 +8410,8 @@ async function loadMonthlyAthleteCandidates(user) {
         `${formatAthleteScore(entry.qualityScore)}/${entry.qualityMaxScore} (${formatQualityCredit(entry.qualityAttendanceDays)}/${entry.qualityWorkoutCount}회 인정)`,
         formatMonthlyGrowthScore(entry),
         `+${formatAthleteScore(entry.raceBonus)}점 (${entry.raceBonusLabel})`,
-        `+${entry.badgeBonus}점 (${entry.badgeCount}개)`
+        `+${entry.badgeBonus}점 (${entry.badgeCount}개)`,
+        formatMonthlyHealingScore(entry)
       );
 
       cells.forEach((value) => {
@@ -8323,7 +8429,7 @@ async function loadMonthlyAthleteCandidates(user) {
     const leaderText = `${leader.name} 1위`;
 
     monthlyAthleteStatus.innerText = `${formatMonthLabel(monthKey)} 이달의 선수 예상 ${leaderText}: 예상 ${formatAthleteScore(leader.totalScore)}점, 현재 확정 ${formatAthleteScore(leader.confirmedScore)}점.${myRankText} 월이 끝난 뒤 명예의 전당에 반영됩니다.`;
-    renderAthleteHallOfFame(memberEntries, user, finalizedMonthKey, monthlyGoalsByUser);
+    renderAthleteHallOfFame(memberEntries, user, finalizedMonthKey, monthlyGoalsByUser, healingContributions);
     updateMonthlyAthleteAnnouncementUi(user);
   } catch (e) {
     console.error(e);
@@ -8335,16 +8441,81 @@ async function loadMonthlyAthleteCandidates(user) {
   }
 }
 
-function getMonthlyAthleteCandidatesForMonth(memberEntries, monthKey, monthlyGoalsByUser = new Map()) {
+async function loadMonthlyHealingContributions() {
+  try {
+    const [eventSnapshot, responseSnapshot, checkinSnapshot, cheerSnapshot] = await Promise.all([
+      getDocsFromServer(collection(db, "healingEvents")),
+      getDocsFromServer(collection(db, "healingEventResponses")),
+      getDocsFromServer(collection(db, "healingCheckins")),
+      getDocsFromServer(collection(db, "healingCheers"))
+    ]);
+
+    const events = [];
+    const responses = [];
+    const checkins = [];
+    const cheers = [];
+
+    eventSnapshot.forEach((snapshotDoc) => {
+      const data = snapshotDoc.data();
+      events.push({
+        id: snapshotDoc.id,
+        userId: data.userId || "",
+        email: data.email || "",
+        eventDate: data.eventDate || "",
+        preparerIds: Array.isArray(data.preparerIds) ? data.preparerIds : [],
+        preparerEmails: Array.isArray(data.preparerEmails) ? data.preparerEmails : [],
+        createdAt: data.createdAt || null
+      });
+    });
+
+    responseSnapshot.forEach((snapshotDoc) => {
+      const data = snapshotDoc.data();
+      responses.push({
+        eventId: data.eventId || "",
+        userId: data.userId || "",
+        email: data.email || "",
+        response: data.response || "maybe",
+        updatedAt: data.updatedAt || null
+      });
+    });
+
+    checkinSnapshot.forEach((snapshotDoc) => {
+      const data = snapshotDoc.data();
+      checkins.push({
+        userId: data.userId || "",
+        email: data.email || "",
+        createdAt: data.createdAt || null,
+        updatedAt: data.updatedAt || null
+      });
+    });
+
+    cheerSnapshot.forEach((snapshotDoc) => {
+      const data = snapshotDoc.data();
+      cheers.push({
+        userId: data.userId || "",
+        email: data.email || "",
+        createdAt: data.createdAt || null,
+        updatedAt: data.updatedAt || null
+      });
+    });
+
+    return { events, responses, checkins, cheers };
+  } catch (error) {
+    console.warn("healing contribution read skipped in monthly athlete scoring", error);
+    return { events: [], responses: [], checkins: [], cheers: [] };
+  }
+}
+
+function getMonthlyAthleteCandidatesForMonth(memberEntries, monthKey, monthlyGoalsByUser = new Map(), healingContributions = null) {
   const previousMonthKey = getPreviousMonthKey(monthKey);
 
   return memberEntries
-    .map((entry) => calculateMonthlyAthleteScore(entry, monthKey, previousMonthKey, monthlyGoalsByUser))
+    .map((entry) => calculateMonthlyAthleteScore(entry, monthKey, previousMonthKey, monthlyGoalsByUser, healingContributions))
     .filter((entry) => entry.attendanceDays > 0)
     .sort(sortMonthlyAthleteCandidates);
 }
 
-function renderAthleteHallOfFame(memberEntries, user, currentMonthKey, monthlyGoalsByUser = new Map()) {
+function renderAthleteHallOfFame(memberEntries, user, currentMonthKey, monthlyGoalsByUser = new Map(), healingContributions = null) {
   const athleteHallList = document.getElementById("athleteHallList");
   const athleteHallStatus = document.getElementById("athleteHallStatus");
   const athleteHallSummaryList = document.getElementById("athleteHallSummaryList");
@@ -8355,7 +8526,7 @@ function renderAthleteHallOfFame(memberEntries, user, currentMonthKey, monthlyGo
   const monthKeys = getMonthKeysBetween(MONTHLY_ATHLETE_START_MONTH, currentMonthKey);
   const hallEntries = monthKeys
     .map((monthKey) => {
-      const candidates = getMonthlyAthleteCandidatesForMonth(memberEntries, monthKey, monthlyGoalsByUser);
+      const candidates = getMonthlyAthleteCandidatesForMonth(memberEntries, monthKey, monthlyGoalsByUser, healingContributions);
       if (!candidates.length) return null;
 
       const winner = candidates[0];
@@ -8396,7 +8567,8 @@ function renderAthleteHallOfFame(memberEntries, user, currentMonthKey, monthlyGo
       `${formatAthleteScore(winner.qualityScore)}/${winner.qualityMaxScore} (${formatQualityCredit(winner.qualityAttendanceDays)}/${winner.qualityWorkoutCount}회 인정)`,
       formatMonthlyGrowthScore(winner),
       `+${formatAthleteScore(winner.raceBonus)}점 (${winner.raceBonusLabel})`,
-      `+${winner.badgeBonus}점 (${winner.badgeCount}개)`
+      `+${winner.badgeBonus}점 (${winner.badgeCount}개)`,
+      formatMonthlyHealingScore(winner)
     ].forEach((value, cellIndex) => {
       const td = document.createElement("td");
       if (cellIndex === 0) {
@@ -8451,7 +8623,7 @@ function renderAthleteHallSummary(hallEntries, user) {
     achievement.className = "hall-summary-achievement";
     achievement.innerText = getAthleteHallAchievementSummary(primaryWinner);
     score.className = "hall-summary-score";
-    score.innerText = `${formatAthleteScore(primaryWinner.totalScore)}점 · 정훈 ${formatQualityCredit(primaryWinner.qualityAttendanceDays)}/${primaryWinner.qualityWorkoutCount}회 인정`;
+    score.innerText = `${formatAthleteScore(primaryWinner.totalScore)}점 · 정훈 ${formatQualityCredit(primaryWinner.qualityAttendanceDays)}/${primaryWinner.qualityWorkoutCount}회 인정 · 힐링 ${formatAthleteScore(primaryWinner.healingScore || 0)}점`;
 
     card.append(month, name, achievement, score);
     athleteHallSummaryList.appendChild(card);
@@ -8473,6 +8645,8 @@ function getAthleteHallAchievementSummary(entry) {
     highlights.push(`월 목표 +${formatAthleteScore(entry.goalScore)}점`);
   } else if (entry.raceBonus) {
     highlights.push(`대회 +${formatAthleteScore(entry.raceBonus)}점`);
+  } else if (entry.healingScore) {
+    highlights.push(`힐링 +${formatAthleteScore(entry.healingScore)}점`);
   } else if (entry.badgeCount) {
     highlights.push(`배지 ${entry.badgeCount}개`);
   }
@@ -8546,6 +8720,101 @@ function formatMonthlyGrowthScore(entry) {
   if (!entry.growthMaxScore) return "5월부터 적용";
 
   return `${formatAthleteScore(entry.growthScore)}/${entry.growthMaxScore}`;
+}
+
+function formatMonthlyHealingScore(entry) {
+  if (!entry.healingMaxScore) return "5월부터 적용";
+
+  return `${formatAthleteScore(entry.healingScore)}/${entry.healingMaxScore} (${entry.healingLabel})`;
+}
+
+function isMonthlyHealingScoreEnabled(monthKey) {
+  return monthKey >= MONTHLY_HEALING_SCORE_START_MONTH;
+}
+
+function isSameMemberRecord(record = {}, entry = {}) {
+  return Boolean(
+    (record.userId && record.userId === entry.userId)
+    || (record.email && entry.email && record.email === entry.email)
+  );
+}
+
+function isHealingEventPreparedBy(event = {}, entry = {}) {
+  const preparerIds = Array.isArray(event.preparerIds) ? event.preparerIds : [];
+  const preparerEmails = Array.isArray(event.preparerEmails) ? event.preparerEmails : [];
+
+  if (preparerIds.length || preparerEmails.length) {
+    return Boolean(
+      (entry.userId && preparerIds.includes(entry.userId))
+      || (entry.email && preparerEmails.includes(entry.email))
+    );
+  }
+
+  return isSameMemberRecord(event, entry);
+}
+
+function isValueInMonth(value, monthKey) {
+  return getDateKey(value).startsWith(monthKey);
+}
+
+function getMonthlyHealingScore(entry, monthKey, healingContributions = null) {
+  if (!isMonthlyHealingScoreEnabled(monthKey) || !healingContributions) {
+    return {
+      healingScore: 0,
+      healingMaxScore: isMonthlyHealingScoreEnabled(monthKey) ? MONTHLY_HEALING_SCORE_MAX : 0,
+      healingEventHostCount: 0,
+      healingEventAttendCount: 0,
+      healingSubtabDays: 0,
+      healingLabel: isMonthlyHealingScoreEnabled(monthKey) ? "기록 없음" : "5월부터 적용"
+    };
+  }
+
+  const eventsInMonth = healingContributions.events.filter((event) => (
+    isValueInMonth(event.eventDate || event.createdAt, monthKey)
+  ));
+  const hostedEventCount = eventsInMonth.filter((event) => isHealingEventPreparedBy(event, entry)).length;
+  const eventById = new Map(eventsInMonth.map((event) => [event.id, event]));
+  const attendEventIds = new Set();
+
+  healingContributions.responses.forEach((response) => {
+    if (response.response !== "attend" || !isSameMemberRecord(response, entry)) return;
+
+    const event = eventById.get(response.eventId);
+    if (!event || isHealingEventPreparedBy(event, entry)) return;
+
+    attendEventIds.add(response.eventId);
+  });
+
+  const subtabDays = new Set();
+  healingContributions.checkins.forEach((checkin) => {
+    if (isSameMemberRecord(checkin, entry) && isValueInMonth(checkin.createdAt || checkin.updatedAt, monthKey)) {
+      subtabDays.add(getDateKey(checkin.createdAt || checkin.updatedAt));
+    }
+  });
+  healingContributions.cheers.forEach((cheer) => {
+    if (isSameMemberRecord(cheer, entry) && isValueInMonth(cheer.createdAt || cheer.updatedAt, monthKey)) {
+      subtabDays.add(getDateKey(cheer.createdAt || cheer.updatedAt));
+    }
+  });
+
+  const eventHostScore = Math.min(3, hostedEventCount);
+  const eventAttendScore = Math.min(2, attendEventIds.size * 0.5);
+  const subtabScore = Math.min(5, subtabDays.size * 0.2);
+  const healingScore = clampScore(eventHostScore + eventAttendScore + subtabScore, MONTHLY_HEALING_SCORE_MAX, 1);
+  const labelParts = [];
+
+  if (hostedEventCount) labelParts.push(`행사준비 ${hostedEventCount}건`);
+  if (attendEventIds.size) labelParts.push(`참여 ${attendEventIds.size}건`);
+  if (subtabDays.size) labelParts.push(`소탭 ${subtabDays.size}일`);
+
+  return {
+    healingScore,
+    healingMaxScore: MONTHLY_HEALING_SCORE_MAX,
+    healingEventHostCount: hostedEventCount,
+    healingEventAttendCount: attendEventIds.size,
+    healingSubtabDays: subtabDays.size,
+    healingLabel: labelParts.join(", ") || "기록 없음"
+  };
 }
 
 function getLinearScore(value, maxValue, maxScore) {
@@ -8626,7 +8895,7 @@ function formatMonthlyGoalAdjustment(entry) {
   return `${sign}${formatAthleteScore(entry.goalScore)}점 (${formatMileage(entry.goalKm)} · ${entry.goalRate}%)`;
 }
 
-function calculateMonthlyAthleteScore(entry, monthKey, previousMonthKey, monthlyGoalsByUser = new Map()) {
+function calculateMonthlyAthleteScore(entry, monthKey, previousMonthKey, monthlyGoalsByUser = new Map(), healingContributions = null) {
   const scoreWeights = getMonthlyAthleteScoreWeights(monthKey);
   const currentRuns = entry.runs.filter((run) => isRunInMonth(run, monthKey));
   const previousRuns = entry.runs.filter((run) => isRunInMonth(run, previousMonthKey));
@@ -8677,8 +8946,9 @@ function calculateMonthlyAthleteScore(entry, monthKey, previousMonthKey, monthly
   const goalScore = goalKm ? getMonthlyGoalAdjustment(goalRate) : 0;
   const projectedGoalRate = getMonthlyGoalRate(projectedDistance, goalKm, monthKey);
   const projectedGoalScore = goalKm ? getMonthlyGoalAdjustment(projectedGoalRate) : 0;
-  const confirmedRawScore = attendanceScore + mileageScore + qualityScore + growthScore + raceBonus + badgeBonus + goalScore;
-  const totalRawScore = projectedAttendanceScore + projectedMileageScore + projectedQualityScore + growthScore + raceBonus + projectedBadgeBonus + projectedGoalScore;
+  const healingSummary = getMonthlyHealingScore(entry, monthKey, healingContributions);
+  const confirmedRawScore = attendanceScore + mileageScore + qualityScore + growthScore + raceBonus + badgeBonus + goalScore + healingSummary.healingScore;
+  const totalRawScore = projectedAttendanceScore + projectedMileageScore + projectedQualityScore + growthScore + raceBonus + projectedBadgeBonus + projectedGoalScore + healingSummary.healingScore;
   const confirmedScore = clampScore(confirmedRawScore, 100, 1);
   const totalScore = clampScore(totalRawScore, 100, 1);
 
@@ -8727,7 +8997,8 @@ function calculateMonthlyAthleteScore(entry, monthKey, previousMonthKey, monthly
     badgeAchievements,
     projectedBadgeCount,
     projectedBadgeBonus,
-    projectedBadgeAchievements
+    projectedBadgeAchievements,
+    ...healingSummary
   };
 }
 
@@ -8790,6 +9061,7 @@ function sortMonthlyAthleteCandidates(a, b) {
   if (b.raceBonus !== a.raceBonus) return b.raceBonus - a.raceBonus;
   if (b.badgeBonus !== a.badgeBonus) return b.badgeBonus - a.badgeBonus;
   if (b.badgeCount !== a.badgeCount) return b.badgeCount - a.badgeCount;
+  if (b.healingScore !== a.healingScore) return b.healingScore - a.healingScore;
   return a.name.localeCompare(b.name, "ko");
 }
 
@@ -9118,6 +9390,7 @@ function clearDashboard() {
   latestHealingResponses = [];
   latestHealingCheckins = [];
   latestHealingCheers = [];
+  latestHealingMemberOptions = [];
   latestAthleteHallEntries = [];
   monthlyGoalKm = 0;
   monthlyGoalLocked = false;
