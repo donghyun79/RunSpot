@@ -70,6 +70,7 @@ let latestAthleteHallEntries = [];
 let editingHealingEvent = null;
 let editingHealingCheckin = null;
 let editingHealingCheer = null;
+let isHealingEventComposerOpen = false;
 let healingEventHostForm = null;
 let healingEventTitleInput = null;
 let healingEventTypeSelect = null;
@@ -79,6 +80,7 @@ let healingEventDescriptionInput = null;
 let healingEventPreparersInput = null;
 let saveHealingEventBtn = null;
 let cancelHealingEventEditBtn = null;
+let toggleHealingEventComposerBtn = null;
 let healingCheckinMoodInput = null;
 let healingCheckinContentInput = null;
 let healingCheckinPhotoInput = null;
@@ -116,6 +118,8 @@ const NOWON_COORDINATES = {
   latitude: 37.6543,
   longitude: 127.0568
 };
+const ENVIRONMENT_REFRESH_INTERVAL_MS = 10 * 60 * 1000;
+let nowonEnvironmentRefreshTimer = null;
 let runningGroupStandards = [
   {
     group: "A",
@@ -1214,6 +1218,21 @@ async function loadNowonEnvironment() {
     latestEnvironment = null;
     widget.innerHTML = '<span class="environment-pill weather bad"><span class="environment-main"><strong>노원구</strong> 정보 불러오기 실패</span><span class="environment-sub">잠시 후 다시 확인해 주세요</span></span>';
   }
+}
+
+function startNowonEnvironmentAutoRefresh() {
+  if (nowonEnvironmentRefreshTimer) return;
+
+  nowonEnvironmentRefreshTimer = window.setInterval(() => {
+    if (document.hidden) return;
+    loadNowonEnvironment();
+  }, ENVIRONMENT_REFRESH_INTERVAL_MS);
+}
+
+function stopNowonEnvironmentAutoRefresh() {
+  if (!nowonEnvironmentRefreshTimer) return;
+  window.clearInterval(nowonEnvironmentRefreshTimer);
+  nowonEnvironmentRefreshTimer = null;
 }
 
 function dateToInputValue(date) {
@@ -2356,6 +2375,7 @@ document.addEventListener("DOMContentLoaded", () => {
   healingEventPreparersInput = document.getElementById("healingEventPreparers");
   saveHealingEventBtn = document.getElementById("saveHealingEvent");
   cancelHealingEventEditBtn = document.getElementById("cancelHealingEventEdit");
+  toggleHealingEventComposerBtn = document.getElementById("toggleHealingEventComposer");
   healingCheckinMoodInput = document.getElementById("healingCheckinMood");
   healingCheckinContentInput = document.getElementById("healingCheckinContent");
   healingCheckinPhotoInput = document.getElementById("healingCheckinPhoto");
@@ -3022,6 +3042,18 @@ document.addEventListener("DOMContentLoaded", () => {
     alert("로그아웃되었습니다.");
   });
 
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden && auth.currentUser) {
+      loadNowonEnvironment();
+    }
+  });
+
+  window.addEventListener("online", () => {
+    if (auth.currentUser) {
+      loadNowonEnvironment();
+    }
+  });
+
   onAuthStateChanged(auth, async (user) => {
     if (user) {
       if (signupInProgress) return;
@@ -3031,6 +3063,7 @@ document.addEventListener("DOMContentLoaded", () => {
       setAuthenticatedView(true);
       updateHostView(user);
       loadNowonEnvironment();
+      startNowonEnvironmentAutoRefresh();
       password.value = "";
       inviteCode.value = "";
 
@@ -3075,6 +3108,9 @@ document.addEventListener("DOMContentLoaded", () => {
         showDashboardLoadError(e);
       }
     } else {
+      isHealingEventComposerOpen = false;
+      syncHealingEventFormVisibility(null);
+      stopNowonEnvironmentAutoRefresh();
       dismissedQualityAttendancePromptKey = "";
       completedQualityAttendancePromptKey = "";
       latestAthleteHallEntries = [];
@@ -3425,6 +3461,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
   saveHealingEventBtn?.addEventListener("click", () => {
     saveHealingEvent();
+  });
+  toggleHealingEventComposerBtn?.addEventListener("click", () => {
+    if (!auth.currentUser) return;
+    isHealingEventComposerOpen = !isHealingEventComposerOpen;
+    syncHealingEventFormVisibility(auth.currentUser);
   });
   document.getElementById("healingEventList")?.addEventListener("click", handleHealingEventListClick);
   document.getElementById("healingEventList")?.addEventListener("change", handleHealingEventListChange);
@@ -4994,8 +5035,14 @@ function renderHealingEventPreparerOptions(selectedIds = [], user = auth.current
 
 function syncHealingEventFormVisibility(user = auth.currentUser) {
   if (!healingEventHostForm) return;
-  const showForm = Boolean(user);
+  const canWrite = Boolean(user);
+  const showForm = canWrite && (isHealingEventComposerOpen || Boolean(editingHealingEvent));
   healingEventHostForm.classList.toggle("hidden", !showForm);
+  toggleHealingEventComposerBtn?.classList.toggle("hidden", !canWrite);
+  if (toggleHealingEventComposerBtn) {
+    toggleHealingEventComposerBtn.setAttribute("aria-expanded", showForm ? "true" : "false");
+    toggleHealingEventComposerBtn.innerText = showForm ? "공지 작성 닫기" : "공지 작성 열기";
+  }
   renderHealingEventPreparerOptions(editingHealingEvent?.preparerIds || [], user);
 }
 
@@ -5721,6 +5768,7 @@ function focusHealingForm(formId, inputId) {
 
 function resetHealingEventForm() {
   editingHealingEvent = null;
+  isHealingEventComposerOpen = false;
   if (healingEventTitleInput) healingEventTitleInput.value = "";
   if (healingEventTypeSelect) healingEventTypeSelect.value = "run";
   if (healingEventDateInput) healingEventDateInput.value = "";
@@ -5734,6 +5782,7 @@ function resetHealingEventForm() {
 
 function startHealingEventEdit(event) {
   editingHealingEvent = event;
+  isHealingEventComposerOpen = true;
   if (healingEventTitleInput) healingEventTitleInput.value = event.title || "";
   if (healingEventTypeSelect) healingEventTypeSelect.value = event.type || "run";
   if (healingEventDateInput) healingEventDateInput.value = event.eventDate || "";
