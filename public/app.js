@@ -4469,8 +4469,9 @@ async function extractZipEntries(buffer, wantedPaths) {
     const localHeaderOffset = readZipUint32(view, offset + 42);
     const fileNameBytes = new Uint8Array(buffer, offset + 46, fileNameLength);
     const fileName = decoder.decode(fileNameBytes);
+    const normalizedFileName = fileName.replace(/\\/g, "/");
 
-    if (wanted.has(fileName)) {
+    if (wanted.has(normalizedFileName)) {
       if (readZipUint32(view, localHeaderOffset) !== 0x04034b50) {
         throw new Error(`Invalid XLSX ZIP entry: ${fileName}`);
       }
@@ -4480,7 +4481,7 @@ async function extractZipEntries(buffer, wantedPaths) {
       const dataOffset = localHeaderOffset + 30 + localNameLength + localExtraLength;
       const compressedBytes = new Uint8Array(buffer, dataOffset, compressedSize);
       const bytes = method === 0 ? compressedBytes : await inflateZipEntry(compressedBytes);
-      files.set(fileName, decoder.decode(bytes));
+      files.set(normalizedFileName, decoder.decode(bytes));
     }
 
     offset += 46 + fileNameLength + extraLength + commentLength;
@@ -4597,6 +4598,13 @@ function applyScheduledRunningGroupAssignments(standards, dateKey = getLocalDate
   return clonedStandards;
 }
 
+function normalizeRunningGroupMemberNames(members = "") {
+  return String(members || "")
+    .replaceAll("이해경", "이혜경")
+    .replaceAll("김성근", "김성균")
+    .trim();
+}
+
 function normalizeRunningGroupStandards(standards) {
   if (!Array.isArray(standards)) {
     return applyScheduledRunningGroupAssignments(
@@ -4612,7 +4620,7 @@ function normalizeRunningGroupStandards(standards) {
       intervalPace: String(standard.intervalPace || "").trim(),
       recoveryPace: String(standard.recoveryPace || "").trim(),
       monthlyMileage: String(standard.monthlyMileage || "").trim(),
-      members: String(standard.members || DEFAULT_RUNNING_GROUP_STANDARDS[index]?.members || "").trim()
+      members: normalizeRunningGroupMemberNames(standard.members || DEFAULT_RUNNING_GROUP_STANDARDS[index]?.members || "")
     }))
     .filter((standard) => standard.group));
 }
