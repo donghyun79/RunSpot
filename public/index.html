@@ -3627,7 +3627,7 @@
           대회 가점은 기록을 저장한 달 기준으로 5K 1점, 10K 2점, Half 3점, Full 5점, 기타 1점이며 월 최대 5점입니다.<br>
           배지 가점은 월간 획득 수량 기준으로 1~2개 1점, 3~4개 2점, 5~6개 3점, 7~9개 4점, 10개 이상 5점으로 계산합니다.<br>
           전월 대비 성장 점수는 5월부터 반영합니다. 지난달보다 출석이 늘었는지, 거리량이 늘었는지, PB가 갱신됐는지, 훈련량을 너무 줄이지 않으면서 평균 페이스가 좋아졌는지를 함께 보고 최대 15점까지 드립니다.<br>
-          힐링 기여도는 5월부터 보조 가점으로 최대 10점까지만 반영합니다. 한줄 체크인과 응원 남기기 소탭을 활용한 날은 하루 단위로 0.2점씩 최대 5점, 번개/행사 공지 등록과 자체 행사 준비는 건당 1점씩 최대 3점, 번개와 자체 행사 참여는 건당 0.5점씩 최대 2점으로 보되 전체 힐링 가점은 10점을 넘지 않습니다.<br>
+          힐링 기여도는 5월부터 보조 가점으로 최대 10점까지만 반영합니다. 힐링 탭의 한줄 체크인이나 응원 남기기를 남긴 날은 하루 단위로 0.2점씩 최대 5점, 번개/행사 공지 등록과 자체 행사 준비는 건당 1점씩 최대 3점, 번개와 자체 행사 참여는 건당 0.5점씩 최대 2점으로 보되 전체 힐링 가점은 10점을 넘지 않습니다.<br>
           월 목표 보정은 목표를 얼마나 좋은 페이스로 따라가고 있는지 보는 장치입니다. 현재 시점 기준으로 목표 페이스를 잘 맞추고 있으면 최대 +5점, 많이 늦어지면 최대 -5점까지 반영합니다. 목표를 저장하지 않은 회원은 0점입니다.<br>
           월중에는 회원님이 지금 흐름대로 월말까지 갔을 때의 예상 점수와, 오늘까지 실제로 쌓인 확정 점수를 함께 보여드립니다. 화면 표시는 보기 쉽게 100점 만점으로 맞춥니다.<br>
           다만 실제 이달의 선수 선정은 화면 점수만으로 자르지 않고, 100점 상한을 적용하기 전 원점수를 먼저 비교해 1명을 정합니다.<br>
@@ -4003,11 +4003,11 @@
     second.addEventListener("input", updateTime);
   </script>
 
-  <script type="module" src="app.js?v=20260504-healing-expired-events-v248"></script>
+  <script type="module" src="app.js?v=20260504-healing-labels-v249"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
-        navigator.serviceWorker.register("service-worker.js?v=20260504-healing-expired-events-v248").then((registration) => {
+        navigator.serviceWorker.register("service-worker.js?v=20260504-healing-labels-v249").then((registration) => {
           registration.update().catch(() => {});
         }).catch(() => {});
       });

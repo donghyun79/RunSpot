@@ -8906,9 +8906,9 @@ function getMonthlyHealingScore(entry, monthKey, healingContributions = null) {
   const healingScore = clampScore(eventHostScore + eventAttendScore + subtabScore, MONTHLY_HEALING_SCORE_MAX, 1);
   const labelParts = [];
 
-  if (hostedEventCount) labelParts.push(`행사준비 ${hostedEventCount}건`);
+  if (hostedEventCount) labelParts.push(`행사 준비 ${hostedEventCount}건`);
   if (attendEventIds.size) labelParts.push(`참여 ${attendEventIds.size}건`);
-  if (subtabDays.size) labelParts.push(`소탭 ${subtabDays.size}일`);
+  if (subtabDays.size) labelParts.push(`한줄/응원 ${subtabDays.size}일`);
 
   return {
     healingScore,
