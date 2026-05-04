@@ -1250,6 +1250,63 @@
       align-items: center;
     }
 
+    .healing-comment-section {
+      display: grid;
+      gap: 8px;
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid var(--line);
+    }
+
+    .healing-comment-title {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 900;
+    }
+
+    .healing-comment-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .healing-comment-item {
+      display: grid;
+      gap: 4px;
+      padding: 9px;
+      border: 1px solid #d9e3f5;
+      border-radius: 8px;
+      background: #f8fbff;
+    }
+
+    .healing-comment-meta {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .healing-comment-body {
+      color: var(--text);
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    .healing-comment-delete {
+      justify-self: start;
+      margin-top: 2px;
+    }
+
+    .healing-comment-form {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: end;
+    }
+
+    .healing-comment-form textarea {
+      min-height: 44px;
+      resize: vertical;
+    }
+
     .healing-checkbox-grid {
       grid-column: 1 / -1;
       display: grid;

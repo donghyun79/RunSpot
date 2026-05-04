@@ -323,6 +323,34 @@ service cloud.firestore {
       && request.resource.data.email == request.auth.token.email;
     }
 
+    function validHealingEventCommentShape() {
+      return request.resource.data.keys().hasOnly([
+        "eventId",
+        "userId",
+        "name",
+        "email",
+        "content",
+        "createdAt"
+      ])
+      && request.resource.data.eventId is string
+      && request.resource.data.eventId.size() > 0
+      && request.resource.data.eventId.size() <= 80
+      && request.resource.data.userId is string
+      && request.resource.data.name is string
+      && request.resource.data.name.size() > 0
+      && request.resource.data.name.size() <= 40
+      && request.resource.data.email is string
+      && request.resource.data.content is string
+      && request.resource.data.content.size() > 0
+      && request.resource.data.content.size() <= 300;
+    }
+
+    function validHealingEventCommentData() {
+      return validHealingEventCommentShape()
+      && request.resource.data.userId == request.auth.uid
+      && request.resource.data.email == request.auth.token.email;
+    }
+
     function validHealingMissionShape() {
       return request.resource.data.keys().hasOnly([
         "title",
@@ -528,6 +556,13 @@ service cloud.firestore {
         && resource.data.userId == request.auth.uid
         && validHealingResponseData();
       allow delete: if false;
+    }
+
+    match /healingEventComments/{commentId} {
+      allow read: if approvedUser();
+      allow create: if approvedUser() && validHealingEventCommentData();
+      allow update: if false;
+      allow delete: if isHost() || (approvedUser() && resource.data.userId == request.auth.uid);
     }
 
     match /healingMissions/{missionId} {

@@ -63,6 +63,7 @@ let editingQualityRun = null;
 let latestSuggestions = [];
 let latestHealingEvents = [];
 let latestHealingResponses = [];
+let latestHealingEventComments = [];
 let latestHealingCheckins = [];
 let latestHealingCheers = [];
 let latestHealingMemberOptions = [];
@@ -4986,6 +4987,12 @@ function getHealingEventResponses(eventId) {
   return latestHealingResponses.filter((response) => response.eventId === eventId);
 }
 
+function getHealingEventComments(eventId) {
+  return latestHealingEventComments
+    .filter((comment) => comment.eventId === eventId)
+    .sort((a, b) => getDateTimeValueMs(a.createdAt) - getDateTimeValueMs(b.createdAt));
+}
+
 function canEditHealingEvent(user, event) {
   return Boolean(user && event && (isHostUser(user) || event.userId === user.uid));
 }
@@ -5466,6 +5473,7 @@ async function loadHealingHub(user = auth.currentUser) {
   if (!user) {
     latestHealingEvents = [];
     latestHealingResponses = [];
+    latestHealingEventComments = [];
     latestHealingCheckins = [];
     latestHealingCheers = [];
     latestHealingMemberOptions = [];
@@ -5483,9 +5491,10 @@ async function loadHealingHub(user = auth.currentUser) {
   cheerStatus.innerText = "응원 한마디를 불러오는 중입니다.";
 
   try {
-    const [eventSnapshot, responseSnapshot, checkinSnapshot, cheerSnapshot, memberSnapshot] = await Promise.all([
+    const [eventSnapshot, responseSnapshot, commentSnapshot, checkinSnapshot, cheerSnapshot, memberSnapshot] = await Promise.all([
       getDocsFromServer(collection(db, "healingEvents")),
       getDocsFromServer(collection(db, "healingEventResponses")),
+      getDocsFromServer(collection(db, "healingEventComments")),
       getDocsFromServer(collection(db, "healingCheckins")),
       getDocsFromServer(collection(db, "healingCheers")),
       getDocsFromServer(collection(db, "users"))
@@ -5493,6 +5502,7 @@ async function loadHealingHub(user = auth.currentUser) {
 
     latestHealingEvents = [];
     latestHealingResponses = [];
+    latestHealingEventComments = [];
     latestHealingCheckins = [];
     latestHealingCheers = [];
     latestHealingMemberOptions = [];
@@ -5527,6 +5537,19 @@ async function loadHealingHub(user = auth.currentUser) {
         email: data.email || "",
         response: data.response || "maybe",
         updatedAt: data.updatedAt || null
+      });
+    });
+
+    commentSnapshot.forEach((snapshotDoc) => {
+      const data = snapshotDoc.data();
+      latestHealingEventComments.push({
+        id: snapshotDoc.id,
+        eventId: data.eventId || "",
+        userId: data.userId || "",
+        name: data.name || data.email || "이름 없음",
+        email: data.email || "",
+        content: data.content || "",
+        createdAt: data.createdAt || null
       });
     });
 
@@ -5899,6 +5922,17 @@ function handleHealingEventListClick(event) {
 
   if (action === "delete" && targetEvent) {
     deleteHealingEvent(targetEvent);
+    return;
+  }
+
+  if (action === "save-comment" && targetEvent) {
+    saveHealingEventComment(targetEvent);
+    return;
+  }
+
+  if (action === "delete-comment") {
+    const targetComment = latestHealingEventComments.find((item) => item.id === button.dataset.commentId);
+    if (targetComment) deleteHealingEventComment(targetComment);
   }
 }
 
@@ -5909,7 +5943,7 @@ function handleHealingEventListChange(event) {
   const targetEvent = latestHealingEvents.find((item) => item.id === input.dataset.eventId);
   if (!targetEvent) return;
 
-  saveHealingEventResponse(targetEvent, input.checked ? "attend" : "absent");
+  saveHealingEventResponse(targetEvent, input.checked ? "attend" : "absent", input);
 }
 
 function handleHealingCheckinListClick(event) {
@@ -5976,6 +6010,7 @@ function renderHealingEvents(user = auth.currentUser) {
     const isPastEvent = isHealingEventPast(event);
     const responses = getHealingEventResponses(event.id);
     const counts = getHealingResponseCounts(event.id);
+    const comments = getHealingEventComments(event.id);
     const myResponse = responses.find((response) => response.userId === user?.uid)?.response || "";
     const attendNames = responses.filter((response) => response.response === "attend").map((response) => response.name);
     const maybeNames = responses.filter((response) => response.response === "maybe").map((response) => response.name);
@@ -6074,6 +6109,71 @@ function renderHealingEvents(user = auth.currentUser) {
     }
 
     card.appendChild(actionRow);
+
+    const commentSection = document.createElement("div");
+    commentSection.className = "healing-comment-section";
+
+    const commentTitle = document.createElement("div");
+    commentTitle.className = "healing-comment-title";
+    commentTitle.innerText = `댓글 ${comments.length}`;
+    commentSection.appendChild(commentTitle);
+
+    if (comments.length) {
+      const commentList = document.createElement("div");
+      commentList.className = "healing-comment-list";
+
+      comments.forEach((comment) => {
+        const commentItem = document.createElement("div");
+        commentItem.className = "healing-comment-item";
+
+        const commentMeta = document.createElement("div");
+        commentMeta.className = "healing-comment-meta";
+        commentMeta.innerText = `${comment.name} · ${formatSavedDateTime(comment.createdAt) || "-"}`;
+
+        const commentBody = document.createElement("div");
+        commentBody.className = "healing-comment-body";
+        commentBody.innerText = comment.content;
+
+        commentItem.append(commentMeta, commentBody);
+
+        if (user && (isHostUser(user) || comment.userId === user.uid)) {
+          const deleteCommentButton = document.createElement("button");
+          deleteCommentButton.type = "button";
+          deleteCommentButton.className = "button-secondary table-action healing-comment-delete";
+          deleteCommentButton.dataset.healingAction = "delete-comment";
+          deleteCommentButton.dataset.commentId = comment.id;
+          deleteCommentButton.innerText = "삭제";
+          commentItem.appendChild(deleteCommentButton);
+        }
+
+        commentList.appendChild(commentItem);
+      });
+
+      commentSection.appendChild(commentList);
+    }
+
+    if (user) {
+      const commentForm = document.createElement("div");
+      commentForm.className = "healing-comment-form";
+
+      const commentInput = document.createElement("textarea");
+      commentInput.maxLength = 300;
+      commentInput.rows = 2;
+      commentInput.placeholder = "댓글을 입력해주세요.";
+      commentInput.dataset.eventCommentInput = event.id;
+
+      const commentButton = document.createElement("button");
+      commentButton.type = "button";
+      commentButton.className = "button-secondary table-action";
+      commentButton.dataset.healingAction = "save-comment";
+      commentButton.dataset.eventId = event.id;
+      commentButton.innerText = "댓글 등록";
+
+      commentForm.append(commentInput, commentButton);
+      commentSection.appendChild(commentForm);
+    }
+
+    card.appendChild(commentSection);
     eventList.appendChild(card);
   });
 }
@@ -6287,7 +6387,7 @@ async function saveHealingEvent() {
   }
 }
 
-async function saveHealingEventResponse(event, response) {
+async function saveHealingEventResponse(event, response, sourceInput = null) {
   const user = auth.currentUser;
 
   if (!user) {
@@ -6295,20 +6395,107 @@ async function saveHealingEventResponse(event, response) {
     return;
   }
 
+  const previousResponse = latestHealingResponses.find((item) => item.eventId === event.id && item.userId === user.uid)?.response || "";
+  if (sourceInput) sourceInput.disabled = true;
+
   try {
+    const updatedAt = new Date();
     await setDoc(doc(db, "healingEventResponses", `${event.id}_${user.uid}`), {
       eventId: event.id,
       userId: user.uid,
       name: getUserName(user),
       email: user.email,
       response,
-      updatedAt: new Date()
+      updatedAt
     });
-    await loadHealingHub(user);
+    latestHealingResponses = latestHealingResponses.filter((item) => !(item.eventId === event.id && item.userId === user.uid));
+    latestHealingResponses.push({
+      id: `${event.id}_${user.uid}`,
+      eventId: event.id,
+      userId: user.uid,
+      name: getUserName(user),
+      email: user.email,
+      response,
+      updatedAt
+    });
+    renderHealingEvents(user);
     setHealingStatus("event", `${event.title} 번개에 ${getHealingEventResponseLabel(response)}로 표시했습니다.`);
   } catch (e) {
     console.error(e);
+    if (sourceInput) sourceInput.checked = previousResponse === "attend";
     setHealingStatus("event", "참여 상태 저장이 되지 않았습니다. 잠시 후 다시 시도해주세요.");
+  } finally {
+    if (sourceInput) sourceInput.disabled = false;
+  }
+}
+
+async function saveHealingEventComment(event) {
+  const user = auth.currentUser;
+  const input = document.querySelector(`[data-event-comment-input="${event.id}"]`);
+  const button = document.querySelector(`button[data-healing-action="save-comment"][data-event-id="${event.id}"]`);
+  const content = input?.value.trim() || "";
+
+  if (!user) {
+    setHealingStatus("event", "로그인 후 댓글을 남길 수 있습니다.");
+    return;
+  }
+
+  if (!content) {
+    setHealingStatus("event", "댓글 내용을 입력해주세요.");
+    input?.focus();
+    return;
+  }
+
+  if (button) button.disabled = true;
+
+  try {
+    const createdAt = new Date();
+    const commentRef = await addDoc(collection(db, "healingEventComments"), {
+      eventId: event.id,
+      userId: user.uid,
+      name: getUserName(user),
+      email: user.email,
+      content,
+      createdAt
+    });
+    latestHealingEventComments.push({
+      id: commentRef.id,
+      eventId: event.id,
+      userId: user.uid,
+      name: getUserName(user),
+      email: user.email,
+      content,
+      createdAt
+    });
+    if (input) input.value = "";
+    renderHealingEvents(user);
+    setHealingStatus("event", "댓글을 등록했습니다.");
+  } catch (e) {
+    console.error(e);
+    setHealingStatus("event", "댓글 등록이 되지 않았습니다. 잠시 후 다시 시도해주세요.");
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
+async function deleteHealingEventComment(comment) {
+  const user = auth.currentUser;
+
+  if (!user || (!isHostUser(user) && comment.userId !== user.uid)) {
+    setHealingStatus("event", "작성자 본인 또는 호스트만 댓글을 삭제할 수 있습니다.");
+    return;
+  }
+
+  if (!confirm("댓글을 삭제할까요?")) return;
+
+  try {
+    await deleteDoc(doc(db, "healingEventComments", comment.id));
+    latestHealingEventComments = latestHealingEventComments.filter((item) => item.id !== comment.id);
+    renderHealingEvents(user);
+    setHealingStatus("event", "댓글을 삭제했습니다.");
+  } catch (e) {
+    console.error(e);
+    setHealingStatus("event", "댓글 삭제가 되지 않았습니다. 잠시 후 다시 시도해주세요.");
   }
 }
 
@@ -9552,6 +9739,7 @@ function clearDashboard() {
   latestSuggestions = [];
   latestHealingEvents = [];
   latestHealingResponses = [];
+  latestHealingEventComments = [];
   latestHealingCheckins = [];
   latestHealingCheers = [];
   latestHealingMemberOptions = [];
