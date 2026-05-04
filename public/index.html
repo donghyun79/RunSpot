@@ -1304,6 +1304,26 @@
       background: #ffffff;
     }
 
+    .healing-event-past {
+      gap: 8px;
+      border-color: #d9e0ec;
+      background: #f8fafc;
+      box-shadow: none;
+    }
+
+    .healing-event-past .suggestion-title {
+      font-size: 14px;
+    }
+
+    .healing-event-past .suggestion-body {
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .healing-event-past-summary {
+      color: var(--muted);
+    }
+
     .healing-card-editing {
       border-color: var(--brand);
       box-shadow: 0 0 0 2px rgba(35, 89, 220, 0.12);
@@ -3983,11 +4003,11 @@
     second.addEventListener("input", updateTime);
   </script>
 
-  <script type="module" src="app.js?v=20260503-group-standard-name-fix-v247"></script>
+  <script type="module" src="app.js?v=20260504-healing-expired-events-v248"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
-        navigator.serviceWorker.register("service-worker.js?v=20260503-group-standard-name-fix-v247").then((registration) => {
+        navigator.serviceWorker.register("service-worker.js?v=20260504-healing-expired-events-v248").then((registration) => {
           registration.update().catch(() => {});
         }).catch(() => {});
       });

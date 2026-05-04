@@ -1,4 +1,4 @@
-const CACHE_NAME = "naviheal-runners-v247";
+const CACHE_NAME = "naviheal-runners-v248";
 const APP_SHELL = [
   "/",
   "/index.html",

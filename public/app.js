@@ -4954,6 +4954,16 @@ function formatHealingDate(value) {
   return `${parsed.getMonth() + 1}/${parsed.getDate()}`;
 }
 
+function isHealingEventPast(event = {}, now = new Date()) {
+  const eventMs = getDateTimeValueMs(event.eventDate);
+
+  return eventMs > 0 && eventMs < now.getTime();
+}
+
+function getVisibleHealingEventsForPopup() {
+  return latestHealingEvents.filter((event) => !isHealingEventPast(event));
+}
+
 function getHealingResponseCounts(eventId) {
   return latestHealingResponses.reduce((counts, response) => {
     if (response.eventId !== eventId) return counts;
@@ -4977,6 +4987,16 @@ function canEditHealingEvent(user, event) {
 function getHealingEventPreparerLabel(event = {}) {
   const names = Array.isArray(event.preparerNames) ? event.preparerNames.filter(Boolean) : [];
   return names.length ? names.join(", ") : (event.name || "작성자");
+}
+
+function formatHealingNamesSummary(names = [], maxVisible = 4) {
+  const cleanNames = names.filter(Boolean);
+
+  if (cleanNames.length <= maxVisible) {
+    return cleanNames.join(", ");
+  }
+
+  return `${cleanNames.slice(0, maxVisible).join(", ")} 외 ${cleanNames.length - maxVisible}명`;
 }
 
 function getSelectedHealingEventPreparers(user = auth.currentUser) {
@@ -5255,7 +5275,8 @@ function updateMonthlyAthleteAnnouncementUi(user = auth.currentUser) {
 }
 
 function getHealingPopupMeta() {
-  const latestEvent = latestHealingEvents.reduce((latest, item) => {
+  const visibleEvents = getVisibleHealingEventsForPopup();
+  const latestEvent = visibleEvents.reduce((latest, item) => {
     const latestMs = getDateTimeValueMs(latest?.updatedAt || latest?.createdAt || latest?.eventDate);
     const itemMs = getDateTimeValueMs(item?.updatedAt || item?.createdAt || item?.eventDate);
 
@@ -5286,7 +5307,7 @@ function getHealingPopupMeta() {
       latestCheer ? `cheer:${latestCheer.id}:${latestCheerMs}` : ""
     ].filter(Boolean).join("|"),
     counts: {
-      event: latestHealingEvents.length,
+      event: visibleEvents.length,
       checkin: latestHealingCheckins.length,
       cheer: latestHealingCheers.length
     }
@@ -5394,8 +5415,10 @@ function maybeOpenHealingPopup(user = auth.currentUser) {
 
   const lines = [];
 
-  if (popupMeta.counts.event && latestHealingEvents[0]) {
-    const latestTitle = summarizeHealingPopupText(latestHealingEvents[0].title, 26);
+  const visiblePopupEvents = getVisibleHealingEventsForPopup();
+
+  if (popupMeta.counts.event && visiblePopupEvents[0]) {
+    const latestTitle = summarizeHealingPopupText(visiblePopupEvents[0].title, 26);
     const extraCount = Math.max(0, popupMeta.counts.event - 1);
 
     lines.push(`번개/행사 공지: ${latestTitle}${extraCount ? ` 외 ${extraCount}건` : ""}`);
@@ -5933,9 +5956,18 @@ function renderHealingEvents(user = auth.currentUser) {
     return;
   }
 
-  eventStatus.innerText = `${latestHealingEvents.length}개 번개/행사 공지`;
+  const upcomingEvents = latestHealingEvents.filter((event) => !isHealingEventPast(event));
+  const pastEvents = latestHealingEvents.filter((event) => isHealingEventPast(event))
+    .sort((a, b) => getDateTimeValueMs(b.eventDate) - getDateTimeValueMs(a.eventDate));
+  const displayEvents = [...upcomingEvents, ...pastEvents];
 
-  latestHealingEvents.forEach((event) => {
+  eventStatus.innerText = [
+    upcomingEvents.length ? `예정 ${upcomingEvents.length}개` : "",
+    pastEvents.length ? `지난 행사 ${pastEvents.length}개` : ""
+  ].filter(Boolean).join(" · ") || `${latestHealingEvents.length}개 번개/행사 공지`;
+
+  displayEvents.forEach((event) => {
+    const isPastEvent = isHealingEventPast(event);
     const responses = getHealingEventResponses(event.id);
     const counts = getHealingResponseCounts(event.id);
     const myResponse = responses.find((response) => response.userId === user?.uid)?.response || "";
@@ -5944,24 +5976,34 @@ function renderHealingEvents(user = auth.currentUser) {
 
     const card = document.createElement("article");
     card.className = "suggestion-card";
+    if (isPastEvent) {
+      card.classList.add("healing-event-past");
+    }
     if (isEditingHealingEventId(event.id)) {
       card.classList.add("healing-card-editing");
     }
 
     const title = document.createElement("div");
     title.className = "suggestion-title";
-    title.innerText = event.title;
+    title.innerText = isPastEvent ? `지난 행사 · ${event.title}` : event.title;
     card.appendChild(title);
 
     const meta = document.createElement("div");
     meta.className = "healing-card-meta";
-    meta.innerText = `${getHealingEventTypeLabel(event.type)} · ${formatHealingDateTime(event.eventDate)} · ${event.location || "장소 추후 안내"}\n준비: ${getHealingEventPreparerLabel(event)}`;
+    meta.innerText = isPastEvent
+      ? `${formatHealingDateTime(event.eventDate)} · ${event.location || "장소 미기재"} · 준비 ${getHealingEventPreparerLabel(event)}`
+      : `${getHealingEventTypeLabel(event.type)} · ${formatHealingDateTime(event.eventDate)} · ${event.location || "장소 추후 안내"}\n준비: ${getHealingEventPreparerLabel(event)}`;
     card.appendChild(meta);
 
-    if (event.description) {
+    if (event.description && !isPastEvent) {
       const body = document.createElement("div");
       body.className = "suggestion-body";
       body.innerText = event.description;
+      card.appendChild(body);
+    } else if (event.description && isPastEvent) {
+      const body = document.createElement("div");
+      body.className = "suggestion-body healing-event-past-summary";
+      body.innerText = summarizeHealingPopupText(event.description, 72);
       card.appendChild(body);
     }
 
@@ -5975,13 +6017,15 @@ function renderHealingEvents(user = auth.currentUser) {
     });
     card.appendChild(pillRow);
 
-    if (attendNames.length || maybeNames.length) {
+    if (attendNames.length || (!isPastEvent && maybeNames.length)) {
       const attendee = document.createElement("div");
       attendee.className = "suggestion-body";
-      attendee.innerText = [
-        attendNames.length ? `참여: ${attendNames.join(", ")}` : "",
-        maybeNames.length ? `미정: ${maybeNames.join(", ")}` : ""
-      ].filter(Boolean).join("\n");
+      attendee.innerText = isPastEvent
+        ? `참여: ${formatHealingNamesSummary(attendNames)}`
+        : [
+          attendNames.length ? `참여: ${attendNames.join(", ")}` : "",
+          maybeNames.length ? `미정: ${maybeNames.join(", ")}` : ""
+        ].filter(Boolean).join("\n");
       card.appendChild(attendee);
     }
 
@@ -5997,7 +6041,9 @@ function renderHealingEvents(user = auth.currentUser) {
     participateInput.checked = myResponse === "attend";
     participateInput.disabled = !user;
     const participateText = document.createElement("span");
-    participateText.innerText = myResponse === "attend" ? "참여 신청됨" : "참여 신청";
+    participateText.innerText = myResponse === "attend"
+      ? (isPastEvent ? "참여 기록됨" : "참여 신청됨")
+      : (isPastEvent ? "참여 입력" : "참여 신청");
     participateLabel.append(participateInput, participateText);
     actionRow.appendChild(participateLabel);
 
