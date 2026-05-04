@@ -3537,8 +3537,14 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
+    if (!isMonthlyGoalEditPeriod()) {
+      alert("월 마일리지 목표는 매월 10일까지 입력 및 수정할 수 있습니다.");
+      updateMonthlyGoalForm();
+      return;
+    }
+
     if (monthlyGoalLocked) {
-      alert("월 마일리지 목표는 월 1회만 설정할 수 있습니다.");
+      alert("월 마일리지 목표 수정 기간이 마감되었습니다.");
       return;
     }
 
@@ -7323,6 +7329,7 @@ function updateMileageSummary(runs) {
 async function loadMonthlyGoal(user) {
   const monthlyGoalInput = document.getElementById("monthlyGoal");
   const monthKey = getCurrentMonthKey();
+  const canEditGoal = isMonthlyGoalEditPeriod();
 
   if (!user || !monthlyGoalInput) return;
 
@@ -7330,15 +7337,15 @@ async function loadMonthlyGoal(user) {
     const goalRef = doc(db, "monthlyGoals", `${user.uid}_${monthKey}`);
     const goalSnapshot = await getDocFromServer(goalRef);
 
-    monthlyGoalLocked = goalSnapshot.exists();
-    monthlyGoalKm = monthlyGoalLocked ? Number(goalSnapshot.data().goalKm) || 0 : 0;
+    monthlyGoalKm = goalSnapshot.exists() ? Number(goalSnapshot.data().goalKm) || 0 : 0;
+    monthlyGoalLocked = !canEditGoal;
     monthlyGoalInput.value = monthlyGoalKm || "";
     updateMonthlyGoalForm();
     updateMonthlyGoalStatus(latestRuns);
   } catch (e) {
     console.error(e);
     monthlyGoalKm = 0;
-    monthlyGoalLocked = false;
+    monthlyGoalLocked = !isMonthlyGoalEditPeriod();
     updateMonthlyGoalForm();
     updateMonthlyGoalStatus(latestRuns, "월 목표를 불러오지 못했습니다.");
   }
@@ -7349,7 +7356,7 @@ async function saveMonthlyGoal(user, goalKm) {
   const goalRef = doc(db, "monthlyGoals", `${user.uid}_${monthKey}`);
 
   monthlyGoalKm = goalKm;
-  monthlyGoalLocked = true;
+  monthlyGoalLocked = !isMonthlyGoalEditPeriod();
 
   await setDoc(goalRef, {
     userId: user.uid,
@@ -7363,15 +7370,26 @@ async function saveMonthlyGoal(user, goalKm) {
   updateMonthlyGoalForm();
 }
 
+function isMonthlyGoalEditPeriod(date = new Date()) {
+  return date.getDate() <= 10;
+}
+
 function updateMonthlyGoalForm() {
   const monthlyGoalInput = document.getElementById("monthlyGoal");
   const saveMonthlyGoalBtn = document.getElementById("saveMonthlyGoal");
 
   if (!monthlyGoalInput || !saveMonthlyGoalBtn) return;
 
+  const canEditGoal = isMonthlyGoalEditPeriod();
+
+  monthlyGoalLocked = !canEditGoal;
   monthlyGoalInput.disabled = monthlyGoalLocked;
   saveMonthlyGoalBtn.disabled = monthlyGoalLocked;
-  saveMonthlyGoalBtn.innerText = monthlyGoalLocked ? "설정 완료" : "목표 저장";
+  saveMonthlyGoalBtn.innerText = monthlyGoalLocked
+    ? "수정 마감"
+    : monthlyGoalKm
+      ? "목표 수정"
+      : "목표 저장";
 }
 
 function updateMonthlyGoalStatus(runs, errorMessage = "") {
@@ -8508,7 +8526,7 @@ async function loadMonthlyAthleteCandidates(user) {
 
       cells.push(
         `${formatAthleteScore(entry.attendanceScore)}/${entry.attendanceMaxScore} (${entry.attendanceDays}일)`,
-        `${formatAthleteScore(entry.mileageScore)}/${entry.mileageMaxScore} (${entry.groupLabel} ${entry.mileageRate}%)`,
+        formatMonthlyMileageScore(entry),
         formatMonthlyGoalAdjustment(entry),
         `${formatAthleteScore(entry.qualityScore)}/${entry.qualityMaxScore} (${formatQualityCredit(entry.qualityAttendanceDays)}/${entry.qualityWorkoutCount}회 인정)`,
         formatMonthlyGrowthScore(entry),
@@ -8794,13 +8812,6 @@ function formatAthleteScore(score) {
   return Number.isInteger(score) ? `${score}` : score.toFixed(1);
 }
 
-function clampSignedScore(score, maxAbsScore = 5, precision = 1) {
-  const factor = 10 ** precision;
-  const clamped = Math.min(maxAbsScore, Math.max(-maxAbsScore, score));
-
-  return Math.round(clamped * factor) / factor;
-}
-
 function getMonthlyAthleteScoreWeights(monthKey) {
   if (monthKey < MONTHLY_GROWTH_SCORE_START_MONTH) {
     return {
@@ -8983,19 +8994,45 @@ function getMonthlyGoalRate(distance, goalKm, monthKey, useElapsedProgress = fal
   return clampScore((distance / targetDistance) * 100, 999, 1);
 }
 
-function getMonthlyGoalAdjustment(rate) {
+function getMonthlyGoalAdjustment(rate, goalKm = 0, groupTarget = 0) {
   if (!Number.isFinite(rate)) return 0;
-  if (rate >= 100) return 5;
-  if (rate >= 90) return clampSignedScore(((rate - 90) / 10) * 5, 5, 1);
-  if (rate >= 70) return clampSignedScore(-5 + (((rate - 70) / 20) * 5), 5, 1);
-  return -5;
+
+  const setupScore = getMonthlyGoalSetupScore(goalKm, groupTarget);
+  const achievementScore = getMonthlyGoalAchievementScore(rate);
+
+  return clampScore(setupScore + achievementScore, getMonthlyGoalMaxScore(), 1);
+}
+
+function getMonthlyGoalSetupScore(goalKm = 0, groupTarget = 0) {
+  const targetRatio = groupTarget ? goalKm / groupTarget : 1;
+
+  if (targetRatio < 0.6) return 0.5;
+  if (targetRatio < 0.8) return 1;
+  if (targetRatio < 1) return 1.5;
+  return 2;
+}
+
+function getMonthlyGoalAchievementScore(rate) {
+  if (!Number.isFinite(rate)) return 0;
+  if (rate >= 100) return 3;
+  if (rate >= 90) return 2;
+  if (rate >= 70) return 1;
+  return 0;
+}
+
+function getMonthlyGoalMaxScore() {
+  return 5;
 }
 
 function formatMonthlyGoalAdjustment(entry) {
   if (!entry.goalKm) return "0점 (미설정)";
 
   const sign = entry.goalScore > 0 ? "+" : "";
-  return `${sign}${formatAthleteScore(entry.goalScore)}점 (${formatMileage(entry.goalKm)} · ${entry.goalRate}%)`;
+  return `${sign}${formatAthleteScore(entry.goalScore)}/${formatAthleteScore(entry.goalMaxScore)}점 (설정 ${formatAthleteScore(entry.goalSetupScore)}/2 · 달성 ${formatAthleteScore(entry.goalAchievementScore)}/3 · 목표 ${formatMileage(entry.goalKm)} · 달성률 ${entry.goalRate}% · ${entry.goalBenchmarkLabel})`;
+}
+
+function formatMonthlyMileageScore(entry) {
+  return `${formatAthleteScore(entry.mileageScore)}/${entry.mileageMaxScore}점 (하한 ${entry.groupLabel} · 달성 ${entry.mileageRate}%)`;
 }
 
 function calculateMonthlyAthleteScore(entry, monthKey, previousMonthKey, monthlyGoalsByUser = new Map(), healingContributions = null) {
@@ -9007,6 +9044,8 @@ function calculateMonthlyAthleteScore(entry, monthKey, previousMonthKey, monthly
   const goalMapKey = getMonthlyGoalMapKey(monthKey, entry.userId, entry.email);
   const goalKm = Number(monthlyGoalsByUser.get(goalMapKey) || 0);
   const groupTarget = getMonthlyMileageTarget(entry.name);
+  const goalBenchmarkTarget = getMonthlyGoalBenchmarkTarget(entry.name, groupTarget);
+  const goalBenchmarkLabel = getMonthlyGoalBenchmarkLabel(entry.name, goalBenchmarkTarget);
   const mileageRate = groupTarget ? clampScore((totalDistance / groupTarget) * 100, 999, 1) : 0;
   const qualitySummary = getQualityWorkoutCompletionSummary(entry.runs, monthKey, true);
   const elapsedQualitySummary = getQualityWorkoutCompletionSummary(entry.runs, monthKey);
@@ -9045,10 +9084,13 @@ function calculateMonthlyAthleteScore(entry, monthKey, previousMonthKey, monthly
   });
   const projectedBadgeCount = projectedBadgeAchievements.length;
   const projectedBadgeBonus = getMonthlyBadgeBonus(projectedBadgeCount);
-  const goalRate = getMonthlyGoalRate(totalDistance, goalKm, monthKey, true);
-  const goalScore = goalKm ? getMonthlyGoalAdjustment(goalRate) : 0;
+  const goalRate = getMonthlyGoalRate(totalDistance, goalKm, monthKey);
+  const goalSetupScore = goalKm ? getMonthlyGoalSetupScore(goalKm, goalBenchmarkTarget) : 0;
+  const goalAchievementScore = goalKm ? getMonthlyGoalAchievementScore(goalRate) : 0;
+  const goalMaxScore = goalKm ? getMonthlyGoalMaxScore() : 0;
+  const goalScore = goalKm ? getMonthlyGoalAdjustment(goalRate, goalKm, goalBenchmarkTarget) : 0;
   const projectedGoalRate = getMonthlyGoalRate(projectedDistance, goalKm, monthKey);
-  const projectedGoalScore = goalKm ? getMonthlyGoalAdjustment(projectedGoalRate) : 0;
+  const projectedGoalScore = goalKm ? getMonthlyGoalAdjustment(projectedGoalRate, goalKm, goalBenchmarkTarget) : 0;
   const healingSummary = getMonthlyHealingScore(entry, monthKey, healingContributions);
   const confirmedRawScore = attendanceScore + mileageScore + qualityScore + growthScore + raceBonus + badgeBonus + goalScore + healingSummary.healingScore;
   const totalRawScore = projectedAttendanceScore + projectedMileageScore + projectedQualityScore + growthScore + raceBonus + projectedBadgeBonus + projectedGoalScore + healingSummary.healingScore;
@@ -9069,6 +9111,11 @@ function calculateMonthlyAthleteScore(entry, monthKey, previousMonthKey, monthly
     totalDistance,
     projectedDistance,
     goalKm,
+    goalBenchmarkTarget,
+    goalBenchmarkLabel,
+    goalSetupScore,
+    goalAchievementScore,
+    goalMaxScore,
     goalRate,
     goalScore,
     projectedGoalRate,
@@ -9199,6 +9246,20 @@ function getMonthlyMileageTarget(memberName) {
   const targetMatch = String(group?.monthlyMileage || "").match(/\d+/);
 
   return Number(targetMatch?.[0]) || 120;
+}
+
+function getMonthlyGoalBenchmarkTarget(memberName, fallbackTarget = 120) {
+  const group = getRunningGroupByMemberName(memberName);
+  const targets = String(group?.monthlyMileage || "").match(/\d+(?:\.\d+)?/g) || [];
+  const upperTarget = Math.max(...targets.map(Number).filter(Number.isFinite));
+
+  return Number.isFinite(upperTarget) && upperTarget > 0 ? upperTarget : fallbackTarget;
+}
+
+function getMonthlyGoalBenchmarkLabel(memberName, targetKm) {
+  const group = getRunningGroupByMemberName(memberName);
+
+  return group ? `${group.group}조 상향 ${formatMileage(targetKm)} 기준` : `상향 ${formatMileage(targetKm)} 기준`;
 }
 
 function getMonthlyMileageGroupLabel(memberName, targetKm) {
