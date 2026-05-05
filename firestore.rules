@@ -351,6 +351,142 @@ service cloud.firestore {
       && request.resource.data.email == request.auth.token.email;
     }
 
+    function validHealingCheckinCommentData() {
+      return request.resource.data.keys().hasOnly([
+        "checkinId",
+        "userId",
+        "name",
+        "email",
+        "content",
+        "createdAt"
+      ])
+      && request.resource.data.checkinId is string
+      && request.resource.data.checkinId.size() > 0
+      && request.resource.data.checkinId.size() <= 80
+      && request.resource.data.userId is string
+      && request.resource.data.userId == request.auth.uid
+      && request.resource.data.name is string
+      && request.resource.data.name.size() > 0
+      && request.resource.data.name.size() <= 40
+      && request.resource.data.email is string
+      && request.resource.data.email == request.auth.token.email
+      && request.resource.data.content is string
+      && request.resource.data.content.size() > 0
+      && request.resource.data.content.size() <= 300;
+    }
+
+    function validHealingCheerCommentData() {
+      return request.resource.data.keys().hasOnly([
+        "cheerId",
+        "userId",
+        "name",
+        "email",
+        "content",
+        "createdAt"
+      ])
+      && request.resource.data.cheerId is string
+      && request.resource.data.cheerId.size() > 0
+      && request.resource.data.cheerId.size() <= 80
+      && request.resource.data.userId is string
+      && request.resource.data.userId == request.auth.uid
+      && request.resource.data.name is string
+      && request.resource.data.name.size() > 0
+      && request.resource.data.name.size() <= 40
+      && request.resource.data.email is string
+      && request.resource.data.email == request.auth.token.email
+      && request.resource.data.content is string
+      && request.resource.data.content.size() > 0
+      && request.resource.data.content.size() <= 300;
+    }
+
+    function validHealingEventReactionData() {
+      return request.resource.data.keys().hasOnly([
+        "eventId",
+        "userId",
+        "name",
+        "email",
+        "emoji",
+        "updatedAt"
+      ])
+      && request.resource.data.eventId is string
+      && request.resource.data.eventId.size() > 0
+      && request.resource.data.eventId.size() <= 80
+      && request.resource.data.userId is string
+      && request.resource.data.userId == request.auth.uid
+      && request.resource.data.name is string
+      && request.resource.data.name.size() > 0
+      && request.resource.data.name.size() <= 40
+      && request.resource.data.email is string
+      && request.resource.data.email == request.auth.token.email
+      && request.resource.data.emoji in ["좋아요", "응원", "공감", "웃음", "최고"];
+    }
+
+    function validHealingCommentReactionData() {
+      return request.resource.data.keys().hasOnly([
+        "commentId",
+        "userId",
+        "name",
+        "email",
+        "emoji",
+        "updatedAt"
+      ])
+      && request.resource.data.commentId is string
+      && request.resource.data.commentId.size() > 0
+      && request.resource.data.commentId.size() <= 80
+      && request.resource.data.userId is string
+      && request.resource.data.userId == request.auth.uid
+      && request.resource.data.name is string
+      && request.resource.data.name.size() > 0
+      && request.resource.data.name.size() <= 40
+      && request.resource.data.email is string
+      && request.resource.data.email == request.auth.token.email
+      && request.resource.data.emoji in ["좋아요", "응원", "공감", "웃음", "최고"];
+    }
+
+    function validHealingCheckinReactionData() {
+      return request.resource.data.keys().hasOnly([
+        "checkinId",
+        "userId",
+        "name",
+        "email",
+        "emoji",
+        "updatedAt"
+      ])
+      && request.resource.data.checkinId is string
+      && request.resource.data.checkinId.size() > 0
+      && request.resource.data.checkinId.size() <= 80
+      && request.resource.data.userId is string
+      && request.resource.data.userId == request.auth.uid
+      && request.resource.data.name is string
+      && request.resource.data.name.size() > 0
+      && request.resource.data.name.size() <= 40
+      && request.resource.data.email is string
+      && request.resource.data.email == request.auth.token.email
+      && request.resource.data.emoji in ["좋아요", "응원", "공감", "웃음", "최고"];
+    }
+
+    function validHealingCheerReactionData() {
+      return request.resource.data.keys().hasOnly([
+        "cheerId",
+        "userId",
+        "name",
+        "email",
+        "emoji",
+        "updatedAt"
+      ])
+      && request.resource.data.cheerId is string
+      && request.resource.data.cheerId.size() > 0
+      && request.resource.data.cheerId.size() <= 80
+      && request.resource.data.userId is string
+      && request.resource.data.userId == request.auth.uid
+      && request.resource.data.name is string
+      && request.resource.data.name.size() > 0
+      && request.resource.data.name.size() <= 40
+      && request.resource.data.email is string
+      && request.resource.data.email == request.auth.token.email
+      && request.resource.data.emoji in ["좋아요", "응원", "공감", "웃음", "최고"];
+    }
+
     function validHealingMissionShape() {
       return request.resource.data.keys().hasOnly([
         "title",
@@ -561,7 +697,30 @@ service cloud.firestore {
     match /healingEventComments/{commentId} {
       allow read: if approvedUser();
       allow create: if approvedUser() && validHealingEventCommentData();
-      allow update: if false;
+      allow update: if approvedUser()
+        && resource.data.userId == request.auth.uid
+        && validHealingEventCommentData()
+        && request.resource.data.eventId == resource.data.eventId
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.name == resource.data.name
+        && request.resource.data.email == resource.data.email
+        && request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if isHost() || (approvedUser() && resource.data.userId == request.auth.uid);
+    }
+
+    match /healingEventReactions/{reactionId} {
+      allow read: if approvedUser();
+      allow create, update: if approvedUser()
+        && validHealingEventReactionData()
+        && reactionId == request.resource.data.eventId + "_" + request.auth.uid;
+      allow delete: if isHost() || (approvedUser() && resource.data.userId == request.auth.uid);
+    }
+
+    match /healingEventCommentReactions/{reactionId} {
+      allow read: if approvedUser();
+      allow create, update: if approvedUser()
+        && validHealingCommentReactionData()
+        && reactionId == request.resource.data.commentId + "_" + request.auth.uid;
       allow delete: if isHost() || (approvedUser() && resource.data.userId == request.auth.uid);
     }
 
@@ -597,6 +756,36 @@ service cloud.firestore {
       allow delete: if isHost() || (approvedUser() && resource.data.userId == request.auth.uid);
     }
 
+    match /healingCheckinReactions/{reactionId} {
+      allow read: if approvedUser();
+      allow create, update: if approvedUser()
+        && validHealingCheckinReactionData()
+        && reactionId == request.resource.data.checkinId + "_" + request.auth.uid;
+      allow delete: if isHost() || (approvedUser() && resource.data.userId == request.auth.uid);
+    }
+
+    match /healingCheckinComments/{commentId} {
+      allow read: if approvedUser();
+      allow create: if approvedUser() && validHealingCheckinCommentData();
+      allow update: if approvedUser()
+        && resource.data.userId == request.auth.uid
+        && validHealingCheckinCommentData()
+        && request.resource.data.checkinId == resource.data.checkinId
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.name == resource.data.name
+        && request.resource.data.email == resource.data.email
+        && request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if isHost() || (approvedUser() && resource.data.userId == request.auth.uid);
+    }
+
+    match /healingCheckinCommentReactions/{reactionId} {
+      allow read: if approvedUser();
+      allow create, update: if approvedUser()
+        && validHealingCommentReactionData()
+        && reactionId == request.resource.data.commentId + "_" + request.auth.uid;
+      allow delete: if isHost() || (approvedUser() && resource.data.userId == request.auth.uid);
+    }
+
     match /healingCheers/{cheerId} {
       allow read: if approvedUser();
       allow create: if approvedUser() && validHealingCheerData();
@@ -612,6 +801,36 @@ service cloud.firestore {
         && request.resource.data.name == resource.data.name
         && request.resource.data.createdAt == resource.data.createdAt
       );
+      allow delete: if isHost() || (approvedUser() && resource.data.userId == request.auth.uid);
+    }
+
+    match /healingCheerReactions/{reactionId} {
+      allow read: if approvedUser();
+      allow create, update: if approvedUser()
+        && validHealingCheerReactionData()
+        && reactionId == request.resource.data.cheerId + "_" + request.auth.uid;
+      allow delete: if isHost() || (approvedUser() && resource.data.userId == request.auth.uid);
+    }
+
+    match /healingCheerComments/{commentId} {
+      allow read: if approvedUser();
+      allow create: if approvedUser() && validHealingCheerCommentData();
+      allow update: if approvedUser()
+        && resource.data.userId == request.auth.uid
+        && validHealingCheerCommentData()
+        && request.resource.data.cheerId == resource.data.cheerId
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.name == resource.data.name
+        && request.resource.data.email == resource.data.email
+        && request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if isHost() || (approvedUser() && resource.data.userId == request.auth.uid);
+    }
+
+    match /healingCheerCommentReactions/{reactionId} {
+      allow read: if approvedUser();
+      allow create, update: if approvedUser()
+        && validHealingCommentReactionData()
+        && reactionId == request.resource.data.commentId + "_" + request.auth.uid;
       allow delete: if isHost() || (approvedUser() && resource.data.userId == request.auth.uid);
     }
 

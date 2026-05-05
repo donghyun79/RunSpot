@@ -64,13 +64,24 @@ let latestSuggestions = [];
 let latestHealingEvents = [];
 let latestHealingResponses = [];
 let latestHealingEventComments = [];
+let latestHealingEventReactions = [];
+let latestHealingEventCommentReactions = [];
 let latestHealingCheckins = [];
+let latestHealingCheckinComments = [];
+let latestHealingCheckinReactions = [];
+let latestHealingCheckinCommentReactions = [];
 let latestHealingCheers = [];
+let latestHealingCheerComments = [];
+let latestHealingCheerReactions = [];
+let latestHealingCheerCommentReactions = [];
 let latestHealingMemberOptions = [];
 let latestAthleteHallEntries = [];
 let editingHealingEvent = null;
 let editingHealingCheckin = null;
 let editingHealingCheer = null;
+let activeHealingReactionPickerKey = "";
+let activeHealingCommentComposerKey = "";
+let activeHealingCommentEditKey = "";
 let isHealingEventComposerOpen = false;
 let healingEventHostForm = null;
 let healingEventTitleInput = null;
@@ -107,6 +118,14 @@ let completedQualityAttendancePromptKey = "";
 const CLUB_INVITE_CODE = "NAVIHEAL";
 const HOST_EMAIL = "dhseo@skku.edu";
 const HOST_NAME = "서동현";
+const HEALING_CHECKIN_REACTION_OPTIONS = ["좋아요", "응원", "공감", "웃음", "최고"];
+const HEALING_CHECKIN_REACTION_EMOJIS = {
+  "좋아요": "👍",
+  "응원": "👏",
+  "공감": "💙",
+  "웃음": "😊",
+  "최고": "🔥"
+};
 const PRE_APPROVED_MEMBERS = [
   { name: "김성균", email: "skyskim@naver.com" }
 ];
@@ -5097,6 +5116,491 @@ function getHealingCheckinMoodLabel(mood) {
   return labels[mood] || "체크인";
 }
 
+function getHealingEventReactions(eventId) {
+  return latestHealingEventReactions.filter((reaction) => reaction.eventId === eventId);
+}
+
+function getHealingEventReactionSummary(eventId) {
+  return getHealingReactionSummary(getHealingEventReactions(eventId));
+}
+
+function getMyHealingEventReaction(eventId, user = auth.currentUser) {
+  if (!user) return null;
+
+  return latestHealingEventReactions.find((reaction) => (
+    reaction.eventId === eventId && reaction.userId === user.uid
+  )) || null;
+}
+
+function getHealingEventReactionDocId(eventId, userId) {
+  return `${eventId}_${userId}`;
+}
+
+function getHealingCheckinComments(checkinId) {
+  return latestHealingCheckinComments
+    .filter((comment) => comment.checkinId === checkinId)
+    .sort((a, b) => getDateTimeValueMs(a.createdAt) - getDateTimeValueMs(b.createdAt));
+}
+
+function getHealingCheckinReactions(checkinId) {
+  return latestHealingCheckinReactions.filter((reaction) => reaction.checkinId === checkinId);
+}
+
+function getHealingReactionSummary(reactions) {
+  const summary = new Map();
+
+  reactions.forEach((reaction) => {
+    if (!HEALING_CHECKIN_REACTION_OPTIONS.includes(reaction.emoji)) return;
+    summary.set(reaction.emoji, (summary.get(reaction.emoji) || 0) + 1);
+  });
+
+  return summary;
+}
+
+function getHealingCheckinReactionSummary(checkinId) {
+  return getHealingReactionSummary(getHealingCheckinReactions(checkinId));
+}
+
+function getMyHealingCheckinReaction(checkinId, user = auth.currentUser) {
+  if (!user) return null;
+
+  return latestHealingCheckinReactions.find((reaction) => (
+    reaction.checkinId === checkinId && reaction.userId === user.uid
+  )) || null;
+}
+
+function getHealingCheckinReactionDocId(checkinId, userId) {
+  return `${checkinId}_${userId}`;
+}
+
+function getHealingCheerReactions(cheerId) {
+  return latestHealingCheerReactions.filter((reaction) => reaction.cheerId === cheerId);
+}
+
+function getHealingCheerReactionSummary(cheerId) {
+  return getHealingReactionSummary(getHealingCheerReactions(cheerId));
+}
+
+function getMyHealingCheerReaction(cheerId, user = auth.currentUser) {
+  if (!user) return null;
+
+  return latestHealingCheerReactions.find((reaction) => (
+    reaction.cheerId === cheerId && reaction.userId === user.uid
+  )) || null;
+}
+
+function getHealingCheerReactionDocId(cheerId, userId) {
+  return `${cheerId}_${userId}`;
+}
+
+function getHealingCheerComments(cheerId) {
+  return latestHealingCheerComments
+    .filter((comment) => comment.cheerId === cheerId)
+    .sort((a, b) => getDateTimeValueMs(a.createdAt) - getDateTimeValueMs(b.createdAt));
+}
+
+function getHealingTargetKey(targetType, targetId) {
+  return `${targetType}:${targetId}`;
+}
+
+function setHealingTargetDataset(element, targetType, targetId) {
+  if (targetType === "event") element.dataset.eventId = targetId;
+  if (targetType === "checkin") element.dataset.checkinId = targetId;
+  if (targetType === "cheer") element.dataset.cheerId = targetId;
+}
+
+function getHealingCommentReactionList(commentScope) {
+  if (commentScope === "event") return latestHealingEventCommentReactions;
+  if (commentScope === "checkin") return latestHealingCheckinCommentReactions;
+  if (commentScope === "cheer") return latestHealingCheerCommentReactions;
+  return [];
+}
+
+function getHealingCommentList(commentScope) {
+  if (commentScope === "event") return latestHealingEventComments;
+  if (commentScope === "checkin") return latestHealingCheckinComments;
+  if (commentScope === "cheer") return latestHealingCheerComments;
+  return [];
+}
+
+function getHealingCommentByScope(commentScope, commentId) {
+  return getHealingCommentList(commentScope).find((comment) => comment.id === commentId) || null;
+}
+
+function getHealingCommentReactions(commentScope, commentId) {
+  return getHealingCommentReactionList(commentScope).filter((reaction) => reaction.commentId === commentId);
+}
+
+function getHealingCommentReactionSummary(commentScope, commentId) {
+  return getHealingReactionSummary(getHealingCommentReactions(commentScope, commentId));
+}
+
+function getMyHealingCommentReaction(commentScope, commentId, user = auth.currentUser) {
+  if (!user) return null;
+
+  return getHealingCommentReactionList(commentScope).find((reaction) => (
+    reaction.commentId === commentId && reaction.userId === user.uid
+  )) || null;
+}
+
+function getHealingCommentReactionDocId(commentId, userId) {
+  return `${commentId}_${userId}`;
+}
+
+function setHealingCommentTargetDataset(element, commentScope, commentId) {
+  element.dataset.commentScope = commentScope;
+  element.dataset.commentId = commentId;
+}
+
+function renderHealingCommentScope(commentScope, user = auth.currentUser) {
+  if (commentScope === "event") renderHealingEvents(user);
+  if (commentScope === "checkin") renderHealingCheckins(user);
+  if (commentScope === "cheer") renderHealingCheers(user);
+}
+
+function getHealingCommentStatusSection(commentScope) {
+  if (commentScope === "event") return "event";
+  if (commentScope === "checkin") return "checkin";
+  if (commentScope === "cheer") return "cheer";
+  return "checkin";
+}
+
+function getHealingCommentCollectionName(commentScope) {
+  if (commentScope === "event") return "healingEventComments";
+  if (commentScope === "checkin") return "healingCheckinComments";
+  if (commentScope === "cheer") return "healingCheerComments";
+  return "";
+}
+
+function getHealingCommentReactionCollectionName(commentScope) {
+  if (commentScope === "event") return "healingEventCommentReactions";
+  if (commentScope === "checkin") return "healingCheckinCommentReactions";
+  if (commentScope === "cheer") return "healingCheerCommentReactions";
+  return "";
+}
+
+function replaceHealingCommentReaction(commentScope, reactionId, payload = null) {
+  if (commentScope === "event") {
+    latestHealingEventCommentReactions = latestHealingEventCommentReactions.filter((reaction) => reaction.id !== reactionId);
+    if (payload) latestHealingEventCommentReactions.push({ id: reactionId, ...payload });
+  }
+  if (commentScope === "checkin") {
+    latestHealingCheckinCommentReactions = latestHealingCheckinCommentReactions.filter((reaction) => reaction.id !== reactionId);
+    if (payload) latestHealingCheckinCommentReactions.push({ id: reactionId, ...payload });
+  }
+  if (commentScope === "cheer") {
+    latestHealingCheerCommentReactions = latestHealingCheerCommentReactions.filter((reaction) => reaction.id !== reactionId);
+    if (payload) latestHealingCheerCommentReactions.push({ id: reactionId, ...payload });
+  }
+}
+
+function replaceHealingCommentContent(commentScope, commentId, content) {
+  const replaceComment = (comment) => comment.id === commentId ? { ...comment, content } : comment;
+
+  if (commentScope === "event") latestHealingEventComments = latestHealingEventComments.map(replaceComment);
+  if (commentScope === "checkin") latestHealingCheckinComments = latestHealingCheckinComments.map(replaceComment);
+  if (commentScope === "cheer") latestHealingCheerComments = latestHealingCheerComments.map(replaceComment);
+}
+
+function handleHealingCommentReactionAction(action, button, expectedScope) {
+  if (!["toggle-comment-reactions", "comment-react"].includes(action)) return false;
+  if (button.dataset.commentScope !== expectedScope) return false;
+
+  const commentId = button.dataset.commentId || "";
+  if (!commentId) return true;
+
+  if (action === "toggle-comment-reactions") {
+    const key = getHealingTargetKey(`${expectedScope}Comment`, commentId);
+    activeHealingReactionPickerKey = activeHealingReactionPickerKey === key ? "" : key;
+    renderHealingCommentScope(expectedScope, auth.currentUser);
+    return true;
+  }
+
+  saveHealingCommentReaction(expectedScope, commentId, button.dataset.emoji || "", button);
+  return true;
+}
+
+function handleHealingCommentEditAction(action, button, expectedScope) {
+  if (!["edit-comment", "cancel-edit-comment", "save-edit-comment"].includes(action)) return false;
+  if (button.dataset.commentScope !== expectedScope) return false;
+
+  const commentId = button.dataset.commentId || "";
+  if (!commentId) return true;
+
+  if (action === "edit-comment") {
+    activeHealingCommentEditKey = getHealingTargetKey(`${expectedScope}CommentEdit`, commentId);
+    activeHealingReactionPickerKey = "";
+    renderHealingCommentScope(expectedScope, auth.currentUser);
+    return true;
+  }
+
+  if (action === "cancel-edit-comment") {
+    activeHealingCommentEditKey = "";
+    renderHealingCommentScope(expectedScope, auth.currentUser);
+    return true;
+  }
+
+  saveHealingCommentEdit(expectedScope, commentId, button);
+  return true;
+}
+
+function renderHealingReactionControls({ targetType, targetId, summary, myReaction, label = "반응" }) {
+  const reactionArea = document.createElement("div");
+  reactionArea.className = "healing-reaction-area";
+
+  const summaryRow = document.createElement("div");
+  summaryRow.className = "healing-reaction-summary";
+  HEALING_CHECKIN_REACTION_OPTIONS.forEach((emoji) => {
+    const count = summary.get(emoji) || 0;
+    if (!count) return;
+
+    const chip = document.createElement("span");
+    chip.className = "healing-reaction-chip";
+    if (myReaction?.emoji === emoji) chip.classList.add("active");
+    chip.innerText = `${HEALING_CHECKIN_REACTION_EMOJIS[emoji] || emoji} ${count}`;
+    summaryRow.appendChild(chip);
+  });
+  if (summaryRow.children.length) reactionArea.appendChild(summaryRow);
+
+  const actionRow = document.createElement("div");
+  actionRow.className = "healing-social-action-row";
+
+  const reactionToggle = document.createElement("button");
+  reactionToggle.type = "button";
+  reactionToggle.className = "healing-social-button";
+  reactionToggle.dataset.healingAction = "toggle-reactions";
+  setHealingTargetDataset(reactionToggle, targetType, targetId);
+  reactionToggle.innerText = `${myReaction ? HEALING_CHECKIN_REACTION_EMOJIS[myReaction.emoji] || "" : "☺"} 표정짓기`;
+  actionRow.appendChild(reactionToggle);
+
+  const commentToggle = document.createElement("button");
+  commentToggle.type = "button";
+  commentToggle.className = "healing-social-button";
+  commentToggle.dataset.healingAction = "toggle-comment";
+  setHealingTargetDataset(commentToggle, targetType, targetId);
+  commentToggle.innerText = "댓글쓰기";
+  actionRow.appendChild(commentToggle);
+
+  reactionArea.appendChild(actionRow);
+
+  if (activeHealingReactionPickerKey === getHealingTargetKey(targetType, targetId)) {
+    const picker = document.createElement("div");
+    picker.className = "healing-reaction-picker";
+    picker.setAttribute("aria-label", `${label} 표정 선택`);
+
+    HEALING_CHECKIN_REACTION_OPTIONS.forEach((emoji) => {
+      const reactionButton = document.createElement("button");
+      reactionButton.type = "button";
+      reactionButton.className = "healing-reaction-button";
+      reactionButton.dataset.healingAction = "react";
+      reactionButton.dataset.emoji = emoji;
+      setHealingTargetDataset(reactionButton, targetType, targetId);
+      reactionButton.setAttribute("aria-label", `${emoji} 반응`);
+      reactionButton.title = `${emoji} 반응`;
+      reactionButton.innerText = HEALING_CHECKIN_REACTION_EMOJIS[emoji] || emoji;
+      if (myReaction?.emoji === emoji) {
+        reactionButton.classList.add("active");
+        reactionButton.setAttribute("aria-pressed", "true");
+      } else {
+        reactionButton.setAttribute("aria-pressed", "false");
+      }
+      picker.appendChild(reactionButton);
+    });
+
+    reactionArea.appendChild(picker);
+  }
+
+  return reactionArea;
+}
+
+function renderHealingCommentReactionControls({ commentScope, commentId, user }) {
+  const reactionArea = document.createElement("div");
+  reactionArea.className = "healing-comment-reaction-area";
+
+  const summary = getHealingCommentReactionSummary(commentScope, commentId);
+  const myReaction = getMyHealingCommentReaction(commentScope, commentId, user);
+  const summaryRow = document.createElement("div");
+  summaryRow.className = "healing-reaction-summary";
+
+  HEALING_CHECKIN_REACTION_OPTIONS.forEach((emoji) => {
+    const count = summary.get(emoji) || 0;
+    if (!count) return;
+
+    const chip = document.createElement("span");
+    chip.className = "healing-reaction-chip";
+    if (myReaction?.emoji === emoji) chip.classList.add("active");
+    chip.innerText = `${HEALING_CHECKIN_REACTION_EMOJIS[emoji] || emoji} ${count}`;
+    summaryRow.appendChild(chip);
+  });
+  if (summaryRow.children.length) reactionArea.appendChild(summaryRow);
+
+  const reactionToggle = document.createElement("button");
+  reactionToggle.type = "button";
+  reactionToggle.className = "healing-social-button";
+  reactionToggle.dataset.healingAction = "toggle-comment-reactions";
+  setHealingCommentTargetDataset(reactionToggle, commentScope, commentId);
+  reactionToggle.innerText = `${myReaction ? HEALING_CHECKIN_REACTION_EMOJIS[myReaction.emoji] || "" : "☺"} 표정짓기`;
+  reactionArea.appendChild(reactionToggle);
+
+  if (activeHealingReactionPickerKey === getHealingTargetKey(`${commentScope}Comment`, commentId)) {
+    const picker = document.createElement("div");
+    picker.className = "healing-reaction-picker healing-comment-reaction-picker";
+    picker.setAttribute("aria-label", "댓글 표정 선택");
+
+    HEALING_CHECKIN_REACTION_OPTIONS.forEach((emoji) => {
+      const reactionButton = document.createElement("button");
+      reactionButton.type = "button";
+      reactionButton.className = "healing-reaction-button";
+      reactionButton.dataset.healingAction = "comment-react";
+      reactionButton.dataset.emoji = emoji;
+      setHealingCommentTargetDataset(reactionButton, commentScope, commentId);
+      reactionButton.setAttribute("aria-label", `${emoji} 반응`);
+      reactionButton.title = `${emoji} 반응`;
+      reactionButton.innerText = HEALING_CHECKIN_REACTION_EMOJIS[emoji] || emoji;
+      if (myReaction?.emoji === emoji) {
+        reactionButton.classList.add("active");
+        reactionButton.setAttribute("aria-pressed", "true");
+      } else {
+        reactionButton.setAttribute("aria-pressed", "false");
+      }
+      picker.appendChild(reactionButton);
+    });
+
+    reactionArea.appendChild(picker);
+  }
+
+  return reactionArea;
+}
+
+function renderHealingCommentSection({ targetType, targetId, comments, user }) {
+  const commentSection = document.createElement("div");
+  commentSection.className = "healing-comment-section";
+
+  const commentTitle = document.createElement("div");
+  commentTitle.className = "healing-comment-title";
+  commentTitle.innerText = `댓글 ${comments.length}`;
+  commentSection.appendChild(commentTitle);
+
+  if (comments.length) {
+    const commentList = document.createElement("div");
+    commentList.className = "healing-comment-list";
+
+    comments.forEach((comment) => {
+      const commentItem = document.createElement("div");
+      commentItem.className = "healing-comment-item";
+
+      const commentMeta = document.createElement("div");
+      commentMeta.className = "healing-comment-meta";
+      commentMeta.innerText = `${comment.name} · ${formatSavedDateTime(comment.createdAt) || "-"}`;
+
+      const commentBody = document.createElement("div");
+      commentBody.className = "healing-comment-body";
+      const isEditingComment = activeHealingCommentEditKey === getHealingTargetKey(`${targetType}CommentEdit`, comment.id);
+
+      commentItem.appendChild(commentMeta);
+
+      if (isEditingComment) {
+        const editForm = document.createElement("div");
+        editForm.className = "healing-comment-form healing-comment-edit-form";
+
+        const editInput = document.createElement("textarea");
+        editInput.maxLength = 300;
+        editInput.rows = 2;
+        editInput.value = comment.content;
+        editInput.dataset.healingCommentEditInput = getHealingTargetKey(targetType, comment.id);
+
+        const saveEditButton = document.createElement("button");
+        saveEditButton.type = "button";
+        saveEditButton.className = "button-secondary table-action";
+        saveEditButton.dataset.healingAction = "save-edit-comment";
+        setHealingCommentTargetDataset(saveEditButton, targetType, comment.id);
+        saveEditButton.innerText = "수정 완료";
+
+        const cancelEditButton = document.createElement("button");
+        cancelEditButton.type = "button";
+        cancelEditButton.className = "button-secondary table-action";
+        cancelEditButton.dataset.healingAction = "cancel-edit-comment";
+        setHealingCommentTargetDataset(cancelEditButton, targetType, comment.id);
+        cancelEditButton.innerText = "취소";
+
+        editForm.append(editInput, saveEditButton, cancelEditButton);
+        commentItem.appendChild(editForm);
+      } else {
+        commentBody.innerText = comment.content;
+        commentItem.appendChild(commentBody);
+      }
+
+      commentItem.appendChild(renderHealingCommentReactionControls({
+        commentScope: targetType,
+        commentId: comment.id,
+        user
+      }));
+
+      if (user && (isHostUser(user) || comment.userId === user.uid)) {
+        const commentActionRow = document.createElement("div");
+        commentActionRow.className = "healing-action-row healing-comment-action-row";
+
+        if (comment.userId === user.uid && !isEditingComment) {
+          const editCommentButton = document.createElement("button");
+          editCommentButton.type = "button";
+          editCommentButton.className = "button-secondary table-action";
+          editCommentButton.dataset.healingAction = "edit-comment";
+          setHealingCommentTargetDataset(editCommentButton, targetType, comment.id);
+          editCommentButton.innerText = "수정";
+          commentActionRow.appendChild(editCommentButton);
+        }
+
+        const deleteCommentButton = document.createElement("button");
+        deleteCommentButton.type = "button";
+        deleteCommentButton.className = "button-secondary table-action healing-comment-delete";
+        deleteCommentButton.dataset.healingAction = "delete-comment";
+        deleteCommentButton.dataset.commentId = comment.id;
+        deleteCommentButton.dataset.commentScope = targetType;
+        setHealingTargetDataset(deleteCommentButton, targetType, targetId);
+        deleteCommentButton.innerText = "삭제";
+        commentActionRow.appendChild(deleteCommentButton);
+        commentItem.appendChild(commentActionRow);
+      }
+
+      commentList.appendChild(commentItem);
+    });
+
+    commentSection.appendChild(commentList);
+  }
+
+  if (user && activeHealingCommentComposerKey === getHealingTargetKey(targetType, targetId)) {
+    const commentForm = document.createElement("div");
+    commentForm.className = "healing-comment-form";
+
+    const commentInput = document.createElement("textarea");
+    commentInput.maxLength = 300;
+    commentInput.rows = 2;
+    commentInput.placeholder = "댓글을 입력해주세요.";
+    commentInput.dataset.healingCommentInput = getHealingTargetKey(targetType, targetId);
+
+    const commentButton = document.createElement("button");
+    commentButton.type = "button";
+    commentButton.className = "button-secondary table-action";
+    commentButton.dataset.healingAction = "save-comment";
+    setHealingTargetDataset(commentButton, targetType, targetId);
+    commentButton.innerText = "댓글 등록";
+
+    commentForm.append(commentInput, commentButton);
+    commentSection.appendChild(commentForm);
+  }
+
+  return commentSection;
+}
+
+async function getOptionalDocsFromServer(targetCollection, label = "optional collection") {
+  try {
+    return await getDocsFromServer(targetCollection);
+  } catch (error) {
+    console.warn(`${label}을 불러오지 못했습니다.`, error);
+    return null;
+  }
+}
+
 function setHealingStatus(section, message) {
   const statusMap = {
     event: document.getElementById("healingEventStatus"),
@@ -5474,9 +5978,19 @@ async function loadHealingHub(user = auth.currentUser) {
     latestHealingEvents = [];
     latestHealingResponses = [];
     latestHealingEventComments = [];
+    latestHealingEventReactions = [];
+    latestHealingEventCommentReactions = [];
     latestHealingCheckins = [];
+    latestHealingCheckinComments = [];
+    latestHealingCheckinReactions = [];
+    latestHealingCheckinCommentReactions = [];
     latestHealingCheers = [];
+    latestHealingCheerComments = [];
+    latestHealingCheerReactions = [];
+    latestHealingCheerCommentReactions = [];
     latestHealingMemberOptions = [];
+    activeHealingReactionPickerKey = "";
+    activeHealingCommentComposerKey = "";
     eventList.innerHTML = "";
     checkinList.innerHTML = "";
     cheerList.innerHTML = "";
@@ -5491,20 +6005,36 @@ async function loadHealingHub(user = auth.currentUser) {
   cheerStatus.innerText = "응원 한마디를 불러오는 중입니다.";
 
   try {
-    const [eventSnapshot, responseSnapshot, commentSnapshot, checkinSnapshot, cheerSnapshot, memberSnapshot] = await Promise.all([
+    const [eventSnapshot, responseSnapshot, commentSnapshot, eventReactionSnapshot, eventCommentReactionSnapshot, checkinSnapshot, checkinCommentSnapshot, reactionSnapshot, checkinCommentReactionSnapshot, cheerSnapshot, cheerCommentSnapshot, cheerReactionSnapshot, cheerCommentReactionSnapshot, memberSnapshot] = await Promise.all([
       getDocsFromServer(collection(db, "healingEvents")),
       getDocsFromServer(collection(db, "healingEventResponses")),
       getDocsFromServer(collection(db, "healingEventComments")),
+      getOptionalDocsFromServer(collection(db, "healingEventReactions"), "번개/행사 반응"),
+      getOptionalDocsFromServer(collection(db, "healingEventCommentReactions"), "번개/행사 댓글 반응"),
       getDocsFromServer(collection(db, "healingCheckins")),
+      getOptionalDocsFromServer(collection(db, "healingCheckinComments"), "한줄 체크인 댓글"),
+      getOptionalDocsFromServer(collection(db, "healingCheckinReactions"), "한줄 체크인 반응"),
+      getOptionalDocsFromServer(collection(db, "healingCheckinCommentReactions"), "한줄 체크인 댓글 반응"),
       getDocsFromServer(collection(db, "healingCheers")),
+      getOptionalDocsFromServer(collection(db, "healingCheerComments"), "응원 댓글"),
+      getOptionalDocsFromServer(collection(db, "healingCheerReactions"), "응원 반응"),
+      getOptionalDocsFromServer(collection(db, "healingCheerCommentReactions"), "응원 댓글 반응"),
       getDocsFromServer(collection(db, "users"))
     ]);
 
     latestHealingEvents = [];
     latestHealingResponses = [];
     latestHealingEventComments = [];
+    latestHealingEventReactions = [];
+    latestHealingEventCommentReactions = [];
     latestHealingCheckins = [];
+    latestHealingCheckinComments = [];
+    latestHealingCheckinReactions = [];
+    latestHealingCheckinCommentReactions = [];
     latestHealingCheers = [];
+    latestHealingCheerComments = [];
+    latestHealingCheerReactions = [];
+    latestHealingCheerCommentReactions = [];
     latestHealingMemberOptions = [];
 
     eventSnapshot.forEach((snapshotDoc) => {
@@ -5553,6 +6083,32 @@ async function loadHealingHub(user = auth.currentUser) {
       });
     });
 
+    eventReactionSnapshot?.forEach((snapshotDoc) => {
+      const data = snapshotDoc.data();
+      latestHealingEventReactions.push({
+        id: snapshotDoc.id,
+        eventId: data.eventId || "",
+        userId: data.userId || "",
+        name: data.name || data.email || "이름 없음",
+        email: data.email || "",
+        emoji: data.emoji || "",
+        updatedAt: data.updatedAt || null
+      });
+    });
+
+    eventCommentReactionSnapshot?.forEach((snapshotDoc) => {
+      const data = snapshotDoc.data();
+      latestHealingEventCommentReactions.push({
+        id: snapshotDoc.id,
+        commentId: data.commentId || "",
+        userId: data.userId || "",
+        name: data.name || data.email || "이름 없음",
+        email: data.email || "",
+        emoji: data.emoji || "",
+        updatedAt: data.updatedAt || null
+      });
+    });
+
     checkinSnapshot.forEach((snapshotDoc) => {
       const data = snapshotDoc.data();
       const photoExpiresAt = data.photoExpiresAt || null;
@@ -5579,6 +6135,45 @@ async function loadHealingHub(user = auth.currentUser) {
       });
     });
 
+    checkinCommentSnapshot?.forEach((snapshotDoc) => {
+      const data = snapshotDoc.data();
+      latestHealingCheckinComments.push({
+        id: snapshotDoc.id,
+        checkinId: data.checkinId || "",
+        userId: data.userId || "",
+        name: data.name || data.email || "이름 없음",
+        email: data.email || "",
+        content: data.content || "",
+        createdAt: data.createdAt || null
+      });
+    });
+
+    reactionSnapshot?.forEach((snapshotDoc) => {
+      const data = snapshotDoc.data();
+      latestHealingCheckinReactions.push({
+        id: snapshotDoc.id,
+        checkinId: data.checkinId || "",
+        userId: data.userId || "",
+        name: data.name || data.email || "이름 없음",
+        email: data.email || "",
+        emoji: data.emoji || "",
+        updatedAt: data.updatedAt || null
+      });
+    });
+
+    checkinCommentReactionSnapshot?.forEach((snapshotDoc) => {
+      const data = snapshotDoc.data();
+      latestHealingCheckinCommentReactions.push({
+        id: snapshotDoc.id,
+        commentId: data.commentId || "",
+        userId: data.userId || "",
+        name: data.name || data.email || "이름 없음",
+        email: data.email || "",
+        emoji: data.emoji || "",
+        updatedAt: data.updatedAt || null
+      });
+    });
+
     cheerSnapshot.forEach((snapshotDoc) => {
       const data = snapshotDoc.data();
       latestHealingCheers.push({
@@ -5588,6 +6183,45 @@ async function loadHealingHub(user = auth.currentUser) {
         name: data.name || data.email || "이름 없음",
         email: data.email || "",
         createdAt: data.createdAt || null
+      });
+    });
+
+    cheerCommentSnapshot?.forEach((snapshotDoc) => {
+      const data = snapshotDoc.data();
+      latestHealingCheerComments.push({
+        id: snapshotDoc.id,
+        cheerId: data.cheerId || "",
+        userId: data.userId || "",
+        name: data.name || data.email || "이름 없음",
+        email: data.email || "",
+        content: data.content || "",
+        createdAt: data.createdAt || null
+      });
+    });
+
+    cheerReactionSnapshot?.forEach((snapshotDoc) => {
+      const data = snapshotDoc.data();
+      latestHealingCheerReactions.push({
+        id: snapshotDoc.id,
+        cheerId: data.cheerId || "",
+        userId: data.userId || "",
+        name: data.name || data.email || "이름 없음",
+        email: data.email || "",
+        emoji: data.emoji || "",
+        updatedAt: data.updatedAt || null
+      });
+    });
+
+    cheerCommentReactionSnapshot?.forEach((snapshotDoc) => {
+      const data = snapshotDoc.data();
+      latestHealingCheerCommentReactions.push({
+        id: snapshotDoc.id,
+        commentId: data.commentId || "",
+        userId: data.userId || "",
+        name: data.name || data.email || "이름 없음",
+        email: data.email || "",
+        emoji: data.emoji || "",
+        updatedAt: data.updatedAt || null
       });
     });
 
@@ -5907,8 +6541,32 @@ function handleHealingEventListClick(event) {
   if (!button) return;
 
   const action = button.dataset.healingAction;
+  if (handleHealingCommentReactionAction(action, button, "event")) return;
+  if (handleHealingCommentEditAction(action, button, "event")) return;
+
   const eventId = button.dataset.eventId;
   const targetEvent = latestHealingEvents.find((item) => item.id === eventId);
+
+  if (action === "toggle-reactions" && targetEvent) {
+    activeHealingReactionPickerKey = activeHealingReactionPickerKey === getHealingTargetKey("event", targetEvent.id)
+      ? ""
+      : getHealingTargetKey("event", targetEvent.id);
+    renderHealingEvents(auth.currentUser);
+    return;
+  }
+
+  if (action === "toggle-comment" && targetEvent) {
+    activeHealingCommentComposerKey = activeHealingCommentComposerKey === getHealingTargetKey("event", targetEvent.id)
+      ? ""
+      : getHealingTargetKey("event", targetEvent.id);
+    renderHealingEvents(auth.currentUser);
+    return;
+  }
+
+  if (action === "react" && targetEvent) {
+    saveHealingEventReaction(targetEvent, button.dataset.emoji || "", button);
+    return;
+  }
 
   if (action === "respond" && targetEvent) {
     saveHealingEventResponse(targetEvent, button.dataset.response || "maybe");
@@ -5951,8 +6609,32 @@ function handleHealingCheckinListClick(event) {
   if (!button) return;
 
   const action = button.dataset.healingAction;
+  if (handleHealingCommentReactionAction(action, button, "checkin")) return;
+  if (handleHealingCommentEditAction(action, button, "checkin")) return;
+
   const checkinId = button.dataset.checkinId;
   const targetCheckin = latestHealingCheckins.find((item) => item.id === checkinId);
+
+  if (action === "toggle-reactions" && targetCheckin) {
+    activeHealingReactionPickerKey = activeHealingReactionPickerKey === getHealingTargetKey("checkin", targetCheckin.id)
+      ? ""
+      : getHealingTargetKey("checkin", targetCheckin.id);
+    renderHealingCheckins(auth.currentUser);
+    return;
+  }
+
+  if (action === "toggle-comment" && targetCheckin) {
+    activeHealingCommentComposerKey = activeHealingCommentComposerKey === getHealingTargetKey("checkin", targetCheckin.id)
+      ? ""
+      : getHealingTargetKey("checkin", targetCheckin.id);
+    renderHealingCheckins(auth.currentUser);
+    return;
+  }
+
+  if (action === "react" && targetCheckin) {
+    saveHealingCheckinReaction(targetCheckin, button.dataset.emoji || "", button);
+    return;
+  }
 
   if (action === "edit" && targetCheckin) {
     startHealingCheckinEdit(targetCheckin);
@@ -5961,6 +6643,17 @@ function handleHealingCheckinListClick(event) {
 
   if (action === "delete" && targetCheckin) {
     deleteHealingCheckin(targetCheckin);
+    return;
+  }
+
+  if (action === "save-comment" && targetCheckin) {
+    saveHealingCheckinComment(targetCheckin);
+    return;
+  }
+
+  if (action === "delete-comment") {
+    const targetComment = latestHealingCheckinComments.find((item) => item.id === button.dataset.commentId);
+    if (targetComment) deleteHealingCheckinComment(targetComment);
   }
 }
 
@@ -5969,8 +6662,32 @@ function handleHealingCheerListClick(event) {
   if (!button) return;
 
   const action = button.dataset.healingAction;
+  if (handleHealingCommentReactionAction(action, button, "cheer")) return;
+  if (handleHealingCommentEditAction(action, button, "cheer")) return;
+
   const cheerId = button.dataset.cheerId;
   const targetCheer = latestHealingCheers.find((item) => item.id === cheerId);
+
+  if (action === "toggle-reactions" && targetCheer) {
+    activeHealingReactionPickerKey = activeHealingReactionPickerKey === getHealingTargetKey("cheer", targetCheer.id)
+      ? ""
+      : getHealingTargetKey("cheer", targetCheer.id);
+    renderHealingCheers(auth.currentUser);
+    return;
+  }
+
+  if (action === "toggle-comment" && targetCheer) {
+    activeHealingCommentComposerKey = activeHealingCommentComposerKey === getHealingTargetKey("cheer", targetCheer.id)
+      ? ""
+      : getHealingTargetKey("cheer", targetCheer.id);
+    renderHealingCheers(auth.currentUser);
+    return;
+  }
+
+  if (action === "react" && targetCheer) {
+    saveHealingCheerReaction(targetCheer, button.dataset.emoji || "", button);
+    return;
+  }
 
   if (action === "edit" && targetCheer) {
     startHealingCheerEdit(targetCheer);
@@ -5979,6 +6696,17 @@ function handleHealingCheerListClick(event) {
 
   if (action === "delete" && targetCheer) {
     deleteHealingCheer(targetCheer);
+    return;
+  }
+
+  if (action === "save-comment" && targetCheer) {
+    saveHealingCheerComment(targetCheer);
+    return;
+  }
+
+  if (action === "delete-comment") {
+    const targetComment = latestHealingCheerComments.find((item) => item.id === button.dataset.commentId);
+    if (targetComment) deleteHealingCheerComment(targetComment);
   }
 }
 
@@ -6110,70 +6838,19 @@ function renderHealingEvents(user = auth.currentUser) {
 
     card.appendChild(actionRow);
 
-    const commentSection = document.createElement("div");
-    commentSection.className = "healing-comment-section";
-
-    const commentTitle = document.createElement("div");
-    commentTitle.className = "healing-comment-title";
-    commentTitle.innerText = `댓글 ${comments.length}`;
-    commentSection.appendChild(commentTitle);
-
-    if (comments.length) {
-      const commentList = document.createElement("div");
-      commentList.className = "healing-comment-list";
-
-      comments.forEach((comment) => {
-        const commentItem = document.createElement("div");
-        commentItem.className = "healing-comment-item";
-
-        const commentMeta = document.createElement("div");
-        commentMeta.className = "healing-comment-meta";
-        commentMeta.innerText = `${comment.name} · ${formatSavedDateTime(comment.createdAt) || "-"}`;
-
-        const commentBody = document.createElement("div");
-        commentBody.className = "healing-comment-body";
-        commentBody.innerText = comment.content;
-
-        commentItem.append(commentMeta, commentBody);
-
-        if (user && (isHostUser(user) || comment.userId === user.uid)) {
-          const deleteCommentButton = document.createElement("button");
-          deleteCommentButton.type = "button";
-          deleteCommentButton.className = "button-secondary table-action healing-comment-delete";
-          deleteCommentButton.dataset.healingAction = "delete-comment";
-          deleteCommentButton.dataset.commentId = comment.id;
-          deleteCommentButton.innerText = "삭제";
-          commentItem.appendChild(deleteCommentButton);
-        }
-
-        commentList.appendChild(commentItem);
-      });
-
-      commentSection.appendChild(commentList);
-    }
-
-    if (user) {
-      const commentForm = document.createElement("div");
-      commentForm.className = "healing-comment-form";
-
-      const commentInput = document.createElement("textarea");
-      commentInput.maxLength = 300;
-      commentInput.rows = 2;
-      commentInput.placeholder = "댓글을 입력해주세요.";
-      commentInput.dataset.eventCommentInput = event.id;
-
-      const commentButton = document.createElement("button");
-      commentButton.type = "button";
-      commentButton.className = "button-secondary table-action";
-      commentButton.dataset.healingAction = "save-comment";
-      commentButton.dataset.eventId = event.id;
-      commentButton.innerText = "댓글 등록";
-
-      commentForm.append(commentInput, commentButton);
-      commentSection.appendChild(commentForm);
-    }
-
-    card.appendChild(commentSection);
+    card.appendChild(renderHealingReactionControls({
+      targetType: "event",
+      targetId: event.id,
+      summary: getHealingEventReactionSummary(event.id),
+      myReaction: getMyHealingEventReaction(event.id, user),
+      label: "번개/행사"
+    }));
+    card.appendChild(renderHealingCommentSection({
+      targetType: "event",
+      targetId: event.id,
+      comments,
+      user
+    }));
     eventList.appendChild(card);
   });
 }
@@ -6221,6 +6898,14 @@ function renderHealingCheckins(user = auth.currentUser) {
       card.appendChild(image);
     }
 
+    card.appendChild(renderHealingReactionControls({
+      targetType: "checkin",
+      targetId: checkin.id,
+      summary: getHealingCheckinReactionSummary(checkin.id),
+      myReaction: getMyHealingCheckinReaction(checkin.id, user),
+      label: "체크인"
+    }));
+
     if (user && (isHostUser(user) || checkin.userId === user.uid)) {
       const actionRow = document.createElement("div");
       actionRow.className = "healing-action-row";
@@ -6242,6 +6927,12 @@ function renderHealingCheckins(user = auth.currentUser) {
       card.appendChild(actionRow);
     }
 
+    card.appendChild(renderHealingCommentSection({
+      targetType: "checkin",
+      targetId: checkin.id,
+      comments: getHealingCheckinComments(checkin.id),
+      user
+    }));
     checkinList.appendChild(card);
   });
 }
@@ -6279,6 +6970,14 @@ function renderHealingCheers(user = auth.currentUser) {
     body.innerText = cheer.content;
     card.appendChild(body);
 
+    card.appendChild(renderHealingReactionControls({
+      targetType: "cheer",
+      targetId: cheer.id,
+      summary: getHealingCheerReactionSummary(cheer.id),
+      myReaction: getMyHealingCheerReaction(cheer.id, user),
+      label: "응원"
+    }));
+
     if (user && (isHostUser(user) || cheer.userId === user.uid)) {
       const actionRow = document.createElement("div");
       actionRow.className = "healing-action-row";
@@ -6300,6 +6999,12 @@ function renderHealingCheers(user = auth.currentUser) {
       card.appendChild(actionRow);
     }
 
+    card.appendChild(renderHealingCommentSection({
+      targetType: "cheer",
+      targetId: cheer.id,
+      comments: getHealingCheerComments(cheer.id),
+      user
+    }));
     cheerList.appendChild(card);
   });
 }
@@ -6408,6 +7113,7 @@ async function saveHealingEventResponse(event, response, sourceInput = null) {
       response,
       updatedAt
     });
+
     latestHealingResponses = latestHealingResponses.filter((item) => !(item.eventId === event.id && item.userId === user.uid));
     latestHealingResponses.push({
       id: `${event.id}_${user.uid}`,
@@ -6431,7 +7137,7 @@ async function saveHealingEventResponse(event, response, sourceInput = null) {
 
 async function saveHealingEventComment(event) {
   const user = auth.currentUser;
-  const input = document.querySelector(`[data-event-comment-input="${event.id}"]`);
+  const input = document.querySelector(`[data-healing-comment-input="${getHealingTargetKey("event", event.id)}"]`);
   const button = document.querySelector(`button[data-healing-action="save-comment"][data-event-id="${event.id}"]`);
   const content = input?.value.trim() || "";
 
@@ -6467,6 +7173,8 @@ async function saveHealingEventComment(event) {
       content,
       createdAt
     });
+    activeHealingCommentComposerKey = "";
+    activeHealingCommentEditKey = "";
     if (input) input.value = "";
     renderHealingEvents(user);
     setHealingStatus("event", "댓글을 등록했습니다.");
@@ -6475,6 +7183,163 @@ async function saveHealingEventComment(event) {
     setHealingStatus("event", "댓글 등록이 되지 않았습니다. 잠시 후 다시 시도해주세요.");
   } finally {
     if (button) button.disabled = false;
+  }
+}
+
+async function saveHealingEventReaction(event, emoji, sourceButton = null) {
+  const user = auth.currentUser;
+
+  if (!user) {
+    setHealingStatus("event", "로그인 후 이모티콘 반응을 남길 수 있습니다.");
+    return;
+  }
+
+  if (!HEALING_CHECKIN_REACTION_OPTIONS.includes(emoji)) {
+    setHealingStatus("event", "사용할 수 없는 이모티콘입니다.");
+    return;
+  }
+
+  const previousReaction = getMyHealingEventReaction(event.id, user);
+  const reactionId = getHealingEventReactionDocId(event.id, user.uid);
+
+  if (sourceButton) sourceButton.disabled = true;
+
+  try {
+    if (previousReaction?.emoji === emoji) {
+      await deleteDoc(doc(db, "healingEventReactions", reactionId));
+      latestHealingEventReactions = latestHealingEventReactions.filter((reaction) => reaction.id !== reactionId);
+      activeHealingReactionPickerKey = "";
+      renderHealingEvents(user);
+      setHealingStatus("event", "이모티콘 반응을 취소했습니다.");
+      return;
+    }
+
+    const payload = {
+      eventId: event.id,
+      userId: user.uid,
+      name: getUserName(user),
+      email: user.email || "",
+      emoji,
+      updatedAt: new Date()
+    };
+
+    await setDoc(doc(db, "healingEventReactions", reactionId), payload);
+
+    latestHealingEventReactions = latestHealingEventReactions
+      .filter((reaction) => reaction.id !== reactionId)
+      .concat({ id: reactionId, ...payload });
+    activeHealingReactionPickerKey = "";
+    renderHealingEvents(user);
+    setHealingStatus("event", "이모티콘 반응을 남겼습니다.");
+  } catch (e) {
+    console.error(e);
+    setHealingStatus("event", "이모티콘 반응을 저장하지 못했습니다. 잠시 후 다시 시도해주세요.");
+  } finally {
+    if (sourceButton) sourceButton.disabled = false;
+  }
+}
+
+async function saveHealingCommentReaction(commentScope, commentId, emoji, sourceButton = null) {
+  const user = auth.currentUser;
+  const collectionName = getHealingCommentReactionCollectionName(commentScope);
+  const statusSection = getHealingCommentStatusSection(commentScope);
+
+  if (!user) {
+    setHealingStatus(statusSection, "로그인 후 댓글에 표정을 남길 수 있습니다.");
+    return;
+  }
+
+  if (!collectionName || !HEALING_CHECKIN_REACTION_OPTIONS.includes(emoji)) {
+    setHealingStatus(statusSection, "사용할 수 없는 이모티콘입니다.");
+    return;
+  }
+
+  const previousReaction = getMyHealingCommentReaction(commentScope, commentId, user);
+  const reactionId = getHealingCommentReactionDocId(commentId, user.uid);
+
+  if (sourceButton) sourceButton.disabled = true;
+
+  try {
+    if (previousReaction?.emoji === emoji) {
+      await deleteDoc(doc(db, collectionName, reactionId));
+      replaceHealingCommentReaction(commentScope, reactionId);
+      activeHealingReactionPickerKey = "";
+      renderHealingCommentScope(commentScope, user);
+      setHealingStatus(statusSection, "댓글 표정을 취소했습니다.");
+      return;
+    }
+
+    const payload = {
+      commentId,
+      userId: user.uid,
+      name: getUserName(user),
+      email: user.email || "",
+      emoji,
+      updatedAt: new Date()
+    };
+
+    await setDoc(doc(db, collectionName, reactionId), payload);
+    replaceHealingCommentReaction(commentScope, reactionId, payload);
+    activeHealingReactionPickerKey = "";
+    renderHealingCommentScope(commentScope, user);
+    setHealingStatus(statusSection, "댓글에 표정을 남겼습니다.");
+  } catch (e) {
+    console.error(e);
+    setHealingStatus(statusSection, "댓글 표정을 저장하지 못했습니다. 잠시 후 다시 시도해주세요.");
+  } finally {
+    if (sourceButton) sourceButton.disabled = false;
+  }
+}
+
+async function saveHealingCommentEdit(commentScope, commentId, sourceButton = null) {
+  const user = auth.currentUser;
+  const collectionName = getHealingCommentCollectionName(commentScope);
+  const statusSection = getHealingCommentStatusSection(commentScope);
+  const comment = getHealingCommentByScope(commentScope, commentId);
+  const input = document.querySelector(`[data-healing-comment-edit-input="${getHealingTargetKey(commentScope, commentId)}"]`);
+  const content = input?.value.trim() || "";
+
+  if (!user) {
+    setHealingStatus(statusSection, "로그인 후 댓글을 수정할 수 있습니다.");
+    return;
+  }
+
+  if (!collectionName || !comment) {
+    setHealingStatus(statusSection, "수정할 댓글을 찾지 못했습니다.");
+    return;
+  }
+
+  if (comment.userId !== user.uid) {
+    setHealingStatus(statusSection, "작성자 본인만 댓글을 수정할 수 있습니다.");
+    return;
+  }
+
+  if (!content) {
+    setHealingStatus(statusSection, "댓글 내용을 입력해주세요.");
+    input?.focus();
+    return;
+  }
+
+  if (content === comment.content) {
+    activeHealingCommentEditKey = "";
+    renderHealingCommentScope(commentScope, user);
+    setHealingStatus(statusSection, "댓글 수정을 취소했습니다.");
+    return;
+  }
+
+  if (sourceButton) sourceButton.disabled = true;
+
+  try {
+    await updateDoc(doc(db, collectionName, commentId), { content });
+    replaceHealingCommentContent(commentScope, commentId, content);
+    activeHealingCommentEditKey = "";
+    renderHealingCommentScope(commentScope, user);
+    setHealingStatus(statusSection, "댓글을 수정했습니다.");
+  } catch (e) {
+    console.error(e);
+    setHealingStatus(statusSection, "댓글 수정이 되지 않았습니다. 잠시 후 다시 시도해주세요.");
+  } finally {
+    if (sourceButton) sourceButton.disabled = false;
   }
 }
 
@@ -6491,6 +7356,7 @@ async function deleteHealingEventComment(comment) {
   try {
     await deleteDoc(doc(db, "healingEventComments", comment.id));
     latestHealingEventComments = latestHealingEventComments.filter((item) => item.id !== comment.id);
+    activeHealingCommentEditKey = "";
     renderHealingEvents(user);
     setHealingStatus("event", "댓글을 삭제했습니다.");
   } catch (e) {
@@ -6614,6 +7480,132 @@ async function deleteHealingCheckin(checkin) {
   }
 }
 
+async function saveHealingCheckinComment(checkin) {
+  const user = auth.currentUser;
+  const input = document.querySelector(`[data-healing-comment-input="${getHealingTargetKey("checkin", checkin.id)}"]`);
+  const button = document.querySelector(`button[data-healing-action="save-comment"][data-checkin-id="${checkin.id}"]`);
+  const content = input?.value.trim() || "";
+
+  if (!user) {
+    setHealingStatus("checkin", "로그인 후 댓글을 남길 수 있습니다.");
+    return;
+  }
+
+  if (!content) {
+    setHealingStatus("checkin", "댓글 내용을 입력해주세요.");
+    input?.focus();
+    return;
+  }
+
+  if (button) button.disabled = true;
+
+  try {
+    const createdAt = new Date();
+    const commentRef = await addDoc(collection(db, "healingCheckinComments"), {
+      checkinId: checkin.id,
+      userId: user.uid,
+      name: getUserName(user),
+      email: user.email,
+      content,
+      createdAt
+    });
+    latestHealingCheckinComments.push({
+      id: commentRef.id,
+      checkinId: checkin.id,
+      userId: user.uid,
+      name: getUserName(user),
+      email: user.email,
+      content,
+      createdAt
+    });
+    activeHealingCommentComposerKey = "";
+    activeHealingCommentEditKey = "";
+    if (input) input.value = "";
+    renderHealingCheckins(user);
+    setHealingStatus("checkin", "댓글을 등록했습니다.");
+  } catch (e) {
+    console.error(e);
+    setHealingStatus("checkin", "댓글 등록이 되지 않았습니다. 잠시 후 다시 시도해주세요.");
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
+async function deleteHealingCheckinComment(comment) {
+  const user = auth.currentUser;
+
+  if (!user || (!isHostUser(user) && comment.userId !== user.uid)) {
+    setHealingStatus("checkin", "작성자 본인 또는 호스트만 댓글을 삭제할 수 있습니다.");
+    return;
+  }
+
+  if (!confirm("댓글을 삭제할까요?")) return;
+
+  try {
+    await deleteDoc(doc(db, "healingCheckinComments", comment.id));
+    latestHealingCheckinComments = latestHealingCheckinComments.filter((item) => item.id !== comment.id);
+    activeHealingCommentEditKey = "";
+    renderHealingCheckins(user);
+    setHealingStatus("checkin", "댓글을 삭제했습니다.");
+  } catch (e) {
+    console.error(e);
+    setHealingStatus("checkin", "댓글 삭제가 되지 않았습니다. 잠시 후 다시 시도해주세요.");
+  }
+}
+
+async function saveHealingCheckinReaction(checkin, emoji, sourceButton = null) {
+  const user = auth.currentUser;
+
+  if (!user) {
+    setHealingStatus("checkin", "로그인 후 이모티콘 반응을 남길 수 있습니다.");
+    return;
+  }
+
+  if (!HEALING_CHECKIN_REACTION_OPTIONS.includes(emoji)) {
+    setHealingStatus("checkin", "사용할 수 없는 이모티콘입니다.");
+    return;
+  }
+
+  const previousReaction = getMyHealingCheckinReaction(checkin.id, user);
+  const reactionId = getHealingCheckinReactionDocId(checkin.id, user.uid);
+
+  if (sourceButton) sourceButton.disabled = true;
+
+  try {
+    if (previousReaction?.emoji === emoji) {
+      await deleteDoc(doc(db, "healingCheckinReactions", reactionId));
+      latestHealingCheckinReactions = latestHealingCheckinReactions.filter((reaction) => reaction.id !== reactionId);
+      activeHealingReactionPickerKey = "";
+      renderHealingCheckins(user);
+      setHealingStatus("checkin", "이모티콘 반응을 취소했습니다.");
+      return;
+    }
+
+    const payload = {
+      checkinId: checkin.id,
+      userId: user.uid,
+      name: getUserName(user),
+      email: user.email || "",
+      emoji,
+      updatedAt: new Date()
+    };
+
+    await setDoc(doc(db, "healingCheckinReactions", reactionId), payload);
+
+    latestHealingCheckinReactions = latestHealingCheckinReactions
+      .filter((reaction) => reaction.id !== reactionId)
+      .concat({ id: reactionId, ...payload });
+    activeHealingReactionPickerKey = "";
+    renderHealingCheckins(user);
+    setHealingStatus("checkin", "이모티콘 반응을 남겼습니다.");
+  } catch (e) {
+    console.error(e);
+    setHealingStatus("checkin", "이모티콘 반응을 저장하지 못했습니다. 잠시 후 다시 시도해주세요.");
+  } finally {
+    if (sourceButton) sourceButton.disabled = false;
+  }
+}
+
 async function saveHealingCheer() {
   const user = auth.currentUser;
 
@@ -6684,6 +7676,132 @@ async function deleteHealingCheer(cheer) {
   } catch (e) {
     console.error(e);
     setHealingStatus("cheer", "응원 삭제가 되지 않았습니다. 잠시 후 다시 시도해주세요.");
+  }
+}
+
+async function saveHealingCheerComment(cheer) {
+  const user = auth.currentUser;
+  const input = document.querySelector(`[data-healing-comment-input="${getHealingTargetKey("cheer", cheer.id)}"]`);
+  const button = document.querySelector(`button[data-healing-action="save-comment"][data-cheer-id="${cheer.id}"]`);
+  const content = input?.value.trim() || "";
+
+  if (!user) {
+    setHealingStatus("cheer", "로그인 후 댓글을 남길 수 있습니다.");
+    return;
+  }
+
+  if (!content) {
+    setHealingStatus("cheer", "댓글 내용을 입력해주세요.");
+    input?.focus();
+    return;
+  }
+
+  if (button) button.disabled = true;
+
+  try {
+    const createdAt = new Date();
+    const commentRef = await addDoc(collection(db, "healingCheerComments"), {
+      cheerId: cheer.id,
+      userId: user.uid,
+      name: getUserName(user),
+      email: user.email,
+      content,
+      createdAt
+    });
+    latestHealingCheerComments.push({
+      id: commentRef.id,
+      cheerId: cheer.id,
+      userId: user.uid,
+      name: getUserName(user),
+      email: user.email,
+      content,
+      createdAt
+    });
+    activeHealingCommentComposerKey = "";
+    activeHealingCommentEditKey = "";
+    if (input) input.value = "";
+    renderHealingCheers(user);
+    setHealingStatus("cheer", "댓글을 등록했습니다.");
+  } catch (e) {
+    console.error(e);
+    setHealingStatus("cheer", "댓글 등록이 되지 않았습니다. 잠시 후 다시 시도해주세요.");
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
+async function deleteHealingCheerComment(comment) {
+  const user = auth.currentUser;
+
+  if (!user || (!isHostUser(user) && comment.userId !== user.uid)) {
+    setHealingStatus("cheer", "작성자 본인 또는 호스트만 댓글을 삭제할 수 있습니다.");
+    return;
+  }
+
+  if (!confirm("댓글을 삭제할까요?")) return;
+
+  try {
+    await deleteDoc(doc(db, "healingCheerComments", comment.id));
+    latestHealingCheerComments = latestHealingCheerComments.filter((item) => item.id !== comment.id);
+    activeHealingCommentEditKey = "";
+    renderHealingCheers(user);
+    setHealingStatus("cheer", "댓글을 삭제했습니다.");
+  } catch (e) {
+    console.error(e);
+    setHealingStatus("cheer", "댓글 삭제가 되지 않았습니다. 잠시 후 다시 시도해주세요.");
+  }
+}
+
+async function saveHealingCheerReaction(cheer, emoji, sourceButton = null) {
+  const user = auth.currentUser;
+
+  if (!user) {
+    setHealingStatus("cheer", "로그인 후 이모티콘 반응을 남길 수 있습니다.");
+    return;
+  }
+
+  if (!HEALING_CHECKIN_REACTION_OPTIONS.includes(emoji)) {
+    setHealingStatus("cheer", "사용할 수 없는 이모티콘입니다.");
+    return;
+  }
+
+  const previousReaction = getMyHealingCheerReaction(cheer.id, user);
+  const reactionId = getHealingCheerReactionDocId(cheer.id, user.uid);
+
+  if (sourceButton) sourceButton.disabled = true;
+
+  try {
+    if (previousReaction?.emoji === emoji) {
+      await deleteDoc(doc(db, "healingCheerReactions", reactionId));
+      latestHealingCheerReactions = latestHealingCheerReactions.filter((reaction) => reaction.id !== reactionId);
+      activeHealingReactionPickerKey = "";
+      renderHealingCheers(user);
+      setHealingStatus("cheer", "이모티콘 반응을 취소했습니다.");
+      return;
+    }
+
+    const payload = {
+      cheerId: cheer.id,
+      userId: user.uid,
+      name: getUserName(user),
+      email: user.email || "",
+      emoji,
+      updatedAt: new Date()
+    };
+
+    await setDoc(doc(db, "healingCheerReactions", reactionId), payload);
+
+    latestHealingCheerReactions = latestHealingCheerReactions
+      .filter((reaction) => reaction.id !== reactionId)
+      .concat({ id: reactionId, ...payload });
+    activeHealingReactionPickerKey = "";
+    renderHealingCheers(user);
+    setHealingStatus("cheer", "이모티콘 반응을 남겼습니다.");
+  } catch (e) {
+    console.error(e);
+    setHealingStatus("cheer", "이모티콘 반응을 저장하지 못했습니다. 잠시 후 다시 시도해주세요.");
+  } finally {
+    if (sourceButton) sourceButton.disabled = false;
   }
 }
 
@@ -9740,10 +10858,22 @@ function clearDashboard() {
   latestHealingEvents = [];
   latestHealingResponses = [];
   latestHealingEventComments = [];
+  latestHealingEventReactions = [];
+  latestHealingEventCommentReactions = [];
   latestHealingCheckins = [];
+  latestHealingCheckinComments = [];
+  latestHealingCheckinReactions = [];
+  latestHealingCheckinCommentReactions = [];
   latestHealingCheers = [];
+  latestHealingCheerComments = [];
+  latestHealingCheerReactions = [];
+  latestHealingCheerCommentReactions = [];
   latestHealingMemberOptions = [];
   latestAthleteHallEntries = [];
+  activeHealingReactionPickerKey = "";
+  activeHealingCommentComposerKey = "";
+  activeHealingCommentEditKey = "";
+  activeHealingCommentEditKey = "";
   monthlyGoalKm = 0;
   monthlyGoalLocked = false;
   visibleRunCount = INITIAL_VISIBLE_RUN_COUNT;
