@@ -8811,6 +8811,53 @@ function updateEngagementPanels(runs) {
   updatePbCelebration(runs);
 }
 
+function getWeeklyDistanceDropMessage(weekStats, previousStats, dropDistance) {
+  const previousDistance = previousStats.totalDistance || 0;
+  const dropRatio = previousDistance ? dropDistance / previousDistance : 0;
+  const seed = `weekly-down-${weekStats.count}-${Math.round(dropDistance * 10)}-${Math.round(dropRatio * 100)}`;
+
+  if (dropRatio >= 0.5 && dropDistance >= 10) {
+    return getFriendlyMessage([
+      `지난 7일보다 ${formatMileage(dropDistance)} 줄었어요. 회복 주간이라고 믿어볼게요. 다음 주 시계는 조금 덜 속아줄 예정입니다.`,
+      `지난주보다 ${formatMileage(dropDistance)} 비었습니다. 몸은 쉬었고, 마음도 숨을 골랐으면 이제 러닝화 차례입니다.`,
+      `거리표가 살짝 조용하네요. ${formatMileage(dropDistance)} 줄어든 만큼 다음 러닝은 말보다 가볍게 한 걸음으로 보여줘요.`,
+      `지난 7일 대비 ${formatMileage(dropDistance)} 감소. 회복도 훈련 맞습니다. 단, 회복만 전공하면 완주식이 조금 늦어집니다.`,
+      `이번 주 거리는 확실히 내려갔어요. 그래도 리듬은 다시 만들 수 있습니다. 오늘의 20분이 다음 주 분위기를 바꿉니다.`,
+      `지난주보다 여백이 커졌네요. 괜찮아요, 쉬어간 사람도 다시 강해집니다. 대신 다음 기록은 페이서가 아주 반갑게 볼게요.`,
+      `${formatMileage(dropDistance)} 줄었습니다. 기록판은 조용했지만 몸은 회복했을 수 있어요. 이제 그 회복을 달리는 힘으로 바꿔봅시다.`,
+      `이번 주는 몸을 아낀 쪽에 가깝네요. 잘 쉬었다면 실패가 아닙니다. 다만 다음 러닝은 나를 다시 믿게 만드는 쪽으로 가요.`
+    ], seed);
+  }
+
+  if (dropRatio >= 0.25 || dropDistance >= 5) {
+    return getFriendlyMessage([
+      `지난 7일보다 ${formatMileage(dropDistance)} 줄었어요. 괜찮습니다. 대신 다음 러닝은 출석 체크 말고 존재감 있게 가죠.`,
+      `지난주보다 ${formatMileage(dropDistance)} 덜 달렸네요. 회복은 좋고, 잠수는 곤란합니다. 리듬만 다시 붙이면 됩니다.`,
+      `거리가 ${formatMileage(dropDistance)} 내려갔습니다. 페이서 눈에는 다 보입니다. 오늘은 짧아도 또렷하게 한 번 갑시다.`,
+      `이번 주는 살짝 접었습니다. 접은 만큼 몸은 살아났을 테니, 다음 기록은 변명보다 먼저 들어오면 좋겠습니다.`,
+      `${formatMileage(dropDistance)} 줄었지만 끝난 흐름은 아닙니다. 달리는 사람은 한 주로 판단되지 않아요. 다시 붙이면 됩니다.`,
+      `지난주보다 조용한 한 주였네요. 그래도 꾸준함은 완벽함보다 세요. 짧게라도 이어가면 리듬은 돌아옵니다.`,
+      `거리 숫자는 내려갔지만 회복 점수는 올랐을 수 있어요. 오늘 컨디션이 괜찮다면 가볍게 다시 켜봅시다.`,
+      `이번 주는 살짝 숨 고르기였습니다. 충분히 그럴 수 있어요. 다만 다음 러닝은 내가 나를 칭찬할 거리로 만들어봐요.`,
+      `지난 7일보다 덜 뛰었습니다. 페이서 잔소리는 준비됐지만, 먼저 말할게요. 여기서 다시 시작하면 됩니다.`,
+      `조금 비었네요. 그래도 괜찮아요. 러닝은 매주 시험이 아니라 오래 가는 약속입니다. 오늘 다시 작게 지키면 됩니다.`
+    ], seed);
+  }
+
+  return getFriendlyMessage([
+    `지난 7일보다 ${formatMileage(dropDistance)} 줄었어요. 이 정도는 회복도 훈련의 일부죠. 그래도 러닝화가 심심해하기 전에 한 번 나갑시다.`,
+    `지난주보다 ${formatMileage(dropDistance)} 덜 달렸습니다. 귀여운 후퇴입니다. 다음 기록으로 바로 체면 회복 가죠.`,
+    `거리는 조금 줄었지만 흐름은 살아 있어요. 페이서 잔소리 켜지기 전에 가볍게 이어갑시다.`,
+    `지난 7일보다 살짝 덜 뛰었네요. 몸 챙긴 건 좋고, 이제 기록판도 좀 챙겨줍시다.`,
+    `살짝 줄었습니다. 괜찮아요. 꾸준한 사람도 속도를 늦추는 날이 있고, 그게 오래 가는 힘이 됩니다.`,
+    `지난주보다 조금 덜 달렸지만 리듬은 아직 따뜻합니다. 오늘 짧게 이어가면 흐름은 바로 살아나요.`,
+    `거리만 보면 살짝 아쉽지만, 몸을 돌본 것도 기록입니다. 이제 좋은 컨디션으로 다시 쌓아봅시다.`,
+    `조금 줄었네요. 하지만 이 정도로 흔들릴 러닝력이 아닙니다. 가볍게 한 번 나가서 분위기만 되찾아와요.`,
+    `지난 7일보다 덜 달렸습니다. 페이서가 살짝 보고 있습니다. 그래도 괜찮아요, 다음 한 번이면 흐름이 돌아옵니다.`,
+    `이번 주는 아주 살짝 숨을 골랐네요. 멋은 잃지 않았습니다. 이제 리듬만 다시 챙기면 됩니다.`
+  ], seed);
+}
+
 function updateWeeklyInsight(runs) {
   const weeklyInsight = document.getElementById("weeklyInsight");
 
@@ -8840,11 +8887,7 @@ function updateWeeklyInsight(runs) {
           `지난주보다 ${formatMileage(diff)} 앞서 있어요. 욕심은 조금만, 리듬은 그대로 가면 좋겠습니다.`,
           `지난 7일보다 ${formatMileage(diff)} 더 달렸네요. 꾸준함이 조용히 힘을 내고 있어요.`
         ], `weekly-up-${weekStats.count}-${Math.round(diff * 10)}`)
-      : getFriendlyMessage([
-          `지난 7일보다 ${formatMileage(Math.abs(diff))} 줄었어요. 괜찮아요, 회복도 훈련의 일부입니다.`,
-          `이번 주는 지난주보다 살짝 덜 달렸어요. 몸을 아끼는 주간도 오래 달리기엔 꼭 필요해요.`,
-          `거리는 조금 줄었지만 흐름은 이어지고 있어요. 오늘의 컨디션부터 잘 챙겨가요.`
-        ], `weekly-down-${weekStats.count}-${Math.round(Math.abs(diff) * 10)}`)
+      : getWeeklyDistanceDropMessage(weekStats, previousStats, Math.abs(diff))
     : getFriendlyMessage([
         "이번 주 흐름을 새로 만들고 있어요. 시작이 이미 반입니다.",
         "이번 주 첫 기록이 들어왔네요. 이제 몸이 리듬을 기억하기 시작할 거예요.",
@@ -8961,7 +9004,11 @@ function getRecoveryRecommendation(todayStats, hasQualityToday) {
   return getFriendlyMessage([
     `${recoveryReason} 추가 훈련보다 회복이 더 좋겠습니다. 하체 스트레칭, 폼롤러, 수분 보충으로 마무리해 주세요.`,
     `${recoveryReason} 오늘의 남은 숙제는 회복입니다. 가벼운 걷기와 종아리, 햄스트링 스트레칭을 추천해요.`,
-    `${recoveryReason} 더 밀어붙이기보다 단백질과 탄수화물을 챙기고 다리를 부드럽게 풀어주세요.`
+    `${recoveryReason} 더 밀어붙이기보다 단백질과 탄수화물을 챙기고 다리를 부드럽게 풀어주세요.`,
+    `${recoveryReason} 이미 할 만큼 했습니다. 오늘은 잘 쉬는 사람이 내일 더 멀리 갑니다.`,
+    `${recoveryReason} 추가 km보다 회복 점수가 더 중요한 날이에요. 샤워 후 스트레칭까지 챙기면 완벽합니다.`,
+    `${recoveryReason} 지금 더 달리면 성실함이고, 여기서 멈추면 지혜입니다. 오늘은 지혜 쪽으로 갑시다.`,
+    `${recoveryReason} 오늘 러닝은 충분합니다. 따뜻한 식사와 수면이 다음 기록의 숨은 훈련입니다.`
   ], `daily-done-${Math.round(todayStats.totalDistance * 10)}-${Math.round(todayStats.totalTime)}`);
 }
 
@@ -8970,7 +9017,10 @@ function getWeatherLimitedRecommendation(environmentLevel) {
     return getFriendlyMessage([
       `오늘은 ${environmentLevel.reason} 때문에 야외 러닝 강도를 낮추는 게 좋겠습니다. 실내 근력, 스트레칭, 폼롤러로 대체해 주세요.`,
       `${environmentLevel.reason} 조건이 좋지 않아요. 러닝은 쉬고, 20분 가벼운 코어와 하체 가동성 루틴을 추천합니다.`,
-      `오늘 야외 러닝은 무리하지 않는 쪽이 좋겠습니다. ${environmentLevel.reason}을 고려해 휴식과 영양 보충을 우선해 주세요.`
+      `오늘 야외 러닝은 무리하지 않는 쪽이 좋겠습니다. ${environmentLevel.reason}을 고려해 휴식과 영양 보충을 우선해 주세요.`,
+      `${environmentLevel.reason}이면 의지보다 판단력이 먼저입니다. 오늘은 실내에서 몸을 살려두는 쪽이 이깁니다.`,
+      `밖이 도와주지 않는 날입니다. 15~20분 가동성 루틴만 해도 훈련 흐름은 충분히 지킬 수 있어요.`,
+      `오늘은 러닝화보다 매트가 더 어울립니다. 코어, 둔근, 종아리 관리로 조용히 강해지는 날로 가요.`
     ], `daily-weather-avoid-${environmentLevel.reason}`);
   }
 
@@ -8978,7 +9028,10 @@ function getWeatherLimitedRecommendation(environmentLevel) {
     return getFriendlyMessage([
       `${environmentLevel.reason}이 있어요. 오늘은 대화 가능한 페이스로 30~40분 이내 가볍게 가는 편이 좋겠습니다.`,
       `날씨 조건을 감안하면 강도 훈련보다 이지런이 맞아요. ${environmentLevel.reason}을 체크하고 5km 안팎으로 편하게 달려주세요.`,
-      `${environmentLevel.reason} 때문에 욕심은 줄이는 날입니다. 짧은 조깅 뒤 스트레칭으로 마무리해 주세요.`
+      `${environmentLevel.reason} 때문에 욕심은 줄이는 날입니다. 짧은 조깅 뒤 스트레칭으로 마무리해 주세요.`,
+      `오늘은 컨디션을 이기는 날이 아니라 읽는 날입니다. ${environmentLevel.reason}을 감안해 초반 10분은 아주 편하게 가요.`,
+      `${environmentLevel.reason}이 있으니 페이스보다 호흡을 기준으로 잡아주세요. 편하면 30분, 애매하면 20분도 충분합니다.`,
+      `밖의 조건이 살짝 까다롭습니다. 오늘은 예쁜 기록보다 안전한 리듬을 챙기는 쪽이 더 멋집니다.`
     ], `daily-weather-caution-${environmentLevel.reason}`);
   }
 
@@ -9017,7 +9070,9 @@ function getQualityDayRecommendation(workout, environmentLevel) {
     return getFriendlyMessage([
       `오늘은 화요 정훈일입니다. ${workoutText} 예정이지만 ${environmentLevel.reason} 영향이 있어요. 정훈 참여 의지는 존중하되, ${qualityGuide} 컨디션이 불편하면 세트 수를 1~2개 줄여도 됩니다. ${safetyNotes}`,
       `정훈은 지키되 안전장치를 넣는 날입니다. 오늘 프로그램은 ${workoutText}이고, ${environmentLevel.reason} 때문에 초반부터 무리하지 않는 쪽이 좋겠습니다. ${qualityGuide} 불편 신호가 있으면 이지런이나 회복으로 전환해 주세요. ${safetyNotes}`,
-      `오늘 정훈 ${workoutText}는 진행하더라도 평소보다 보수적으로 잡아주세요. ${environmentLevel.reason} 조건에서는 기록 욕심보다 완주와 안전이 우선입니다. ${qualityGuide} ${safetyNotes}`
+      `오늘 정훈 ${workoutText}는 진행하더라도 평소보다 보수적으로 잡아주세요. ${environmentLevel.reason} 조건에서는 기록 욕심보다 완주와 안전이 우선입니다. ${qualityGuide} ${safetyNotes}`,
+      `정훈 의지는 멋지지만 오늘은 조건이 까다롭습니다. ${workoutText}를 하더라도 강도는 낮추고, 몸이 싫다는 신호를 보내면 바로 회복런으로 바꿔주세요. ${safetyNotes}`,
+      `${environmentLevel.reason}이면 페이서도 브레이크를 겁니다. 오늘 ${workoutText}는 완주보다 안전하게 소화하는 쪽으로 잡아주세요. ${qualityGuide} ${safetyNotes}`
     ], `daily-quality-avoid-${workout.date}-${environmentLevel.reason}`);
   }
 
@@ -9025,14 +9080,18 @@ function getQualityDayRecommendation(workout, environmentLevel) {
     return getFriendlyMessage([
       `오늘은 화요 정훈일입니다. ${workoutText}를 진행하되 ${environmentLevel.reason}을 고려해 워밍업을 길게 하고 초반 강도를 낮춰 주세요. ${qualityGuide}`,
       `정훈 참여하기 좋은 마음은 살리고, 조건은 조금 조절해요. 오늘은 ${workoutText}, ${environmentLevel.reason}이 있으니 리커버리를 넉넉히 가져가면 좋겠습니다.`,
-      `오늘 정훈은 ${workoutText}입니다. ${environmentLevel.reason}이 있어 평소보다 한 단계 여유 있게 시작하고, 몸 상태가 괜찮을 때만 후반에 올려주세요.`
+      `오늘 정훈은 ${workoutText}입니다. ${environmentLevel.reason}이 있어 평소보다 한 단계 여유 있게 시작하고, 몸 상태가 괜찮을 때만 후반에 올려주세요.`,
+      `${workoutText} 날입니다. 오늘은 강한 마음보다 똑똑한 운영이 더 중요해요. 워밍업을 길게 가져가고 첫 반복은 살짝 참아주세요.`,
+      `정훈은 가되 무리수는 빼는 날입니다. ${environmentLevel.reason}을 감안해 초반부터 여유를 남기면 끝까지 더 예쁘게 버팁니다.`
     ], `daily-quality-caution-${workout.date}-${environmentLevel.reason}`);
   }
 
   return getFriendlyMessage([
     `오늘은 화요 정훈일입니다. ${workoutText}를 중심 훈련으로 가져가세요. ${qualityGuide}`,
     `오늘의 핵심은 정훈입니다. ${workoutText}를 안정적으로 수행하고, 끝나면 쿨다운과 수분 보충까지 챙겨주세요.`,
-    `정훈날입니다. ${workoutText}를 무리 없이 소화하는 걸 목표로 잡고, 첫 세트는 여유 있게 들어가세요.`
+    `정훈날입니다. ${workoutText}를 무리 없이 소화하는 걸 목표로 잡고, 첫 세트는 여유 있게 들어가세요.`,
+    `${workoutText}로 몸에 좋은 자극을 주는 날입니다. 처음부터 증명하려 하지 말고, 마지막까지 자세가 살아있게 가요.`,
+    `오늘은 집중해서 한 번 잘 쌓아볼 만합니다. ${workoutText}를 소화한 뒤 쿨다운까지 하면 훈련 완성도가 올라갑니다.`
   ], `daily-quality-${workout.date}`);
 }
 
@@ -9069,7 +9128,10 @@ function updateDailyRecommendation(runs) {
     dailyRecommendation.innerText = getFriendlyMessage([
       "오늘은 기록보다 산책 같은 조깅으로 시작해봐요. 20~30분이면 충분하고, 마무리는 스트레칭까지 챙겨주세요.",
       "첫 기록은 가볍게 남기는 게 제일 좋아요. 숨이 편한 속도로 20분만 다녀오고 수분을 보충해 주세요.",
-      "오늘의 목표는 멋진 기록보다 문밖으로 나가기. 편한 조깅 20~30분과 가벼운 하체 스트레칭을 추천해요."
+      "오늘의 목표는 멋진 기록보다 문밖으로 나가기. 편한 조깅 20~30분과 가벼운 하체 스트레칭을 추천해요.",
+      "처음부터 대단할 필요 없습니다. 운동화 끈 묶고 20분만 다녀오면 오늘은 이미 성공입니다.",
+      "첫 기록은 작을수록 오래 갑니다. 편한 호흡으로 3~5km만 남기고 기분 좋게 닫아주세요.",
+      "오늘은 몸에게 러닝을 다시 소개하는 날로 가요. 천천히 20분, 끝나고 물 한 잔이면 충분합니다."
     ], "daily-empty");
     return;
   }
@@ -9087,7 +9149,10 @@ function updateDailyRecommendation(runs) {
     dailyRecommendation.innerText = getFriendlyMessage([
       "러닝 사이가 조금 벌어졌어요. 오늘은 기록 말고 리듬만 되찾는 30분 조깅이 좋겠습니다.",
       "오랜만에 뛰는 날이라면 몸에게 먼저 인사부터 해주세요. 편한 30분 조깅을 추천해요.",
-      "오늘은 다시 켜는 날입니다. 빠르게 말고 부드럽게, 30분 정도만 달려봐요."
+      "오늘은 다시 켜는 날입니다. 빠르게 말고 부드럽게, 30분 정도만 달려봐요.",
+      "간격이 벌어졌을수록 첫 10분은 더 다정하게 가야 합니다. 오늘은 천천히 돌아오는 조깅으로 충분해요.",
+      "오랜만의 러닝은 자존심보다 관절을 먼저 챙기는 게 이깁니다. 20~30분 이지런으로 리듬만 깨워주세요.",
+      "잠깐 쉬었다고 사라진 게 아닙니다. 오늘은 내 몸이 기억을 되찾게 해주는 30분 조깅을 추천해요."
     ], `daily-gap-${daysSinceLatest}`);
     return;
   }
@@ -9096,7 +9161,10 @@ function updateDailyRecommendation(runs) {
     dailyRecommendation.innerText = getFriendlyMessage([
       "이번 주는 이미 꽤 잘 쌓았어요. 오늘은 회복 조깅이나 휴식, 폼롤러로 다음 훈련을 살려두면 좋겠습니다.",
       "몸에 적립한 마일리지가 충분해요. 오늘은 30분 이내 아주 편한 조깅, 아니면 스트레칭만 해도 좋습니다.",
-      "잘 달린 주간입니다. 오늘 더 밀어붙이기보다 다리를 가볍게 풀고 단백질과 수분을 챙겨주세요."
+      "잘 달린 주간입니다. 오늘 더 밀어붙이기보다 다리를 가볍게 풀고 단백질과 수분을 챙겨주세요.",
+      "이번 주 성실함은 이미 확인됐습니다. 오늘은 회복을 잘해야 다음 훈련이 더 반짝입니다.",
+      "충분히 달린 주간이에요. 더하는 용기보다 멈추는 센스가 필요한 날입니다.",
+      "마일리지는 잘 쌓였습니다. 오늘은 20~30분 회복 조깅이나 하체 스트레칭으로 몸을 예쁘게 정리해 주세요."
     ], `daily-recovery-${weekStats.count}-${Math.round(weekStats.totalDistance)}`);
     return;
   }
@@ -9106,7 +9174,10 @@ function updateDailyRecommendation(runs) {
     dailyRecommendation.innerText = getFriendlyMessage([
       `월 목표까지 ${formatMileage(remaining)} 남았어요. 오늘은 부담 없이 5~8km만 보태볼까요?`,
       `목표까지 아직 여유가 조금 필요해요. 오늘 5~8km를 편하게 쌓으면 마음이 꽤 가벼워질 거예요.`,
-      `오늘은 월 목표에 한 걸음 붙는 날로 가보죠. 대화 가능한 페이스로 5~8km 추천합니다.`
+      `오늘은 월 목표에 한 걸음 붙는 날로 가보죠. 대화 가능한 페이스로 5~8km 추천합니다.`,
+      `월 목표는 한 번에 따라잡는 게 아니라 조금씩 가까워지는 쪽이 오래 갑니다. 오늘은 편하게 5km부터 가요.`,
+      `${formatMileage(remaining)} 남았습니다. 숫자는 조금 남았지만 겁먹을 정도는 아니에요. 오늘 6km만 쌓아도 분위기가 바뀝니다.`,
+      `목표까지 가는 길에 오늘 한 번만 보태요. 빠르게 말고 꾸준하게, 5~8km면 충분합니다.`
     ], `daily-goal-${Math.round(remaining * 10)}`);
     return;
   }
@@ -9116,7 +9187,10 @@ function updateDailyRecommendation(runs) {
     dailyRecommendation.innerText = getFriendlyMessage([
       `오늘은 10K PB보다 한참 여유 있게 가요. ${easyPace} 전후로 편안한 조깅을 추천합니다.`,
       `다리를 살리는 날로 잡아볼까요? ${easyPace} 근처에서 말이 나오는 페이스면 딱 좋습니다.`,
-      `오늘은 빠른 나보다 오래 가는 나를 챙기는 날입니다. ${easyPace} 전후 조깅이 좋아요.`
+      `오늘은 빠른 나보다 오래 가는 나를 챙기는 날입니다. ${easyPace} 전후 조깅이 좋아요.`,
+      `PB가 있다고 매일 PB처럼 뛸 필요는 없습니다. 오늘은 ${easyPace} 근처에서 여유를 남기는 쪽으로 가요.`,
+      `빠른 기록은 편한 날들이 받쳐줘야 다시 나옵니다. ${easyPace} 전후로 부드럽게 쌓아주세요.`,
+      `오늘은 기록 욕심을 살짝 접고 컨디션을 키우는 날입니다. ${easyPace} 정도면 충분히 좋은 훈련입니다.`
     ], `daily-pb-${Math.round(pb["10K"].pace * 100)}`);
     return;
   }
@@ -9124,7 +9198,11 @@ function updateDailyRecommendation(runs) {
   dailyRecommendation.innerText = getFriendlyMessage([
     "오늘은 대화가 가능한 페이스로 5km만 가볍게 쌓아봐요.",
     "무리할 필요 없는 날입니다. 편한 호흡으로 5km, 꾸준함 하나만 챙겨요.",
-    "오늘의 추천은 담백하게 5km 조깅입니다. 끝나고 기분 좋은 정도면 성공이에요."
+    "오늘의 추천은 담백하게 5km 조깅입니다. 끝나고 기분 좋은 정도면 성공이에요.",
+    "오늘은 기분 좋은 땀만 챙기는 날로 가요. 30분 이지런이면 충분합니다.",
+    "컨디션이 애매하면 3km, 괜찮으면 5km. 오늘은 완벽보다 출석이 더 중요합니다.",
+    "가볍게 나가서 몸이 풀리면 조금 더, 아니면 산뜻하게 마무리해도 좋습니다.",
+    "오늘은 러닝을 어렵게 만들지 맙시다. 편한 페이스로 5km, 끝나고 스트레칭까지요."
   ], "daily-default");
 }
 
@@ -9209,14 +9287,18 @@ function buildPbCelebrationMessage(runs, latestEntry) {
     ? getFriendlyMessage([
         `같은 날 ${categoryLabels} 흐름이 함께 좋아졌어요.`,
         `한 번에 ${categoryLabels} PB가 같이 움직였네요.`,
-        `${categoryLabels} 구간이 동시에 살아난 날입니다.`
+        `${categoryLabels} 구간이 동시에 살아난 날입니다.`,
+        `오늘 기록표가 여러 칸에서 반짝였습니다.`,
+        `한 번의 좋은 흐름이 여러 거리 기준을 같이 끌어올렸어요.`
       ], `pb-multi-${latestRun.runDate}-${categoryLabels}`)
     : "";
   const improvementText = improvement > 0
     ? getFriendlyMessage([
         `이전 최고보다 ${formatTime(improvement)} 앞당겼습니다.`,
         `직전 PB 대비 ${formatTime(improvement)}를 줄였어요.`,
-        `기존 최고 기록을 ${formatTime(improvement)} 단축했습니다.`
+        `기존 최고 기록을 ${formatTime(improvement)} 단축했습니다.`,
+        `${formatTime(improvement)}만큼 더 빠른 나를 만들었습니다.`,
+        `예전 기준에서 ${formatTime(improvement)}를 덜어냈어요. 이건 분명한 전진입니다.`
       ], `pb-diff-${firstCategory.key}-${Math.round(improvement * 100)}`)
     : "";
   const sourceText = best.isAdjusted
@@ -9227,7 +9309,10 @@ function buildPbCelebrationMessage(runs, latestEntry) {
       return getFriendlyMessage([
         `${categoryLabels} PB 갱신! ${raceLabel}에서 기록이 시원하게 나왔어요.`,
         `${categoryLabels} PB 갱신! ${raceLabel}에서 준비한 흐름이 잘 터졌습니다.`,
-        `${categoryLabels} PB 갱신! ${raceLabel} 무대에서 좋은 결과를 만들었네요.`
+        `${categoryLabels} PB 갱신! ${raceLabel} 무대에서 좋은 결과를 만들었네요.`,
+        `${categoryLabels} PB 갱신! ${raceLabel}에서 흔들리지 않고 자기 기록을 가져왔습니다.`,
+        `${categoryLabels} PB 갱신! ${raceLabel} 완주가 기록표까지 예쁘게 바꿔놨어요.`,
+        `${categoryLabels} PB 갱신! 대회장에서 쌓아온 힘이 제대로 얼굴을 보였습니다.`
       ], `pb-race-${firstCategory.key}-${latestRun.runDate}`);
     }
 
@@ -9235,7 +9320,10 @@ function buildPbCelebrationMessage(runs, latestEntry) {
       return getFriendlyMessage([
         `${categoryLabels} PB 갱신! 기록이 크게 움직인 반가운 날입니다.`,
         `${categoryLabels} PB 갱신! 눈에 띄는 도약이 나왔어요.`,
-        `${categoryLabels} PB 갱신! 훈련 흐름이 기록으로 확실히 이어졌습니다.`
+        `${categoryLabels} PB 갱신! 훈련 흐름이 기록으로 확실히 이어졌습니다.`,
+        `${categoryLabels} PB 갱신! 오늘 기록표가 제대로 방향을 바꿨습니다.`,
+        `${categoryLabels} PB 갱신! 이 정도 단축이면 몸이 꽤 설득력 있게 말한 겁니다.`,
+        `${categoryLabels} PB 갱신! 꾸준히 쌓은 시간이 한 번에 크게 돌아왔네요.`
       ], `pb-big-${firstCategory.key}-${latestRun.runDate}`);
     }
 
@@ -9243,7 +9331,10 @@ function buildPbCelebrationMessage(runs, latestEntry) {
       return getFriendlyMessage([
         `${categoryLabels} PB 갱신! 안정적으로 한 단계 올라섰어요.`,
         `${categoryLabels} PB 갱신! 꾸준함이 기록을 다시 밀어올렸습니다.`,
-        `${categoryLabels} PB 갱신! 차분하게 쌓은 흐름이 보상을 받았네요.`
+        `${categoryLabels} PB 갱신! 차분하게 쌓은 흐름이 보상을 받았네요.`,
+        `${categoryLabels} PB 갱신! 무리한 한 방보다 탄탄한 전진이 나왔습니다.`,
+        `${categoryLabels} PB 갱신! 몸이 좋은 리듬을 기억하고 있다는 증거입니다.`,
+        `${categoryLabels} PB 갱신! 오늘은 조용히 강해진 게 숫자로 보인 날입니다.`
       ], `pb-solid-${firstCategory.key}-${latestRun.runDate}`);
     }
 
@@ -9251,20 +9342,30 @@ function buildPbCelebrationMessage(runs, latestEntry) {
       return getFriendlyMessage([
         `${categoryLabels} PB 갱신! 작은 차이지만 분명한 전진입니다.`,
         `${categoryLabels} PB 갱신! 기록이 다시 앞으로 움직이기 시작했어요.`,
-        `${categoryLabels} PB 갱신! 근소하지만 의미 있는 업데이트입니다.`
+        `${categoryLabels} PB 갱신! 근소하지만 의미 있는 업데이트입니다.`,
+        `${categoryLabels} PB 갱신! 1초도 그냥 생기지 않습니다. 잘 해냈어요.`,
+        `${categoryLabels} PB 갱신! 작은 단축이지만 마음은 크게 가져가도 됩니다.`,
+        `${categoryLabels} PB 갱신! 아주 얇은 차이로도 나아졌다는 사실은 선명합니다.`
       ], `pb-narrow-${firstCategory.key}-${latestRun.runDate}`);
     }
 
     return getFriendlyMessage([
       `${categoryLabels} PB 갱신! 새로운 기준 기록이 생겼어요.`,
       `${categoryLabels} 첫 PB 등록! 이제 이 기록이 다음 훈련의 기준점이 됩니다.`,
-      `${categoryLabels} 기록이 새로 만들어졌어요. 앞으로 비교할 기준이 생겼습니다.`
+      `${categoryLabels} 기록이 새로 만들어졌어요. 앞으로 비교할 기준이 생겼습니다.`,
+      `${categoryLabels} 기준점이 생겼습니다. 이제부터는 이 기록을 발판으로 천천히 올리면 됩니다.`,
+      `${categoryLabels} 첫 기준 기록 등록! 오늘의 숫자가 다음 목표의 출발선입니다.`,
+      `${categoryLabels} 기록표에 새 줄이 생겼어요. 이제 성장의 방향이 더 또렷해집니다.`
     ], `pb-new-${firstCategory.key}-${latestRun.runDate}`);
   })();
   const follow = getFriendlyMessage([
     "지금은 무리하게 더 끌어올리기보다 좋은 흐름을 몇 주 더 안정적으로 이어가면 좋겠습니다.",
     "다음 단계는 한 번의 강한 훈련보다 회복과 반복 리듬을 지키는 것입니다.",
-    "기록이 올라온 뒤에는 몸을 잘 회복시키는 것이 다음 PB를 준비하는 가장 빠른 길입니다."
+    "기록이 올라온 뒤에는 몸을 잘 회복시키는 것이 다음 PB를 준비하는 가장 빠른 길입니다.",
+    "오늘은 축하하고, 다음 훈련은 차분하게 이어가면 됩니다. 좋은 기록은 오래 가는 리듬에서 다시 나옵니다.",
+    "이제 필요한 건 더 센 욕심보다 좋은 컨디션을 지키는 운영입니다. 회복까지 챙기면 다음 기록도 더 가까워집니다.",
+    "잘 달린 뒤 잘 쉬는 것까지가 실력입니다. 오늘의 성취를 몸이 흡수하게 해주세요.",
+    "기록이 오른 뒤의 하루 이틀은 몸을 아껴주세요. 다음 PB는 회복을 먹고 자랍니다."
   ], `pb-follow-${firstCategory.key}-${latestRun.runDate}`);
 
   return [
@@ -10970,7 +11071,7 @@ function updateMarathonPrediction() {
   const qualityBlock = basis.qualitySignal
     ? [
         '<div class="target-block">',
-        `<b>화요 정훈 반영</b><br>${basis.qualitySignal.summary}${basis.qualitySignal.count > 1 ? `<br>최근 정훈 ${basis.qualitySignal.count}개를 가중 반영했습니다.` : ""}<br>입력된 화요 정훈 결과가 있는 회원에 한해 예상 마라톤 기록에 보정 반영되었습니다.`,
+        `<b>화요 정훈 반영</b><br>${basis.qualitySignal.summary}${basis.qualitySignal.count > 1 ? `<br>최근 ${QUALITY_PREDICTION_LOOKBACK_DAYS}일 정훈 중 ${basis.qualitySignal.count}개를 가중 반영했습니다.` : ""}<br>입력된 화요 정훈 결과가 있는 회원에 한해 예상 마라톤 기록에 보정 반영되었습니다.`,
         '</div>'
       ].join("")
     : "";
@@ -11029,6 +11130,9 @@ function getQualityPredictionIntensity(workoutType = "", repDistanceKm = 0) {
   return repDistanceKm >= 2 ? 0.96 : 0.985;
 }
 
+const QUALITY_PREDICTION_LOOKBACK_DAYS = 90;
+const QUALITY_PREDICTION_MAX_RESULTS = 12;
+
 function parseQualityRepDistanceKm(plannedWorkout = "") {
   const text = String(plannedWorkout || "");
   const bareRepeatedMatch = text.match(/(\d+(?:\.\d+)?)\s*[x×X]\s*\d+/);
@@ -11080,7 +11184,7 @@ function getQualityMainSetAveragePace(run) {
 }
 
 function getRecentQualityPredictionSignal(runs = latestRuns) {
-  const cutoffMs = Date.now() - (56 * 24 * 60 * 60 * 1000);
+  const cutoffMs = Date.now() - (QUALITY_PREDICTION_LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
   const qualityCandidates = runs
     .filter((run) => {
       if (!(run.type === "training" && isQualityWorkout(run))) return false;
@@ -11099,7 +11203,13 @@ function getRecentQualityPredictionSignal(runs = latestRuns) {
       const setResults = qualityDisplay.setResults || "";
       const repDistanceKm = parseQualityRepDistanceKm(plannedWorkout);
       const recencyDays = Math.max(0, Math.round((Date.now() - runDateMs) / (24 * 60 * 60 * 1000)));
-      const recencyWeight = recencyDays <= 14 ? 1 : recencyDays <= 28 ? 0.88 : 0.74;
+      const recencyWeight = recencyDays <= 14
+        ? 1
+        : recencyDays <= 30
+          ? 0.9
+          : recencyDays <= 60
+            ? 0.78
+            : 0.64;
       let vdot = 0;
       let summary = "";
       let sourceWeight = 0;
@@ -11154,7 +11264,7 @@ function getRecentQualityPredictionSignal(runs = latestRuns) {
     })
     .filter(Boolean)
     .sort((a, b) => (b.weight - a.weight) || (getDateTimeValueMs(b.run.runDate) - getDateTimeValueMs(a.run.runDate)))
-    .slice(0, 3);
+    .slice(0, QUALITY_PREDICTION_MAX_RESULTS);
 
   if (!qualityCandidates.length) return null;
 
