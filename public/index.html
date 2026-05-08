@@ -799,6 +799,44 @@
       font-weight: 700;
     }
 
+    .quality-host-plan-guide {
+      display: grid;
+      gap: 7px;
+      margin-top: 8px;
+    }
+
+    .quality-host-plan-title {
+      color: var(--brand-dark);
+      font-size: 13px;
+      font-weight: 900;
+    }
+
+    .quality-host-plan-table-wrap {
+      overflow-x: auto;
+    }
+
+    .quality-host-plan-table {
+      width: 100%;
+      min-width: 420px;
+      border-collapse: collapse;
+      font-size: 12px;
+      background: rgba(255, 255, 255, 0.72);
+    }
+
+    .quality-host-plan-table th,
+    .quality-host-plan-table td {
+      padding: 7px 8px;
+      border: 1px solid rgba(148, 163, 184, 0.32);
+      text-align: left;
+      white-space: nowrap;
+    }
+
+    .quality-host-plan-table th {
+      color: var(--brand-dark);
+      font-weight: 900;
+      background: rgba(255, 255, 255, 0.72);
+    }
+
     .quality-form {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -3957,12 +3995,19 @@
             </label>
 
             <div class="quality-form-section">결과 입력</div>
+            <p id="qualitySetGuide" class="vdot-guide-note quality-set-guide">훈련 프로그램을 선택하면 세트 입력 칸이 자동으로 맞춰집니다.</p>
+            <div id="qualitySetInputs" class="quality-set-row"></div>
             <div class="quality-mode-toggle">
               <label><input id="qualityManualTotalsToggle" type="checkbox"> 세트 입력이 어려운 날은 전체 거리와 시간만 직접 입력</label>
               <div class="quality-manual-note">시계 조작 오류 등으로 세트별 기록이 불확실한 경우 이 모드를 켜고 전체 거리와 전체 시간만 저장할 수 있습니다.</div>
             </div>
-            <p id="qualitySetGuide" class="vdot-guide-note quality-set-guide">훈련 프로그램을 선택하면 세트 입력 칸이 자동으로 맞춰집니다.</p>
-            <div id="qualitySetInputs" class="quality-set-row"></div>
+            <p id="qualityTotalsGuide" class="vdot-guide-note quality-set-guide">총 거리와 총 시간은 세트 기록과 리커버리 시간을 기준으로 자동 계산됩니다. 별도로 입력하지 않아도 됩니다.</p>
+            <div class="quality-result-row">
+              <label><span id="qualityDistanceLabel">자동 총 거리</span> <input id="qualityDistance" type="number" step="0.01" placeholder="km" readonly></label>
+              <label><span id="qualityHourLabel">자동 시간</span> <input id="qualityHour" type="number" placeholder="h" readonly></label>
+              <label><span id="qualityMinuteLabel">자동 분</span> <input id="qualityMinute" type="number" placeholder="m" max="59" readonly></label>
+              <label><span id="qualitySecondLabel">자동 초</span> <input id="qualitySecond" type="number" placeholder="s" max="59" readonly></label>
+            </div>
             <div class="quality-form-section">워밍업 · 쿨다운</div>
             <p class="vdot-guide-note quality-set-guide">정훈 전후 루틴도 함께 기록해두면 총 거리와 시간이 더 정확해집니다. 입력은 선택사항입니다.</p>
             <div class="quality-result-row">
@@ -3974,13 +4019,6 @@
               <label><span>쿨다운 거리</span> <input id="qualityCooldownDistance" type="number" step="0.01" placeholder="km"></label>
               <label><span>쿨다운 분</span> <input id="qualityCooldownMinute" type="number" placeholder="m" min="0"></label>
               <label><span>쿨다운 초</span> <input id="qualityCooldownSecond" type="number" placeholder="s" min="0" max="59"></label>
-            </div>
-            <p id="qualityTotalsGuide" class="vdot-guide-note quality-set-guide">총 거리와 총 시간은 세트 기록과 리커버리 시간을 기준으로 자동 계산됩니다. 별도로 입력하지 않아도 됩니다.</p>
-            <div class="quality-result-row">
-              <label><span id="qualityDistanceLabel">자동 총 거리</span> <input id="qualityDistance" type="number" step="0.01" placeholder="km" readonly></label>
-              <label><span id="qualityHourLabel">자동 시간</span> <input id="qualityHour" type="number" placeholder="h" readonly></label>
-              <label><span id="qualityMinuteLabel">자동 분</span> <input id="qualityMinute" type="number" placeholder="m" max="59" readonly></label>
-              <label><span id="qualitySecondLabel">자동 초</span> <input id="qualitySecond" type="number" placeholder="s" max="59" readonly></label>
             </div>
             <input id="qualitySetResults" type="hidden">
 
@@ -4201,11 +4239,11 @@
     second.addEventListener("input", updateTime);
   </script>
 
-  <script type="module" src="app.js?v=20260506-quality-prediction-12-v253"></script>
+  <script type="module" src="app.js?v=20260508-quality-manual-layout-v272"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
-        navigator.serviceWorker.register("service-worker.js?v=20260506-quality-prediction-12-v253").then((registration) => {
+        navigator.serviceWorker.register("service-worker.js?v=20260508-quality-manual-layout-v272").then((registration) => {
           registration.update().catch(() => {});
         }).catch(() => {});
       });

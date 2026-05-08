@@ -56,6 +56,10 @@ service cloud.firestore {
         "qualityPlanDate",
         "qualityPlannedWorkout",
         "qualitySetResults",
+        "qualityWarmupDistance",
+        "qualityWarmupTime",
+        "qualityCooldownDistance",
+        "qualityCooldownTime",
         "qualitySelfRating",
         "qualityReflection"
       ])
@@ -70,12 +74,16 @@ service cloud.firestore {
       && request.resource.data.time > 0
       && request.resource.data.time <= 1440
       && request.resource.data.type in ["training", "race"]
-      && (!request.resource.data.keys().hasAny(["workoutType"]) || request.resource.data.workoutType in ["", "steady", "interval", "repetition", "build-up", "tt", "tempo", "long", "recovery", "other"])
+      && (!request.resource.data.keys().hasAny(["workoutType"]) || request.resource.data.workoutType in ["", "steady", "jog", "recovery-run", "long-run", "build-up-run", "tempo-run", "hill-run", "other-run", "interval", "repetition", "build-up", "tt", "tempo", "long", "recovery", "other"])
       && (!request.resource.data.keys().hasAny(["workoutDetail"]) || (request.resource.data.workoutDetail is string && request.resource.data.workoutDetail.size() <= 2500))
       && (!request.resource.data.keys().hasAny(["rankingEligible"]) || request.resource.data.rankingEligible is bool)
       && (!request.resource.data.keys().hasAny(["qualityPlanDate"]) || (request.resource.data.qualityPlanDate is string && request.resource.data.qualityPlanDate.size() <= 20))
       && (!request.resource.data.keys().hasAny(["qualityPlannedWorkout"]) || (request.resource.data.qualityPlannedWorkout is string && request.resource.data.qualityPlannedWorkout.size() <= 500))
       && (!request.resource.data.keys().hasAny(["qualitySetResults"]) || (request.resource.data.qualitySetResults is string && request.resource.data.qualitySetResults.size() <= 500))
+      && (!request.resource.data.keys().hasAny(["qualityWarmupDistance"]) || (request.resource.data.qualityWarmupDistance is number && request.resource.data.qualityWarmupDistance >= 0 && request.resource.data.qualityWarmupDistance <= 50))
+      && (!request.resource.data.keys().hasAny(["qualityWarmupTime"]) || (request.resource.data.qualityWarmupTime is number && request.resource.data.qualityWarmupTime >= 0 && request.resource.data.qualityWarmupTime <= 240))
+      && (!request.resource.data.keys().hasAny(["qualityCooldownDistance"]) || (request.resource.data.qualityCooldownDistance is number && request.resource.data.qualityCooldownDistance >= 0 && request.resource.data.qualityCooldownDistance <= 50))
+      && (!request.resource.data.keys().hasAny(["qualityCooldownTime"]) || (request.resource.data.qualityCooldownTime is number && request.resource.data.qualityCooldownTime >= 0 && request.resource.data.qualityCooldownTime <= 240))
       && (!request.resource.data.keys().hasAny(["qualitySelfRating"]) || (request.resource.data.qualitySelfRating is string && request.resource.data.qualitySelfRating.size() <= 20))
       && (!request.resource.data.keys().hasAny(["qualityReflection"]) || (request.resource.data.qualityReflection is string && request.resource.data.qualityReflection.size() <= 800));
     }

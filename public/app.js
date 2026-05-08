@@ -202,6 +202,7 @@ const RUNNING_GROUP_STANDARD_NOTE = "조편성 조정을 원하시면 코치와 
 const RUNNING_GROUP_REASSIGNMENT_EFFECTIVE_DATE = "2026-05-01";
 const OFFICIAL_TRAINING_LABEL = "나빌러닝 정훈";
 const QUALITY_MAKEUP_CREDIT = 0.7;
+const QUALITY_AUTO_REDUCED_SET_GROUPS = ["E", "S"];
 let runningGroupStandardsLoadedFromXlsx = false;
 const QUALITY_NOTICE_VOTE_OPTIONS = [
   { value: "attend", label: "훈련 참석" },
@@ -1910,9 +1911,79 @@ function parseQualityGroupSetNote(planText = "") {
 function formatQualityGroupSetNote(planText = "") {
   const groupSetNote = parseQualityGroupSetNote(planText);
 
-  if (!groupSetNote) return "";
+  if (groupSetNote) {
+    return `${groupSetNote.groups.map((group) => `${group}조`).join(", ")}: ${groupSetNote.setCount}세트`;
+  }
 
-  return `${groupSetNote.groups.map((group) => `${group}조`).join(", ")}: ${groupSetNote.setCount}세트`;
+  const baseSetCount = getQualityBaseSetCountFromPlan(planText);
+
+  if (isQualityTimeTrialPlan(planText) || baseSetCount <= 1) return "";
+
+  return `${QUALITY_AUTO_REDUCED_SET_GROUPS.map((group) => `${group}조`).join(", ")}: ${baseSetCount - 1}세트`;
+}
+
+function getQualityBaseSetCountFromPlan(planText = "") {
+  const match = String(planText || "").match(/(\d+(?:\.\d+)?)\s*(k|km|m)?\s*(?:x|×)\s*(\d+)/i);
+  const setCount = Number(match?.[3]);
+
+  return Number.isFinite(setCount) && setCount > 0 ? setCount : 0;
+}
+
+function getQualitySetCountForGroup(planText = "", group = "") {
+  const groupSetNote = parseQualityGroupSetNote(planText);
+  const normalizedGroup = String(group || "").trim();
+  const baseSetCount = getQualityBaseSetCountFromPlan(planText);
+
+  if (groupSetNote?.groups.includes(normalizedGroup)) {
+    return groupSetNote.setCount;
+  }
+
+  if (!groupSetNote && !isQualityTimeTrialPlan(planText) && QUALITY_AUTO_REDUCED_SET_GROUPS.includes(normalizedGroup) && baseSetCount > 1) {
+    return baseSetCount - 1;
+  }
+
+  return baseSetCount;
+}
+
+function escapeHtml(value = "") {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function formatQualityHostGroupPlanGuide(planText = "") {
+  if (isQualityTimeTrialPlan(planText)) {
+    return `<div class="quality-plan-meta">${getQualityTimeTrialPaceGuide(planText)}</div>`;
+  }
+
+  const rows = runningGroupStandards.map((standard) => {
+    const setCount = getQualitySetCountForGroup(planText, standard.group);
+    const setLabel = setCount ? `${setCount}세트` : "-";
+
+    return [
+      "<tr>",
+      `<td>${escapeHtml(standard.group)}조</td>`,
+      `<td>${escapeHtml(standard.intervalPace)}</td>`,
+      `<td>${escapeHtml(standard.recoveryPace)}</td>`,
+      `<td>${escapeHtml(setLabel)}</td>`,
+      "</tr>"
+    ].join("");
+  }).join("");
+
+  return [
+    '<div class="quality-host-plan-guide">',
+    '<div class="quality-host-plan-title">호스트 전체 조 안내</div>',
+    '<div class="quality-host-plan-table-wrap">',
+    '<table class="quality-host-plan-table">',
+    '<thead><tr><th>조</th><th>인터벌</th><th>리커버리</th><th>세트</th></tr></thead>',
+    `<tbody>${rows}</tbody>`,
+    '</table>',
+    '</div>',
+    '</div>'
+  ].join("");
 }
 
 function formatQualityWorkoutPlanText(planText = "") {
@@ -2177,7 +2248,7 @@ function getQualityWorkoutOptionDateValue(optionValue = "", year = new Date().ge
   return workoutDate ? dateToInputValue(workoutDate) : "";
 }
 
-function syncQualityPlanSelection({ selectedValue = "", resetResults = false } = {}) {
+function syncQualityPlanSelection({ selectedValue = "", resetResults = false, useTodayDate = false } = {}) {
   const qualityDateInput = document.getElementById("qualityDate");
   const qualityPlanSelect = document.getElementById("qualityPlanSelect");
   const qualityWorkoutTypeSelect = document.getElementById("qualityWorkoutType");
@@ -2198,10 +2269,8 @@ function syncQualityPlanSelection({ selectedValue = "", resetResults = false } =
   qualityPlannedWorkoutInput.value = formatQualityWorkoutPlanText(selected.dataset.workout || "");
   qualityWorkoutTypeSelect.value = selected.dataset.type || "interval";
 
-  const officialDateValue = getQualityWorkoutOptionDateValue(selected.value);
-
-  if (qualityDateInput && officialDateValue) {
-    qualityDateInput.value = officialDateValue;
+  if (useTodayDate && qualityDateInput && !editingQualityRun) {
+    qualityDateInput.value = getTodayDateString();
   }
 
   if (resetResults && qualitySetResultsInput) {
@@ -2795,7 +2864,8 @@ document.addEventListener("DOMContentLoaded", () => {
   qualityPlanSelect.addEventListener("change", () => {
     syncQualityPlanSelection({
       selectedValue: qualityPlanSelect.value,
-      resetResults: true
+      resetResults: true,
+      useTodayDate: true
     });
   });
   qualityManualTotalsToggle?.addEventListener("change", () => {
@@ -4071,11 +4141,14 @@ function renderQualityMonthlyPlan() {
     const groupSetLabel = formatQualityGroupSetNote(workout.text);
     const recoveryDistanceLabel = !isQualityTimeTrialPlan(workout.text) ? getQualityRecoveryDistanceLabelFromPlan(workout.text) : "";
     const isTimeTrial = isQualityTimeTrialPlan(workout.text);
+    const isHost = isHostUser(auth.currentUser);
 
     selectedDetail.innerHTML = [
       `<div class="quality-plan-title">${workout.date} ${formatQualityWorkoutPlanText(workout.text)}</div>`,
       isTimeTrial
         ? `<div>${getQualityTimeTrialPaceGuide(workout.text)}</div>`
+        : isHost
+        ? formatQualityHostGroupPlanGuide(workout.text)
         : userGroup
         ? `<div>${userGroup.group}조 기준: 인터벌 ${userGroup.intervalPace} / 리커버리 ${userGroup.recoveryPace}</div>`
         : '<div>조별 기준표에서 내 조 페이스를 확인해 주세요.</div>',
@@ -4120,7 +4193,8 @@ function renderQualityMonthlyPlan() {
       renderSelectedWorkout(workout);
       syncQualityPlanSelection({
         selectedValue: workout.date,
-        resetResults: true
+        resetResults: true,
+        useTodayDate: true
       });
     });
 
@@ -4204,10 +4278,13 @@ function getQualityNoticeWorkout(referenceDate = new Date()) {
 function createQualityNoticeArticle(workout, userGroup) {
   const article = document.createElement("article");
   const isTimeTrial = isQualityTimeTrialPlan(workout.text);
+  const isHost = isHostUser(auth.currentUser);
   const recoveryDistanceLabel = !isTimeTrial ? getQualityRecoveryDistanceLabelFromPlan(workout.text) : "";
   const groupSetLabel = formatQualityGroupSetNote(workout.text);
   const paceGuide = isTimeTrial
     ? getQualityTimeTrialPaceGuide(workout.text)
+    : isHost
+      ? formatQualityHostGroupPlanGuide(workout.text)
     : userGroup
       ? `${userGroup.group}조 기준: 인터벌 ${userGroup.intervalPace} / 리커버리 ${userGroup.recoveryPace}`
       : "조별 기준표에서 내 조 페이스를 확인해 주세요.";
@@ -4217,7 +4294,7 @@ function createQualityNoticeArticle(workout, userGroup) {
     '<div class="quality-plan-title">다음 훈련 안내</div>',
     `<div>${workout.date} ${formatQualityWorkoutPlanText(workout.text)}</div>`,
     workout.schedule?.purpose ? `<div class="quality-plan-meta">훈련 목적: ${workout.schedule.purpose}</div>` : "",
-    `<div class="quality-plan-meta">${paceGuide}</div>`,
+    isHost && !isTimeTrial ? paceGuide : `<div class="quality-plan-meta">${paceGuide}</div>`,
     '<div class="quality-plan-meta">훈련 전: 10~15분 조깅, 가벼운 질주, 동적 스트레칭으로 몸을 풀어주세요.</div>',
     recoveryDistanceLabel ? `<div class="quality-plan-meta">세트 후 리커버리: ${recoveryDistanceLabel} 조깅</div>` : "",
     groupSetLabel ? `<div class="quality-plan-meta">세트 조정: ${groupSetLabel}</div>` : "",
@@ -10644,6 +10721,7 @@ function getQualityAttendanceScore(qualityRate, maxScore = 25, useLinear = false
   if (qualityRate >= 0.7) return clampScore(maxScore * 0.8, maxScore, 1);
   if (qualityRate >= 0.5) return clampScore(maxScore * 0.56, maxScore, 1);
   if (qualityRate >= 0.25) return clampScore(maxScore * 0.28, maxScore, 1);
+  if (qualityRate > 0) return clampScore((maxScore * 0.28) * (qualityRate / 0.25), maxScore, 1);
   return 0;
 }
 
