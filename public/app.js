@@ -2873,7 +2873,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
   qualityDateInput.addEventListener("change", () => {
     syncQualityPlanByDate(qualityDateInput.value, {
-      preserveResults: false
+      preserveResults: Boolean(editingQualityRun)
     });
   });
   qualityWorkoutTypeSelect.addEventListener("change", () => {
