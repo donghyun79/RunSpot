@@ -74,11 +74,14 @@ let latestHealingCheers = [];
 let latestHealingCheerComments = [];
 let latestHealingCheerReactions = [];
 let latestHealingCheerCommentReactions = [];
+let latestHealingRaces = [];
+let latestHealingRaceResponses = [];
 let latestHealingMemberOptions = [];
 let latestAthleteHallEntries = [];
 let editingHealingEvent = null;
 let editingHealingCheckin = null;
 let editingHealingCheer = null;
+let editingHealingRace = null;
 let activeHealingReactionPickerKey = "";
 let activeHealingCommentComposerKey = "";
 let activeHealingCommentEditKey = "";
@@ -93,6 +96,18 @@ let healingEventPreparersInput = null;
 let saveHealingEventBtn = null;
 let cancelHealingEventEditBtn = null;
 let toggleHealingEventComposerBtn = null;
+let healingRaceForm = null;
+let healingRaceTitleInput = null;
+let healingRaceDateInput = null;
+let healingRaceLocationInput = null;
+let healingRaceDistanceInput = null;
+let healingRaceCustomDistanceInput = null;
+let healingRaceDeadlineInput = null;
+let healingRaceUrlInput = null;
+let healingRaceDescriptionInput = null;
+let saveHealingRaceBtn = null;
+let cancelHealingRaceEditBtn = null;
+let toggleHealingRaceComposerBtn = null;
 let healingCheckinMoodInput = null;
 let healingCheckinContentInput = null;
 let healingCheckinPhotoInput = null;
@@ -107,6 +122,7 @@ let cancelHealingCheerEditBtn = null;
 let latestEnvironment = null;
 let pendingHealingCheckinPhoto = null;
 let pendingHealingCheckinPhotoRemoved = false;
+let isHealingRaceComposerOpen = false;
 const HEALING_POPUP_STORAGE_KEY_PREFIX = "naviheal-healing-popup";
 const MAY_TRAINING_POPUP_STORAGE_KEY_PREFIX = "naviheal-may-training-popup";
 const MONTHLY_ATHLETE_BANNER_STORAGE_KEY_PREFIX = "naviheal-monthly-athlete-banner";
@@ -126,6 +142,37 @@ const HEALING_CHECKIN_REACTION_EMOJIS = {
   "웃음": "😊",
   "최고": "🔥"
 };
+const DEFAULT_HEALING_RACES = [
+  {
+    id: "default-yeomyeong-2026",
+    builtIn: true,
+    title: "여명마라톤",
+    raceDate: "2026-05-30",
+    location: "뚝섬한강공원 수변광장",
+    distance: "10K, 하프",
+    registrationDeadline: "",
+    registrationUrl: "",
+    description: "나빌러닝 상반기 지정대회",
+    userId: "system",
+    name: "나빌러닝",
+    email: "",
+    createdAt: "2026-05-15T00:00:00+09:00",
+    updatedAt: "2026-05-15T00:00:00+09:00",
+    defaultParticipants: [
+      { name: "김종선", course: "10K" },
+      { name: "정주연", course: "10K" },
+      { name: "박운정", course: "10K" },
+      { name: "서동현", course: "10K" },
+      { name: "송경애", course: "10K" },
+      { name: "표수홍", course: "10K" },
+      { name: "정미경", course: "10K" },
+      { name: "장신영", course: "10K" },
+      { name: "이혜경", course: "10K" },
+      { name: "안윤수", course: "10K" },
+      { name: "안미향", course: "하프" }
+    ]
+  }
+];
 const PRE_APPROVED_MEMBERS = [
   { name: "김성균", email: "skyskim@naver.com" }
 ];
@@ -228,8 +275,36 @@ const QUALITY_MONTHLY_SCHEDULE = {
     workouts: [
       { date: "5/5", text: "800 x 6" },
       { date: "5/12", text: "1200 x 4" },
-      { date: "5/19", text: "1000 x 5" },
-      { date: "5/26", text: "5K TT" }
+      {
+        date: "5/19",
+        text: "400 x 12 제자리 휴식 / D 10세트 / E, S 8세트",
+        schedule: {
+          purpose: "여명마라톤 대비 잘 달리는 감각 살리기",
+          specialNotice: "yeomyeongRepetition",
+          groupDetails: [
+            { groups: ["A"], repSeconds: 90, restSeconds: 80, blockSets: 6, blockRestMinutes: 3, repeatSets: 6, totalMinutes: 34, pace: "3'45\"/km" },
+            { groups: ["B"], repSeconds: 96, restSeconds: 84, blockSets: 6, blockRestMinutes: 3, repeatSets: 6, totalMinutes: 37, pace: "4'00\"/km" },
+            { groups: ["C"], repSeconds: 105, restSeconds: 95, blockSets: 6, blockRestMinutes: 4, repeatSets: 6, totalMinutes: 40, pace: "4'23\"/km" },
+            { groups: ["D"], repSeconds: 116, restSeconds: 104, blockSets: 5, blockRestMinutes: 4, repeatSets: 5, totalMinutes: 37, pace: "4'50\"/km" },
+            { groups: ["E", "S"], repSeconds: 124, restSeconds: 120, blockSets: 4, blockRestMinutes: 5, repeatSets: 4, totalMinutes: 34, pace: "5'20\"/km" }
+          ]
+        }
+      },
+      {
+        date: "5/26",
+        text: "400 x 12 제자리 휴식 / D 10세트 / E, S 8세트",
+        schedule: {
+          purpose: "여명마라톤 대비 잘 달리는 감각 살리기",
+          specialNotice: "yeomyeongRepetition",
+          groupDetails: [
+            { groups: ["A"], repSeconds: 90, restSeconds: 80, blockSets: 6, blockRestMinutes: 3, repeatSets: 6, totalMinutes: 34, pace: "3'45\"/km" },
+            { groups: ["B"], repSeconds: 96, restSeconds: 84, blockSets: 6, blockRestMinutes: 3, repeatSets: 6, totalMinutes: 37, pace: "4'00\"/km" },
+            { groups: ["C"], repSeconds: 105, restSeconds: 95, blockSets: 6, blockRestMinutes: 4, repeatSets: 6, totalMinutes: 40, pace: "4'23\"/km" },
+            { groups: ["D"], repSeconds: 116, restSeconds: 104, blockSets: 5, blockRestMinutes: 4, repeatSets: 5, totalMinutes: 37, pace: "4'50\"/km" },
+            { groups: ["E", "S"], repSeconds: 124, restSeconds: 120, blockSets: 4, blockRestMinutes: 5, repeatSets: 4, totalMinutes: 34, pace: "5'20\"/km" }
+          ]
+        }
+      }
     ]
   },
   6: {
@@ -1411,6 +1486,7 @@ function getPreviousMonthKey(monthKey) {
 
 function getQualityWorkoutTypeFromPlan(planText = "") {
   if (/TT/i.test(planText)) return "tt";
+  if (/레피티션|repetition|제자리\s*휴식/i.test(planText)) return "repetition";
 
   return "interval";
 }
@@ -1881,6 +1957,8 @@ function formatQualityRecoveryDistance(distanceMeters) {
 }
 
 function getQualityRecoveryDistanceLabelFromPlan(planText = "") {
+  if (/제자리\s*휴식|standing\s*rest/i.test(String(planText || ""))) return "";
+
   const match = String(planText || "").match(/(\d+(?:\.\d+)?)\s*(k|km|m)?\s*(?:x|×)\s*(\d+)/i);
 
   if (!match) return "";
@@ -1890,29 +1968,42 @@ function getQualityRecoveryDistanceLabelFromPlan(planText = "") {
 }
 
 function parseQualityGroupSetNote(planText = "") {
+  return parseQualityGroupSetNotes(planText)[0] || null;
+}
+
+function parseQualityGroupSetNotes(planText = "") {
   const text = String(planText || "");
-  const noteText = text.split("/").slice(1).join("/").trim();
-  const noteMatch = noteText.match(/^([A-Za-z가-힣,\s]+)\s*(\d+)\s*세트?$/)
-    || text.match(/\(([A-Za-z가-힣조,\s]+):\s*(\d+)\s*세트\)/);
+  const notes = [];
+  const noteParts = text.split("/").slice(1).map((part) => part.trim()).filter(Boolean);
+  const parentheticalMatches = Array.from(text.matchAll(/\(([A-Za-z가-힣조,\s]+):\s*(\d+)\s*세트\)/g))
+    .map((match) => `${match[1]} ${match[2]}세트`);
 
-  if (!noteMatch) return null;
+  [...noteParts, ...parentheticalMatches].forEach((noteText) => {
+    const noteMatch = noteText.match(/^([A-Za-z가-힣조,\s]+):?\s*(\d+)\s*세트?$/);
 
-  const groups = noteMatch[1]
-    .split(",")
-    .map((group) => group.replace(/조/g, "").trim())
-    .filter(Boolean);
-  const setCount = Number(noteMatch[2]);
+    if (!noteMatch) return;
 
-  if (!groups.length || !setCount) return null;
+    const groups = noteMatch[1]
+      .split(",")
+      .map((group) => group.replace(/조/g, "").trim())
+      .filter(Boolean);
+    const setCount = Number(noteMatch[2]);
 
-  return { groups, setCount };
+    if (!groups.length || !setCount) return;
+
+    notes.push({ groups, setCount });
+  });
+
+  return notes;
 }
 
 function formatQualityGroupSetNote(planText = "") {
-  const groupSetNote = parseQualityGroupSetNote(planText);
+  const groupSetNotes = parseQualityGroupSetNotes(planText);
 
-  if (groupSetNote) {
-    return `${groupSetNote.groups.map((group) => `${group}조`).join(", ")}: ${groupSetNote.setCount}세트`;
+  if (groupSetNotes.length) {
+    return groupSetNotes
+      .map((note) => `${note.groups.map((group) => `${group}조`).join(", ")}: ${note.setCount}세트`)
+      .join(" / ");
   }
 
   const baseSetCount = getQualityBaseSetCountFromPlan(planText);
@@ -1930,15 +2021,16 @@ function getQualityBaseSetCountFromPlan(planText = "") {
 }
 
 function getQualitySetCountForGroup(planText = "", group = "") {
-  const groupSetNote = parseQualityGroupSetNote(planText);
+  const groupSetNotes = parseQualityGroupSetNotes(planText);
   const normalizedGroup = String(group || "").trim();
   const baseSetCount = getQualityBaseSetCountFromPlan(planText);
+  const matchingGroupSetNote = groupSetNotes.find((note) => note.groups.includes(normalizedGroup));
 
-  if (groupSetNote?.groups.includes(normalizedGroup)) {
-    return groupSetNote.setCount;
+  if (matchingGroupSetNote) {
+    return matchingGroupSetNote.setCount;
   }
 
-  if (!groupSetNote && !isQualityTimeTrialPlan(planText) && QUALITY_AUTO_REDUCED_SET_GROUPS.includes(normalizedGroup) && baseSetCount > 1) {
+  if (!groupSetNotes.length && !isQualityTimeTrialPlan(planText) && QUALITY_AUTO_REDUCED_SET_GROUPS.includes(normalizedGroup) && baseSetCount > 1) {
     return baseSetCount - 1;
   }
 
@@ -1983,6 +2075,95 @@ function formatQualityHostGroupPlanGuide(planText = "") {
     '</table>',
     '</div>',
     '</div>'
+  ].join("");
+}
+
+function formatQualityGroupDetailText(detail = {}) {
+  const groupLabel = detail.groups?.map((group) => `${group}조`).join(", ") || "조";
+  const blockLabel = `${detail.blockSets}세트 + ${detail.blockRestMinutes}분 휴식 + ${detail.repeatSets}세트`;
+
+  return `${groupLabel}: 400m ${detail.repSeconds}초 / 제자리 휴식 ${detail.restSeconds}초 / ${blockLabel} / 총 ${detail.totalMinutes}분 (${detail.pace})`;
+}
+
+function formatQualityScheduledGroupGuide(workout = {}, userGroup = null) {
+  const groupDetails = workout.schedule?.groupDetails || [];
+
+  if (!groupDetails.length) return "";
+
+  if (isHostUser(auth.currentUser)) {
+    const rows = groupDetails.map((detail) => [
+      "<tr>",
+      `<td>${escapeHtml(detail.groups.map((group) => `${group}조`).join(", "))}</td>`,
+      `<td>400m ${escapeHtml(detail.repSeconds)}초</td>`,
+      `<td>제자리 ${escapeHtml(detail.restSeconds)}초</td>`,
+      `<td>${escapeHtml(detail.blockSets)}세트 + ${escapeHtml(detail.blockRestMinutes)}분 + ${escapeHtml(detail.repeatSets)}세트</td>`,
+      `<td>${escapeHtml(detail.totalMinutes)}분 (${escapeHtml(detail.pace)})</td>`,
+      "</tr>"
+    ].join("")).join("");
+
+    return [
+      '<div class="quality-host-plan-guide">',
+      '<div class="quality-host-plan-title">조별 레피티션 안내</div>',
+      '<div class="quality-host-plan-table-wrap">',
+      '<table class="quality-host-plan-table">',
+      '<thead><tr><th>조</th><th>400m</th><th>휴식</th><th>구성</th><th>총 시간</th></tr></thead>',
+      `<tbody>${rows}</tbody>`,
+      '</table>',
+      '</div>',
+      '</div>'
+    ].join("");
+  }
+
+  const userGroupName = String(userGroup?.group || "").trim();
+  const matchedDetail = groupDetails.find((detail) => detail.groups.includes(userGroupName));
+
+  if (matchedDetail) {
+    return `<div class="quality-plan-meta">${formatQualityGroupDetailText(matchedDetail)}</div>`;
+  }
+
+  return `<div class="quality-plan-meta">${formatQualityGroupDetailText(groupDetails[0])}</div>`;
+}
+
+function isYeomyeongRepetitionNotice(workout = {}) {
+  return workout.schedule?.specialNotice === "yeomyeongRepetition";
+}
+
+function formatYeomyeongRepetitionRows(workout = {}) {
+  const groupDetails = workout.schedule?.groupDetails || [];
+
+  return groupDetails.map((detail) => {
+    const groupLabel = detail.groups?.map((group) => `${group}조`).join("/") || "조";
+    const blockLabel = `${detail.blockSets}세트 + ${detail.blockRestMinutes}분 휴식 + ${detail.repeatSets}세트`;
+
+    return [
+      "<tr>",
+      `<td>${escapeHtml(groupLabel)}</td>`,
+      `<td>400m ${escapeHtml(detail.repSeconds)}초</td>`,
+      `<td>${escapeHtml(detail.restSeconds)}초</td>`,
+      `<td>${escapeHtml(blockLabel)}</td>`,
+      `<td>${escapeHtml(detail.pace)}</td>`,
+      "</tr>"
+    ].join("");
+  }).join("");
+}
+
+function formatYeomyeongRepetitionNotice(workout = {}) {
+  return [
+    '<div class="quality-plan-lead">5/19, 26 2주간 정훈 계획은 여명마라톤 대비 "잘 달리는 감각 살리기" 훈련입니다.</div>',
+    '<div class="quality-plan-description">고강도 페이스 지구력 강화 훈련을 매주 잘 소화해왔고 5K TT와 각종 대회도 참석하시며 자신감도 올라와 있는 것 같습니다. 여명대회를 앞두고 2주간 정훈 및 개별 훈련 시 러닝 리듬과 효율적인 주법을 의식하며 유지해 보시고 대회까지 느낌 이어가시길 바랍니다.</div>',
+    '<div class="quality-plan-section-title">메인 훈련</div>',
+    '<div>400m x 12세트</div>',
+    '<div class="quality-plan-meta">휴식: 제자리 휴식</div>',
+    '<div class="quality-plan-meta">조정: D조 10세트 / E, S조 8세트</div>',
+    '<div class="quality-plan-section-title">조별 세부 기준</div>',
+    '<div class="quality-host-plan-table-wrap">',
+    '<table class="quality-host-plan-table">',
+    '<thead><tr><th>조</th><th>400m</th><th>휴식</th><th>구성</th><th>페이스</th></tr></thead>',
+    `<tbody>${formatYeomyeongRepetitionRows(workout)}</tbody>`,
+    '</table>',
+    '</div>',
+    '<div class="quality-plan-meta">본 훈련 전 조깅(~7:15) + 질주 + 동적 스트레칭</div>',
+    '<div class="quality-plan-meta">마무리는 쿨다운 조깅</div>'
   ].join("");
 }
 
@@ -2061,7 +2242,7 @@ function getManualTrainingWorkoutType(run = {}) {
 function getQualityWorkoutStructure(planText = "", workoutType = "") {
   const text = String(planText || "").trim();
   const type = String(workoutType || "").trim();
-  const groupSetNote = parseQualityGroupSetNote(text);
+  const groupSetLabel = formatQualityGroupSetNote(text);
   const repetitionMatch = text.match(/(\d+(?:\.\d+)?)\s*(k|km|m)?\s*(?:x|×)\s*(\d+)/i);
   const ttMatch = text.match(/(\d+(?:\.\d+)?)\s*(k|km)\s*TT/i);
 
@@ -2082,19 +2263,25 @@ function getQualityWorkoutStructure(planText = "", workoutType = "") {
   if (repetitionMatch) {
     const repDistance = formatQualityRepDistance(repetitionMatch[1], repetitionMatch[2]);
     const intervalMeters = getQualityIntervalDistanceMeters(repetitionMatch[1], repetitionMatch[2]);
-    const recoveryDistanceLabel = formatQualityRecoveryDistance(getQualityRecoveryDistanceMeters(intervalMeters));
+    const hasStandingRecovery = /제자리\s*휴식|standing\s*rest/i.test(text);
+    const recoveryDistanceMeters = hasStandingRecovery ? 0 : getQualityRecoveryDistanceMeters(intervalMeters);
+    const recoveryDistanceLabel = formatQualityRecoveryDistance(recoveryDistanceMeters);
     const setCount = Math.max(1, Math.min(Number(repetitionMatch[3]) || 1, 16));
-    const groupGuide = groupSetNote
-      ? ` ${groupSetNote.groups.map((group) => `${group}조`).join(", ")}는 ${groupSetNote.setCount}세트까지만 입력해도 됩니다.`
+    const groupGuide = groupSetLabel
+      ? ` 세트 조정: ${groupSetLabel}.`
       : "";
-    const recoveryGuide = recoveryDistanceLabel ? ` 세트 후 리커버리는 ${recoveryDistanceLabel} 조깅 기준입니다.` : "";
+    const recoveryGuide = hasStandingRecovery
+      ? " 세트 후 리커버리는 제자리 휴식 기준입니다."
+      : recoveryDistanceLabel
+        ? ` 세트 후 리커버리는 ${recoveryDistanceLabel} 조깅 기준입니다.`
+        : "";
 
     return {
       setCount,
       setLabel: `${repDistance}`,
       guide: `${repDistance} ${setCount}세트 기록과 각 세트 후 리커버리 시간만 입력해 주세요.${groupGuide}${recoveryGuide} 총 거리와 시간은 자동 계산됩니다.`,
       setDistanceKm: intervalMeters / 1000,
-      recoveryDistanceKm: getQualityRecoveryDistanceMeters(intervalMeters) / 1000
+      recoveryDistanceKm: recoveryDistanceMeters / 1000
     };
   }
 
@@ -2436,6 +2623,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const healingEventSubtab = document.getElementById("healingEventSubtab");
   const healingCheckinSubtab = document.getElementById("healingCheckinSubtab");
   const healingCheerSubtab = document.getElementById("healingCheerSubtab");
+  const healingRaceSubtab = document.getElementById("healingRaceSubtab");
   const qualityDateInput = document.getElementById("qualityDate");
   const qualityPlanSelect = document.getElementById("qualityPlanSelect");
   const qualityWorkoutTypeSelect = document.getElementById("qualityWorkoutType");
@@ -2465,6 +2653,18 @@ document.addEventListener("DOMContentLoaded", () => {
   saveHealingEventBtn = document.getElementById("saveHealingEvent");
   cancelHealingEventEditBtn = document.getElementById("cancelHealingEventEdit");
   toggleHealingEventComposerBtn = document.getElementById("toggleHealingEventComposer");
+  healingRaceForm = document.getElementById("healingRaceForm");
+  healingRaceTitleInput = document.getElementById("healingRaceTitle");
+  healingRaceDateInput = document.getElementById("healingRaceDate");
+  healingRaceLocationInput = document.getElementById("healingRaceLocation");
+  healingRaceDistanceInput = document.getElementById("healingRaceDistance");
+  healingRaceCustomDistanceInput = document.getElementById("healingRaceCustomDistance");
+  healingRaceDeadlineInput = document.getElementById("healingRaceDeadline");
+  healingRaceUrlInput = document.getElementById("healingRaceUrl");
+  healingRaceDescriptionInput = document.getElementById("healingRaceDescription");
+  saveHealingRaceBtn = document.getElementById("saveHealingRace");
+  cancelHealingRaceEditBtn = document.getElementById("cancelHealingRaceEdit");
+  toggleHealingRaceComposerBtn = document.getElementById("toggleHealingRaceComposer");
   healingCheckinMoodInput = document.getElementById("healingCheckinMood");
   healingCheckinContentInput = document.getElementById("healingCheckinContent");
   healingCheckinPhotoInput = document.getElementById("healingCheckinPhoto");
@@ -2759,6 +2959,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("monthlyAthleteRawScoreHeader")?.classList.toggle("hidden", !isHost);
     memberManagement.classList.toggle("hidden", !isHost);
     syncHealingEventFormVisibility(user);
+    syncHealingRaceFormVisibility(user);
 
     if (!isHost) {
       document.getElementById("memberList").innerHTML = "";
@@ -2940,21 +3141,32 @@ document.addEventListener("DOMContentLoaded", () => {
     setSectionSubtab("healing", "event", [
       { button: healingEventSubtab, name: "event" },
       { button: healingCheckinSubtab, name: "checkin" },
-      { button: healingCheerSubtab, name: "cheer" }
+      { button: healingCheerSubtab, name: "cheer" },
+      { button: healingRaceSubtab, name: "race" }
     ]);
   });
   healingCheckinSubtab?.addEventListener("click", () => {
     setSectionSubtab("healing", "checkin", [
       { button: healingEventSubtab, name: "event" },
       { button: healingCheckinSubtab, name: "checkin" },
-      { button: healingCheerSubtab, name: "cheer" }
+      { button: healingCheerSubtab, name: "cheer" },
+      { button: healingRaceSubtab, name: "race" }
     ]);
   });
   healingCheerSubtab?.addEventListener("click", () => {
     setSectionSubtab("healing", "cheer", [
       { button: healingEventSubtab, name: "event" },
       { button: healingCheckinSubtab, name: "checkin" },
-      { button: healingCheerSubtab, name: "cheer" }
+      { button: healingCheerSubtab, name: "cheer" },
+      { button: healingRaceSubtab, name: "race" }
+    ]);
+  });
+  healingRaceSubtab?.addEventListener("click", () => {
+    setSectionSubtab("healing", "race", [
+      { button: healingEventSubtab, name: "event" },
+      { button: healingCheckinSubtab, name: "checkin" },
+      { button: healingCheerSubtab, name: "cheer" },
+      { button: healingRaceSubtab, name: "race" }
     ]);
   });
   trainingTab.addEventListener("click", () => {
@@ -2990,7 +3202,8 @@ document.addEventListener("DOMContentLoaded", () => {
   setSectionSubtab("healing", "checkin", [
     { button: healingEventSubtab, name: "event" },
     { button: healingCheckinSubtab, name: "checkin" },
-    { button: healingCheerSubtab, name: "cheer" }
+    { button: healingCheerSubtab, name: "cheer" },
+    { button: healingRaceSubtab, name: "race" }
   ]);
 
   for (let min = 180; min <= 300; min += 10) {
@@ -3562,6 +3775,20 @@ document.addEventListener("DOMContentLoaded", () => {
   cancelHealingEventEditBtn?.addEventListener("click", () => {
     resetHealingEventForm();
     setHealingStatus("event", "번개/행사 공지 수정을 취소했습니다.");
+  });
+
+  saveHealingRaceBtn?.addEventListener("click", () => {
+    saveHealingRace();
+  });
+  toggleHealingRaceComposerBtn?.addEventListener("click", () => {
+    if (!auth.currentUser) return;
+    isHealingRaceComposerOpen = !isHealingRaceComposerOpen;
+    syncHealingRaceFormVisibility(auth.currentUser);
+  });
+  document.getElementById("healingRaceList")?.addEventListener("click", handleHealingRaceListClick);
+  cancelHealingRaceEditBtn?.addEventListener("click", () => {
+    resetHealingRaceForm();
+    setHealingStatus("race", "대회 정보 수정을 취소했습니다.");
   });
 
   saveHealingCheckinBtn?.addEventListener("click", () => {
@@ -4138,15 +4365,28 @@ function renderQualityMonthlyPlan() {
   selectedDetail.className = "quality-plan-item quality-plan-selected";
 
   const renderSelectedWorkout = (workout) => {
+    if (isYeomyeongRepetitionNotice(workout)) {
+      selectedDetail.innerHTML = [
+        `<div class="quality-plan-title">${workout.date} 정훈 계획</div>`,
+        formatYeomyeongRepetitionNotice(workout),
+        '<div class="quality-plan-meta">정훈 당일 참석이 어려운 경우 같은 달 안에 해당 프로그램으로 보완 입력할 수 있습니다.</div>',
+        '<div class="quality-plan-meta">날짜를 누르면 이 프로그램이 정훈 결과 입력에도 자동으로 들어갑니다.</div>'
+      ].join("");
+      return;
+    }
+
     const groupSetLabel = formatQualityGroupSetNote(workout.text);
     const recoveryDistanceLabel = !isQualityTimeTrialPlan(workout.text) ? getQualityRecoveryDistanceLabelFromPlan(workout.text) : "";
     const isTimeTrial = isQualityTimeTrialPlan(workout.text);
     const isHost = isHostUser(auth.currentUser);
+    const scheduledGroupGuide = !isTimeTrial ? formatQualityScheduledGroupGuide(workout, userGroup) : "";
 
     selectedDetail.innerHTML = [
       `<div class="quality-plan-title">${workout.date} ${formatQualityWorkoutPlanText(workout.text)}</div>`,
       isTimeTrial
         ? `<div>${getQualityTimeTrialPaceGuide(workout.text)}</div>`
+        : scheduledGroupGuide
+        ? scheduledGroupGuide
         : isHost
         ? formatQualityHostGroupPlanGuide(workout.text)
         : userGroup
@@ -4233,7 +4473,8 @@ function getQualityWorkoutEntries(year = new Date().getFullYear()) {
   return Object.values(QUALITY_MONTHLY_SCHEDULE)
     .flatMap((schedule) => schedule.workouts.map((workout) => ({
       ...workout,
-      schedule,
+      monthlySchedule: schedule,
+      schedule: workout.schedule || schedule,
       sortDate: parseQualityWorkoutDate(workout.date, year)
     })))
     .filter((workout) => workout.sortDate)
@@ -4277,12 +4518,27 @@ function getQualityNoticeWorkout(referenceDate = new Date()) {
 
 function createQualityNoticeArticle(workout, userGroup) {
   const article = document.createElement("article");
+  if (isYeomyeongRepetitionNotice(workout)) {
+    article.className = "quality-plan-item quality-notice";
+    article.innerHTML = [
+      '<div class="quality-plan-title">다음 훈련 안내</div>',
+      formatYeomyeongRepetitionNotice(workout),
+      '<div class="quality-plan-meta">정훈 당일 참석이 어려운 경우 같은 달 안에 해당 프로그램으로 보완 입력할 수 있습니다.</div>'
+    ].join("");
+    appendQualityNoticeVotePanel(article, workout);
+
+    return article;
+  }
+
   const isTimeTrial = isQualityTimeTrialPlan(workout.text);
   const isHost = isHostUser(auth.currentUser);
   const recoveryDistanceLabel = !isTimeTrial ? getQualityRecoveryDistanceLabelFromPlan(workout.text) : "";
   const groupSetLabel = formatQualityGroupSetNote(workout.text);
+  const scheduledGroupGuide = !isTimeTrial ? formatQualityScheduledGroupGuide(workout, userGroup) : "";
   const paceGuide = isTimeTrial
     ? getQualityTimeTrialPaceGuide(workout.text)
+    : scheduledGroupGuide
+      ? scheduledGroupGuide
     : isHost
       ? formatQualityHostGroupPlanGuide(workout.text)
     : userGroup
@@ -4294,7 +4550,7 @@ function createQualityNoticeArticle(workout, userGroup) {
     '<div class="quality-plan-title">다음 훈련 안내</div>',
     `<div>${workout.date} ${formatQualityWorkoutPlanText(workout.text)}</div>`,
     workout.schedule?.purpose ? `<div class="quality-plan-meta">훈련 목적: ${workout.schedule.purpose}</div>` : "",
-    isHost && !isTimeTrial ? paceGuide : `<div class="quality-plan-meta">${paceGuide}</div>`,
+    isHost && !isTimeTrial ? paceGuide : scheduledGroupGuide ? paceGuide : `<div class="quality-plan-meta">${paceGuide}</div>`,
     '<div class="quality-plan-meta">훈련 전: 10~15분 조깅, 가벼운 질주, 동적 스트레칭으로 몸을 풀어주세요.</div>',
     recoveryDistanceLabel ? `<div class="quality-plan-meta">세트 후 리커버리: ${recoveryDistanceLabel} 조깅</div>` : "",
     groupSetLabel ? `<div class="quality-plan-meta">세트 조정: ${groupSetLabel}</div>` : "",
@@ -5048,6 +5304,30 @@ function formatHealingDateTime(value) {
   return `${month}/${date} ${hours}:${minutes}`;
 }
 
+function formatHealingRaceDateTime(value) {
+  if (!value) return "-";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return String(value).replace("T", " ");
+  }
+  const month = parsed.getMonth() + 1;
+  const date = parsed.getDate();
+  const hours = parsed.getHours().toString().padStart(2, "0");
+  const minutes = parsed.getMinutes().toString().padStart(2, "0");
+  const hasExplicitTime = /T\d{2}:\d{2}/.test(String(value));
+
+  return hasExplicitTime ? `${month}/${date} ${hours}:${minutes}` : `${month}/${date}`;
+}
+
+function parseHealingRaceCourses(distanceText = "") {
+  const courses = String(distanceText || "")
+    .split(/[,/·]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  return [...new Set(courses)];
+}
+
 function formatHealingDate(value) {
   if (!value) return "-";
   const parsed = new Date(`${value}T00:00:00`);
@@ -5181,6 +5461,151 @@ function syncHealingEventFormVisibility(user = auth.currentUser) {
     toggleHealingEventComposerBtn.innerText = showForm ? "공지 작성 닫기" : "공지 작성 열기";
   }
   renderHealingEventPreparerOptions(editingHealingEvent?.preparerIds || [], user);
+}
+
+function syncHealingRaceFormVisibility(user = auth.currentUser) {
+  if (!healingRaceForm) return;
+  const canWrite = Boolean(user);
+  const showForm = canWrite && (isHealingRaceComposerOpen || Boolean(editingHealingRace));
+  healingRaceForm.classList.toggle("hidden", !showForm);
+  toggleHealingRaceComposerBtn?.classList.toggle("hidden", !canWrite);
+  if (toggleHealingRaceComposerBtn) {
+    toggleHealingRaceComposerBtn.setAttribute("aria-expanded", showForm ? "true" : "false");
+    toggleHealingRaceComposerBtn.innerText = showForm ? "대회 정보 닫기" : "대회 정보 등록";
+  }
+}
+
+function isHealingRacePast(race = {}, now = new Date()) {
+  const hasTime = /T\d{2}:\d{2}/.test(String(race.raceDate || ""));
+  const raceMs = getDateTimeValueMs(hasTime ? race.raceDate : `${race.raceDate}T23:59:59`);
+
+  return raceMs > 0 && raceMs < now.getTime();
+}
+
+function getHealingRaceResponses(raceId) {
+  return latestHealingRaceResponses.filter((response) => response.raceId === raceId);
+}
+
+function getHealingRaceRegisteredResponses(raceId) {
+  return getHealingRaceResponses(raceId).filter((response) => response.response === "registered");
+}
+
+function getMyHealingRaceResponse(raceId, user = auth.currentUser) {
+  if (!user) return null;
+
+  return latestHealingRaceResponses.find((response) => response.raceId === raceId && response.userId === user.uid) || null;
+}
+
+function canEditHealingRace(user, race) {
+  return Boolean(user && race && !race.builtIn && (isHostUser(user) || race.userId === user.uid));
+}
+
+function getDefaultHealingRaceResponses(race) {
+  if (!race?.builtIn || !Array.isArray(race.defaultParticipants)) return [];
+
+  return race.defaultParticipants.map((participant, index) => ({
+    id: `${race.id}_seed_${index}`,
+    raceId: race.id,
+    userId: `seed-${race.id}-${index}`,
+    name: participant.course ? `${participant.name}(${participant.course})` : participant.name,
+    email: "",
+    response: "registered",
+    updatedAt: race.updatedAt || race.createdAt || null,
+    course: participant.course || ""
+  }));
+}
+
+function mergeDefaultHealingRaces() {
+  DEFAULT_HEALING_RACES.forEach((defaultRace) => {
+    const matchingRace = latestHealingRaces.find((race) => (
+      race.id === defaultRace.id
+      || (race.title === defaultRace.title && String(race.raceDate || "").slice(0, 10) === String(defaultRace.raceDate || "").slice(0, 10))
+    ));
+
+    const targetRace = matchingRace || defaultRace;
+
+    if (!matchingRace) {
+      latestHealingRaces.push({ ...defaultRace });
+    } else {
+      ["raceDate", "location", "distance", "registrationDeadline", "registrationUrl", "description"].forEach((field) => {
+        if (!matchingRace[field] && defaultRace[field]) matchingRace[field] = defaultRace[field];
+      });
+    }
+
+    getDefaultHealingRaceResponses({ ...defaultRace, id: targetRace.id }).forEach((response) => {
+      const matchingResponse = latestHealingRaceResponses.find((item) => (
+        item.raceId === response.raceId
+        && String(item.name || "").replace(/\([^)]*\)$/, "").trim() === String(response.name || "").replace(/\([^)]*\)$/, "").trim()
+      ));
+
+      if (matchingResponse) {
+        if (!matchingResponse.course && response.course) matchingResponse.course = response.course;
+        return;
+      }
+
+      latestHealingRaceResponses.push(response);
+    });
+  });
+}
+
+function getSelectedHealingRaceDistance() {
+  const checkedCourses = Array.from(healingRaceDistanceInput?.querySelectorAll("input[type='checkbox']:checked") || [])
+    .map((input) => input.value)
+    .filter(Boolean);
+  const customCourse = healingRaceCustomDistanceInput?.value.trim() || "";
+
+  return [...checkedCourses, customCourse].filter(Boolean).join(", ");
+}
+
+function setHealingRaceDistanceSelection(distanceText = "") {
+  const selectedCourses = String(distanceText || "")
+    .split(/[,/·]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+  const knownCourses = ["5K", "10K", "하프", "풀"];
+  const customCourses = selectedCourses.filter((course) => !knownCourses.includes(course));
+
+  Array.from(healingRaceDistanceInput?.querySelectorAll("input[type='checkbox']") || []).forEach((input) => {
+    input.checked = selectedCourses.includes(input.value);
+  });
+  if (healingRaceCustomDistanceInput) {
+    healingRaceCustomDistanceInput.value = customCourses.join(", ");
+  }
+}
+
+function getHealingRaceDateInputValue(value = "") {
+  const text = String(value || "").trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return `${text}T00:00`;
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(text)) return text.slice(0, 16);
+  return "";
+}
+
+function formatHealingRaceRegisteredSummary(responses = []) {
+  const byCourse = new Map();
+  const noCourseNames = [];
+
+  responses.forEach((response) => {
+    const name = String(response.name || "").replace(/\([^)]*\)$/, "").trim();
+    const course = response.course || (String(response.name || "").match(/\(([^)]*)\)$/)?.[1] || "");
+
+    if (!name) return;
+    if (!course) {
+      noCourseNames.push(name);
+      return;
+    }
+
+    byCourse.set(course, [...(byCourse.get(course) || []), name]);
+  });
+
+  const lines = Array.from(byCourse.entries()).map(([course, names]) => (
+    `${course}: ${formatHealingNamesSummary(names, 12)}`
+  ));
+
+  if (noCourseNames.length) {
+    lines.push(formatHealingNamesSummary(noCourseNames, 12));
+  }
+
+  return lines.join("\n");
 }
 
 function getHealingCheckinMoodLabel(mood) {
@@ -5682,7 +6107,8 @@ function setHealingStatus(section, message) {
   const statusMap = {
     event: document.getElementById("healingEventStatus"),
     checkin: document.getElementById("healingCheckinStatus"),
-    cheer: document.getElementById("healingCheerStatus")
+    cheer: document.getElementById("healingCheerStatus"),
+    race: document.getElementById("healingRaceStatus")
   };
 
   const target = statusMap[section];
@@ -5888,22 +6314,31 @@ function getHealingPopupMeta() {
 
     return itemMs > latestMs ? item : latest;
   }, null);
+  const latestRace = latestHealingRaces.reduce((latest, item) => {
+    const latestMs = getDateTimeValueMs(latest?.updatedAt || latest?.createdAt);
+    const itemMs = getDateTimeValueMs(item?.updatedAt || item?.createdAt);
+
+    return itemMs > latestMs ? item : latest;
+  }, null);
   const latestEventMs = getDateTimeValueMs(latestEvent?.updatedAt || latestEvent?.createdAt || latestEvent?.eventDate);
   const latestCheckinMs = getDateTimeValueMs(latestCheckin?.updatedAt || latestCheckin?.createdAt);
   const latestCheerMs = getDateTimeValueMs(latestCheer?.updatedAt || latestCheer?.createdAt);
-  const latestContentMs = Math.max(latestEventMs, latestCheckinMs, latestCheerMs, 0);
+  const latestRaceMs = getDateTimeValueMs(latestRace?.updatedAt || latestRace?.createdAt);
+  const latestContentMs = Math.max(latestEventMs, latestCheckinMs, latestCheerMs, latestRaceMs, 0);
 
   return {
     latestContentMs,
     signature: [
       latestEvent ? `event:${latestEvent.id}:${latestEventMs}` : "",
       latestCheckin ? `checkin:${latestCheckin.id}:${latestCheckinMs}` : "",
-      latestCheer ? `cheer:${latestCheer.id}:${latestCheerMs}` : ""
+      latestCheer ? `cheer:${latestCheer.id}:${latestCheerMs}` : "",
+      latestRace ? `race:${latestRace.id}:${latestRaceMs}` : ""
     ].filter(Boolean).join("|"),
     counts: {
       event: visibleEvents.length,
       checkin: latestHealingCheckins.length,
-      cheer: latestHealingCheers.length
+      cheer: latestHealingCheers.length,
+      race: latestHealingRaces.filter((race) => !isHealingRacePast(race)).length
     }
   };
 }
@@ -6029,6 +6464,13 @@ function maybeOpenHealingPopup(user = auth.currentUser) {
 
     lines.push(`응원 남기기: "${latestCheer}"${extraCount ? ` 외 ${extraCount}건` : ""}`);
   }
+  const visiblePopupRaces = latestHealingRaces.filter((race) => !isHealingRacePast(race));
+  if (popupMeta.counts.race && visiblePopupRaces[0]) {
+    const latestRaceTitle = summarizeHealingPopupText(visiblePopupRaces[0].title, 26);
+    const extraCount = Math.max(0, popupMeta.counts.race - 1);
+
+    lines.push(`대회 같이가기: ${latestRaceTitle}${extraCount ? ` 외 ${extraCount}건` : ""}`);
+  }
 
   healingPopupTitle.innerText = "새로운 힐링 콘텐츠가 있어요";
   healingPopupLead.innerText = "오늘 올라온 힐링 소식을 확인해보세요. 확인하면 오늘은 다시 뜨지 않습니다.";
@@ -6045,11 +6487,13 @@ async function loadHealingHub(user = auth.currentUser) {
   const eventStatus = document.getElementById("healingEventStatus");
   const checkinStatus = document.getElementById("healingCheckinStatus");
   const cheerStatus = document.getElementById("healingCheerStatus");
+  const raceStatus = document.getElementById("healingRaceStatus");
   const eventList = document.getElementById("healingEventList");
   const checkinList = document.getElementById("healingCheckinList");
   const cheerList = document.getElementById("healingCheerList");
+  const raceList = document.getElementById("healingRaceList");
 
-  if (!eventStatus || !checkinStatus || !cheerStatus || !eventList || !checkinList || !cheerList) return;
+  if (!eventStatus || !checkinStatus || !cheerStatus || !raceStatus || !eventList || !checkinList || !cheerList || !raceList) return;
 
   if (!user) {
     latestHealingEvents = [];
@@ -6065,24 +6509,29 @@ async function loadHealingHub(user = auth.currentUser) {
     latestHealingCheerComments = [];
     latestHealingCheerReactions = [];
     latestHealingCheerCommentReactions = [];
+    latestHealingRaces = [];
+    latestHealingRaceResponses = [];
     latestHealingMemberOptions = [];
     activeHealingReactionPickerKey = "";
     activeHealingCommentComposerKey = "";
     eventList.innerHTML = "";
     checkinList.innerHTML = "";
     cheerList.innerHTML = "";
+    raceList.innerHTML = "";
     eventStatus.innerText = "로그인 후 힐링 탭을 사용할 수 있습니다.";
     checkinStatus.innerText = "로그인 후 한 줄 체크인을 확인할 수 있습니다.";
     cheerStatus.innerText = "로그인 후 응원 한마디를 확인할 수 있습니다.";
+    raceStatus.innerText = "로그인 후 대회 같이가기를 확인할 수 있습니다.";
     return;
   }
 
   eventStatus.innerText = "번개/행사 공지를 불러오는 중입니다.";
   checkinStatus.innerText = "한 줄 체크인을 불러오는 중입니다.";
   cheerStatus.innerText = "응원 한마디를 불러오는 중입니다.";
+  raceStatus.innerText = "대회 공유 정보를 불러오는 중입니다.";
 
   try {
-    const [eventSnapshot, responseSnapshot, commentSnapshot, eventReactionSnapshot, eventCommentReactionSnapshot, checkinSnapshot, checkinCommentSnapshot, reactionSnapshot, checkinCommentReactionSnapshot, cheerSnapshot, cheerCommentSnapshot, cheerReactionSnapshot, cheerCommentReactionSnapshot, memberSnapshot] = await Promise.all([
+    const [eventSnapshot, responseSnapshot, commentSnapshot, eventReactionSnapshot, eventCommentReactionSnapshot, checkinSnapshot, checkinCommentSnapshot, reactionSnapshot, checkinCommentReactionSnapshot, cheerSnapshot, cheerCommentSnapshot, cheerReactionSnapshot, cheerCommentReactionSnapshot, raceSnapshot, raceResponseSnapshot, memberSnapshot] = await Promise.all([
       getDocsFromServer(collection(db, "healingEvents")),
       getDocsFromServer(collection(db, "healingEventResponses")),
       getDocsFromServer(collection(db, "healingEventComments")),
@@ -6096,6 +6545,8 @@ async function loadHealingHub(user = auth.currentUser) {
       getOptionalDocsFromServer(collection(db, "healingCheerComments"), "응원 댓글"),
       getOptionalDocsFromServer(collection(db, "healingCheerReactions"), "응원 반응"),
       getOptionalDocsFromServer(collection(db, "healingCheerCommentReactions"), "응원 댓글 반응"),
+      getOptionalDocsFromServer(collection(db, "healingRaces"), "대회 같이가기"),
+      getOptionalDocsFromServer(collection(db, "healingRaceResponses"), "대회 참여 현황"),
       getDocsFromServer(collection(db, "users"))
     ]);
 
@@ -6112,6 +6563,8 @@ async function loadHealingHub(user = auth.currentUser) {
     latestHealingCheerComments = [];
     latestHealingCheerReactions = [];
     latestHealingCheerCommentReactions = [];
+    latestHealingRaces = [];
+    latestHealingRaceResponses = [];
     latestHealingMemberOptions = [];
 
     eventSnapshot.forEach((snapshotDoc) => {
@@ -6302,6 +6755,38 @@ async function loadHealingHub(user = auth.currentUser) {
       });
     });
 
+    raceSnapshot?.forEach((snapshotDoc) => {
+      const data = snapshotDoc.data();
+      latestHealingRaces.push({
+        id: snapshotDoc.id,
+        title: data.title || "대회명 없음",
+        raceDate: data.raceDate || "",
+        location: data.location || "",
+        distance: data.distance || "",
+        registrationDeadline: data.registrationDeadline || "",
+        registrationUrl: data.registrationUrl || "",
+        description: data.description || "",
+        userId: data.userId || "",
+        name: data.name || data.email || "이름 없음",
+        email: data.email || "",
+        createdAt: data.createdAt || null,
+        updatedAt: data.updatedAt || null
+      });
+    });
+
+    raceResponseSnapshot?.forEach((snapshotDoc) => {
+      const data = snapshotDoc.data();
+      latestHealingRaceResponses.push({
+        id: snapshotDoc.id,
+        raceId: data.raceId || "",
+        userId: data.userId || "",
+        name: data.name || data.email || "이름 없음",
+        email: data.email || "",
+        response: data.response || "registered",
+        updatedAt: data.updatedAt || null
+      });
+    });
+
     memberSnapshot.forEach((snapshotDoc) => {
       const data = snapshotDoc.data();
       const userId = data.userId || snapshotDoc.id;
@@ -6318,6 +6803,8 @@ async function loadHealingHub(user = auth.currentUser) {
     latestHealingEvents.sort((a, b) => getDateTimeValueMs(a.eventDate) - getDateTimeValueMs(b.eventDate));
     latestHealingCheckins.sort((a, b) => getDateTimeValueMs(b.updatedAt) - getDateTimeValueMs(a.updatedAt));
     latestHealingCheers.sort((a, b) => getDateTimeValueMs(b.createdAt) - getDateTimeValueMs(a.createdAt));
+    mergeDefaultHealingRaces();
+    latestHealingRaces.sort((a, b) => getDateTimeValueMs(a.raceDate) - getDateTimeValueMs(b.raceDate));
     latestHealingMemberOptions.sort((a, b) => a.name.localeCompare(b.name, "ko"));
 
     renderHealingHub(user);
@@ -6330,6 +6817,7 @@ async function loadHealingHub(user = auth.currentUser) {
     eventStatus.innerText = "번개/행사 공지를 불러오지 못했습니다. Firestore 권한을 확인해주세요.";
     checkinStatus.innerText = "한 줄 체크인을 불러오지 못했습니다. Firestore 권한을 확인해주세요.";
     cheerStatus.innerText = "응원 한마디를 불러오지 못했습니다. Firestore 권한을 확인해주세요.";
+    raceStatus.innerText = "대회 공유 정보를 불러오지 못했습니다. Firestore 권한을 확인해주세요.";
   }
 }
 
@@ -6338,6 +6826,7 @@ function renderHealingHub(user = auth.currentUser) {
   renderHealingEvents(user);
   renderHealingCheckins(user);
   renderHealingCheers(user);
+  renderHealingRaces(user);
 }
 
 function estimateBase64FileSizeBytes(dataUrl = "") {
@@ -6613,6 +7102,40 @@ function startHealingCheerEdit(cheer) {
   focusHealingForm("healingCheerForm", "healingCheerContent");
 }
 
+function resetHealingRaceForm() {
+  editingHealingRace = null;
+  isHealingRaceComposerOpen = false;
+  if (healingRaceTitleInput) healingRaceTitleInput.value = "";
+  if (healingRaceDateInput) healingRaceDateInput.value = "";
+  if (healingRaceLocationInput) healingRaceLocationInput.value = "";
+  setHealingRaceDistanceSelection("");
+  if (healingRaceDeadlineInput) healingRaceDeadlineInput.value = "";
+  if (healingRaceUrlInput) healingRaceUrlInput.value = "";
+  if (healingRaceDescriptionInput) healingRaceDescriptionInput.value = "";
+  if (saveHealingRaceBtn) saveHealingRaceBtn.innerText = "대회 정보 등록";
+  cancelHealingRaceEditBtn?.classList.add("hidden");
+  syncHealingRaceFormVisibility(auth.currentUser);
+  renderHealingHub(auth.currentUser);
+}
+
+function startHealingRaceEdit(race) {
+  editingHealingRace = race;
+  isHealingRaceComposerOpen = true;
+  if (healingRaceTitleInput) healingRaceTitleInput.value = race.title || "";
+  if (healingRaceDateInput) healingRaceDateInput.value = getHealingRaceDateInputValue(race.raceDate || "");
+  if (healingRaceLocationInput) healingRaceLocationInput.value = race.location || "";
+  setHealingRaceDistanceSelection(race.distance || "");
+  if (healingRaceDeadlineInput) healingRaceDeadlineInput.value = race.registrationDeadline || "";
+  if (healingRaceUrlInput) healingRaceUrlInput.value = race.registrationUrl || "";
+  if (healingRaceDescriptionInput) healingRaceDescriptionInput.value = race.description || "";
+  if (saveHealingRaceBtn) saveHealingRaceBtn.innerText = "대회 정보 수정";
+  cancelHealingRaceEditBtn?.classList.remove("hidden");
+  syncHealingRaceFormVisibility(auth.currentUser);
+  renderHealingHub(auth.currentUser);
+  setHealingStatus("race", "대회 정보를 수정한 뒤 저장해주세요.");
+  focusHealingForm("healingRaceForm", "healingRaceTitle");
+}
+
 function handleHealingEventListClick(event) {
   const button = event.target.closest("button[data-healing-action]");
   if (!button) return;
@@ -6679,6 +7202,47 @@ function handleHealingEventListChange(event) {
   if (!targetEvent) return;
 
   saveHealingEventResponse(targetEvent, input.checked ? "attend" : "absent", input);
+}
+
+function handleHealingRaceListClick(event) {
+  const button = event.target.closest("button[data-healing-race-action]");
+  if (!button) return;
+
+  const raceId = button.dataset.raceId || "";
+  const targetRace = latestHealingRaces.find((item) => item.id === raceId);
+  const action = button.dataset.healingRaceAction;
+
+  if (!targetRace) return;
+
+  if (action === "toggle-registered") {
+    const currentResponse = getMyHealingRaceResponse(targetRace.id, auth.currentUser);
+    const courseSelect = document.querySelector(`select[data-healing-race-course="${targetRace.id}"]`);
+    const selectedCourse = courseSelect?.value.trim() || currentResponse?.course || "";
+
+    if (!selectedCourse) {
+      setHealingStatus("race", "신청 완료할 코스를 선택해주세요.");
+      courseSelect?.focus();
+      return;
+    }
+
+    saveHealingRaceResponse(targetRace, "registered", button, selectedCourse);
+    return;
+  }
+
+  if (action === "cancel-registration") {
+    const currentResponse = getMyHealingRaceResponse(targetRace.id, auth.currentUser);
+    saveHealingRaceResponse(targetRace, "cancelled", button, currentResponse?.course || "");
+    return;
+  }
+
+  if (action === "edit") {
+    startHealingRaceEdit(targetRace);
+    return;
+  }
+
+  if (action === "delete") {
+    deleteHealingRace(targetRace);
+  }
 }
 
 function handleHealingCheckinListClick(event) {
@@ -6785,6 +7349,172 @@ function handleHealingCheerListClick(event) {
     const targetComment = latestHealingCheerComments.find((item) => item.id === button.dataset.commentId);
     if (targetComment) deleteHealingCheerComment(targetComment);
   }
+}
+
+function renderHealingRaces(user = auth.currentUser) {
+  const raceStatus = document.getElementById("healingRaceStatus");
+  const raceList = document.getElementById("healingRaceList");
+
+  if (!raceStatus || !raceList) return;
+
+  syncHealingRaceFormVisibility(user);
+  raceList.innerHTML = "";
+
+  if (!latestHealingRaces.length) {
+    raceStatus.innerText = "아직 공유된 대회가 없습니다.";
+    raceList.innerHTML = '<div class="healing-empty">대회일정 보기에서 좋은 대회를 발견하면 먼저 공유해 주세요.</div>';
+    return;
+  }
+
+  const upcomingRaces = latestHealingRaces.filter((race) => !isHealingRacePast(race));
+  const pastRaces = latestHealingRaces.filter((race) => isHealingRacePast(race))
+    .sort((a, b) => getDateTimeValueMs(b.raceDate) - getDateTimeValueMs(a.raceDate));
+  const displayRaces = [...upcomingRaces, ...pastRaces];
+  const registeredTotal = latestHealingRaceResponses.filter((response) => response.response === "registered").length;
+
+  raceStatus.innerText = [
+    upcomingRaces.length ? `예정 대회 ${upcomingRaces.length}개` : "",
+    registeredTotal ? `신청 완료 ${registeredTotal}명` : ""
+  ].filter(Boolean).join(" · ") || `${latestHealingRaces.length}개 대회 공유`;
+
+  displayRaces.forEach((race) => {
+    const isPastRace = isHealingRacePast(race);
+    const registeredResponses = getHealingRaceRegisteredResponses(race.id);
+    const registeredNames = registeredResponses.map((response) => response.name);
+    const myResponse = getMyHealingRaceResponse(race.id, user);
+    const isRegistered = myResponse?.response === "registered";
+
+    const card = document.createElement("article");
+    card.className = "suggestion-card";
+    if (isPastRace) card.classList.add("healing-event-past");
+    if (editingHealingRace?.id === race.id) card.classList.add("healing-card-editing");
+
+    const title = document.createElement("div");
+    title.className = "suggestion-title";
+    title.innerText = isPastRace ? `지난 대회 · ${race.title}` : race.title;
+    card.appendChild(title);
+
+    const meta = document.createElement("div");
+    meta.className = "healing-card-meta";
+    meta.innerText = [
+      `대회일시 ${formatHealingRaceDateTime(race.raceDate)}`,
+      `코스 ${race.distance || "미기재"}`,
+      race.location ? `출발장소 ${race.location}` : "출발장소 미기재",
+      race.registrationDeadline ? `접수마감 ${formatHealingDate(race.registrationDeadline)}` : "",
+      race.description ? `내용 ${race.description}` : ""
+    ].filter(Boolean).join("\n");
+    card.appendChild(meta);
+
+    const pillRow = document.createElement("div");
+    pillRow.className = "healing-pill-row healing-race-status-row";
+    [`참여 ${registeredResponses.length}`].forEach((label) => {
+      const pill = document.createElement("span");
+      pill.className = "healing-pill";
+      pill.innerText = label;
+      pillRow.appendChild(pill);
+    });
+    card.appendChild(pillRow);
+
+    if (registeredNames.length) {
+      const attendee = document.createElement("div");
+      attendee.className = "suggestion-body healing-race-attendee";
+      attendee.innerText = `신청 완료\n${formatHealingRaceRegisteredSummary(registeredResponses)}`;
+      card.appendChild(attendee);
+    }
+
+    const actionRow = document.createElement("div");
+    actionRow.className = "healing-action-row";
+
+    if (race.registrationUrl) {
+      const link = document.createElement("a");
+      link.className = "button-link";
+      link.href = race.registrationUrl;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.innerText = "신청 정보 보기";
+      actionRow.appendChild(link);
+    }
+
+    if (user) {
+      const courseOptions = parseHealingRaceCourses(race.distance);
+      if (!courseOptions.length) courseOptions.push("5K", "10K", "하프", "풀");
+      if (myResponse?.course && !courseOptions.includes(myResponse.course)) {
+        courseOptions.push(myResponse.course);
+      }
+      const courseSelect = document.createElement("select");
+      courseSelect.className = "healing-race-course-select";
+      courseSelect.dataset.healingRaceCourse = race.id;
+      courseSelect.setAttribute("aria-label", `${race.title} 신청 코스`);
+
+      const placeholder = document.createElement("option");
+      placeholder.value = "";
+      placeholder.innerText = "코스 선택";
+      courseSelect.appendChild(placeholder);
+
+      courseOptions.forEach((course) => {
+        const option = document.createElement("option");
+        option.value = course;
+        option.innerText = course;
+        courseSelect.appendChild(option);
+      });
+
+      if (myResponse?.course) {
+        courseSelect.value = myResponse.course;
+      } else if (!isRegistered && courseOptions.length === 1) {
+        courseSelect.value = courseOptions[0];
+      }
+
+      actionRow.appendChild(courseSelect);
+    }
+
+    const registerButton = document.createElement("button");
+    registerButton.type = "button";
+    registerButton.className = isRegistered ? "table-action" : "button-secondary table-action";
+    registerButton.dataset.healingRaceAction = "toggle-registered";
+    registerButton.dataset.raceId = race.id;
+    registerButton.disabled = !user;
+    registerButton.innerText = isRegistered ? "코스 저장" : "신청 완료";
+    actionRow.appendChild(registerButton);
+
+    if (isRegistered) {
+      const cancelButton = document.createElement("button");
+      cancelButton.type = "button";
+      cancelButton.className = "button-danger table-action";
+      cancelButton.dataset.healingRaceAction = "cancel-registration";
+      cancelButton.dataset.raceId = race.id;
+      cancelButton.innerText = "신청 삭제";
+      actionRow.appendChild(cancelButton);
+    }
+
+    if (canEditHealingRace(user, race)) {
+      const editButton = document.createElement("button");
+      editButton.type = "button";
+      editButton.className = editingHealingRace?.id === race.id ? "table-action" : "button-secondary table-action";
+      editButton.dataset.healingRaceAction = "edit";
+      editButton.dataset.raceId = race.id;
+      editButton.innerText = editingHealingRace?.id === race.id ? "수정 중" : "수정";
+      actionRow.appendChild(editButton);
+    }
+
+    if (canEditHealingRace(user, race)) {
+      const deleteButton = document.createElement("button");
+      deleteButton.type = "button";
+      deleteButton.className = "button-danger table-action";
+      deleteButton.dataset.healingRaceAction = "delete";
+      deleteButton.dataset.raceId = race.id;
+      deleteButton.innerText = "삭제";
+      actionRow.appendChild(deleteButton);
+    }
+
+    card.appendChild(actionRow);
+
+    const author = document.createElement("div");
+    author.className = "healing-card-meta";
+    author.innerText = `공유: ${race.name} · ${formatSavedDateTime(race.updatedAt || race.createdAt) || "-"}`;
+    card.appendChild(author);
+
+    raceList.appendChild(card);
+  });
 }
 
 function renderHealingEvents(user = auth.currentUser) {
@@ -7084,6 +7814,157 @@ function renderHealingCheers(user = auth.currentUser) {
     }));
     cheerList.appendChild(card);
   });
+}
+
+async function saveHealingRace() {
+  const user = auth.currentUser;
+  const isEditing = Boolean(editingHealingRace?.id);
+
+  if (!user) {
+    setHealingStatus("race", "로그인 후 대회 정보를 등록할 수 있습니다.");
+    return;
+  }
+
+  if (isEditing && !canEditHealingRace(user, editingHealingRace)) {
+    setHealingStatus("race", "작성자 본인 또는 호스트만 대회 정보를 수정할 수 있습니다.");
+    return;
+  }
+
+  const title = healingRaceTitleInput?.value.trim() || "";
+  const raceDate = healingRaceDateInput?.value || "";
+  const location = healingRaceLocationInput?.value.trim() || "";
+  const distance = getSelectedHealingRaceDistance();
+  const registrationDeadline = healingRaceDeadlineInput?.value || "";
+  const registrationUrl = healingRaceUrlInput?.value.trim() || "";
+  const description = healingRaceDescriptionInput?.value.trim() || "";
+
+  if (!title) {
+    setHealingStatus("race", "대회명을 입력해주세요.");
+    healingRaceTitleInput?.focus();
+    return;
+  }
+
+  if (!raceDate) {
+    setHealingStatus("race", "대회일시를 입력해주세요.");
+    healingRaceDateInput?.focus();
+    return;
+  }
+
+  if (registrationUrl && !/^https?:\/\//i.test(registrationUrl)) {
+    setHealingStatus("race", "신청 링크는 http:// 또는 https://로 시작해야 합니다.");
+    healingRaceUrlInput?.focus();
+    return;
+  }
+
+  if (saveHealingRaceBtn) saveHealingRaceBtn.disabled = true;
+
+  try {
+    const payload = {
+      title,
+      raceDate,
+      location,
+      distance,
+      registrationDeadline,
+      registrationUrl,
+      description,
+      userId: editingHealingRace?.userId || user.uid,
+      name: editingHealingRace?.name || getUserName(user),
+      email: editingHealingRace?.email || user.email,
+      createdAt: editingHealingRace?.createdAt || new Date(),
+      updatedAt: new Date()
+    };
+
+    if (isEditing) {
+      await updateDoc(doc(db, "healingRaces", editingHealingRace.id), payload);
+    } else {
+      await addDoc(collection(db, "healingRaces"), payload);
+    }
+
+    resetHealingRaceForm();
+    await loadHealingHub(user);
+    setHealingStatus("race", isEditing ? "대회 정보를 수정했습니다." : "대회 정보를 등록했습니다.");
+  } catch (e) {
+    console.error(e);
+    setHealingStatus("race", isEditing
+      ? "대회 정보 수정이 되지 않았습니다. 잠시 후 다시 시도해주세요."
+      : "대회 정보 등록이 되지 않았습니다. 잠시 후 다시 시도해주세요.");
+  } finally {
+    if (saveHealingRaceBtn) saveHealingRaceBtn.disabled = false;
+  }
+}
+
+async function saveHealingRaceResponse(race, response, sourceButton = null, course = "") {
+  const user = auth.currentUser;
+
+  if (!user) {
+    setHealingStatus("race", "로그인 후 참여 현황을 남길 수 있습니다.");
+    return;
+  }
+
+  const responseId = `${race.id}_${user.uid}`;
+  const previousRaceResponse = getMyHealingRaceResponse(race.id, user);
+  if (sourceButton) sourceButton.disabled = true;
+
+  try {
+    const payload = {
+      raceId: race.id,
+      userId: user.uid,
+      name: getUserName(user),
+      email: user.email || "",
+      response,
+      course,
+      updatedAt: new Date()
+    };
+
+    await setDoc(doc(db, "healingRaceResponses", responseId), payload);
+    latestHealingRaceResponses = latestHealingRaceResponses
+      .filter((item) => item.id !== responseId)
+      .concat({ id: responseId, ...payload });
+    renderHealingRaces(user);
+    setHealingStatus("race", response === "registered"
+      ? `${race.title} ${course ? `${course} ` : ""}신청 완료로 표시했습니다.`
+      : `${race.title} 신청 완료 표시를 취소했습니다.`);
+  } catch (e) {
+    console.error(e);
+    if (previousRaceResponse) {
+      latestHealingRaceResponses = latestHealingRaceResponses
+        .filter((item) => item.id !== responseId)
+        .concat({
+          id: responseId,
+          raceId: race.id,
+          userId: user.uid,
+          name: getUserName(user),
+          email: user.email || "",
+          response: previousRaceResponse.response,
+          course: previousRaceResponse.course || "",
+          updatedAt: new Date()
+        });
+    }
+    renderHealingRaces(user);
+    setHealingStatus("race", "참여 현황 저장이 되지 않았습니다. 잠시 후 다시 시도해주세요.");
+  } finally {
+    if (sourceButton) sourceButton.disabled = false;
+  }
+}
+
+async function deleteHealingRace(race) {
+  const user = auth.currentUser;
+
+  if (!canEditHealingRace(user, race)) {
+    setHealingStatus("race", "작성자 본인 또는 호스트만 대회 정보를 삭제할 수 있습니다.");
+    return;
+  }
+
+  if (!confirm(`"${race.title}" 대회 정보를 삭제할까요?`)) return;
+
+  try {
+    await deleteDoc(doc(db, "healingRaces", race.id));
+    await loadHealingHub(user);
+    setHealingStatus("race", "대회 정보를 삭제했습니다.");
+  } catch (e) {
+    console.error(e);
+    setHealingStatus("race", "대회 정보 삭제가 되지 않았습니다. 잠시 후 다시 시도해주세요.");
+  }
 }
 
 async function saveHealingEvent() {
@@ -11115,12 +11996,15 @@ function clearDashboard() {
   document.getElementById("healingEventList").innerHTML = "";
   document.getElementById("healingCheckinList").innerHTML = "";
   document.getElementById("healingCheerList").innerHTML = "";
+  document.getElementById("healingRaceList").innerHTML = "";
   document.getElementById("healingEventStatus").innerText = "로그인 후 힐링 탭을 사용할 수 있습니다.";
   document.getElementById("healingCheckinStatus").innerText = "로그인 후 한 줄 체크인을 확인할 수 있습니다.";
   document.getElementById("healingCheerStatus").innerText = "로그인 후 응원 한마디를 확인할 수 있습니다.";
+  document.getElementById("healingRaceStatus").innerText = "로그인 후 대회 같이가기를 확인할 수 있습니다.";
   resetHealingEventForm();
   resetHealingCheckinForm();
   resetHealingCheerForm();
+  resetHealingRaceForm();
   document.getElementById("pbCelebration").innerText = "";
   document.getElementById("pbCelebration").classList.add("hidden");
   document.getElementById("marathonPrediction").innerText = "-";

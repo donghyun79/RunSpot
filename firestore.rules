@@ -331,6 +331,79 @@ service cloud.firestore {
       && request.resource.data.email == request.auth.token.email;
     }
 
+    function validHealingRaceShape() {
+      return request.resource.data.keys().hasOnly([
+        "title",
+        "raceDate",
+        "location",
+        "distance",
+        "registrationDeadline",
+        "registrationUrl",
+        "description",
+        "userId",
+        "name",
+        "email",
+        "createdAt",
+        "updatedAt"
+      ])
+      && request.resource.data.title is string
+      && request.resource.data.title.size() > 0
+      && request.resource.data.title.size() <= 80
+      && request.resource.data.raceDate is string
+      && request.resource.data.raceDate.size() > 0
+      && request.resource.data.raceDate.size() <= 40
+      && request.resource.data.location is string
+      && request.resource.data.location.size() <= 80
+      && request.resource.data.distance is string
+      && request.resource.data.distance.size() <= 120
+      && request.resource.data.registrationDeadline is string
+      && request.resource.data.registrationDeadline.size() <= 20
+      && request.resource.data.registrationUrl is string
+      && request.resource.data.registrationUrl.size() <= 300
+      && request.resource.data.description is string
+      && request.resource.data.description.size() <= 500
+      && request.resource.data.userId is string
+      && request.resource.data.name is string
+      && request.resource.data.name.size() > 0
+      && request.resource.data.name.size() <= 40
+      && request.resource.data.email is string;
+    }
+
+    function validHealingRaceData() {
+      return validHealingRaceShape()
+      && request.resource.data.userId == request.auth.uid
+      && request.resource.data.email == request.auth.token.email;
+    }
+
+    function validHealingRaceResponseShape() {
+      return request.resource.data.keys().hasOnly([
+        "raceId",
+        "userId",
+        "name",
+        "email",
+        "response",
+        "course",
+        "updatedAt"
+      ])
+      && request.resource.data.raceId is string
+      && request.resource.data.raceId.size() > 0
+      && request.resource.data.raceId.size() <= 80
+      && request.resource.data.userId is string
+      && request.resource.data.name is string
+      && request.resource.data.name.size() > 0
+      && request.resource.data.name.size() <= 40
+      && request.resource.data.email is string
+      && request.resource.data.response in ["registered", "cancelled"]
+      && request.resource.data.course is string
+      && request.resource.data.course.size() <= 40;
+    }
+
+    function validHealingRaceResponseData() {
+      return validHealingRaceResponseShape()
+      && request.resource.data.userId == request.auth.uid
+      && request.resource.data.email == request.auth.token.email;
+    }
+
     function validHealingEventCommentShape() {
       return request.resource.data.keys().hasOnly([
         "eventId",
@@ -699,6 +772,33 @@ service cloud.firestore {
       allow update: if approvedUser()
         && resource.data.userId == request.auth.uid
         && validHealingResponseData();
+      allow delete: if false;
+    }
+
+    match /healingRaces/{raceId} {
+      allow read: if approvedUser();
+      allow create: if approvedUser() && validHealingRaceData();
+      allow update: if (
+        approvedUser()
+        && resource.data.userId == request.auth.uid
+        && validHealingRaceData()
+      ) || (
+        isHost()
+        && validHealingRaceShape()
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.email == resource.data.email
+        && request.resource.data.name == resource.data.name
+        && request.resource.data.createdAt == resource.data.createdAt
+      );
+      allow delete: if isHost()
+        || (approvedUser() && resource.data.userId == request.auth.uid);
+    }
+
+    match /healingRaceResponses/{responseId} {
+      allow read: if approvedUser();
+      allow create, update: if approvedUser()
+        && validHealingRaceResponseData()
+        && responseId == request.resource.data.raceId + "_" + request.auth.uid;
       allow delete: if false;
     }
 
