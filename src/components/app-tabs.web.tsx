@@ -21,10 +21,10 @@ export default function AppTabs() {
       <TabList asChild>
         <CustomTabList>
           <TabTrigger name="home" href="/" asChild>
-            <TabButton>Course</TabButton>
+            <TabButton>코스</TabButton>
           </TabTrigger>
           <TabTrigger name="explore" href="/explore" asChild>
-            <TabButton>Plan</TabButton>
+            <TabButton>계획</TabButton>
           </TabTrigger>
         </CustomTabList>
       </TabList>

@@ -9,9 +9,9 @@ import { launchPlanSteps } from '@/data/runspot-plan';
 import { useTheme } from '@/hooks/use-theme';
 
 const statusLabels = {
-  ready: 'Ready',
-  next: 'Next',
-  later: 'Later',
+  ready: '준비됨',
+  next: '다음 작업',
+  later: '예정',
 };
 
 export default function PlanScreen() {
@@ -42,10 +42,10 @@ export default function PlanScreen() {
       contentContainerStyle={[styles.contentContainer, contentPlatformStyle]}>
       <ThemedView style={styles.container}>
         <ThemedView style={styles.header}>
-          <ThemedText type="subtitle">Build plan</ThemedText>
+          <ThemedText type="subtitle">개발 계획</ThemedText>
           <ThemedText themeColor="textSecondary">
-            RunSpot starts with a clear route-planning shell, then adds map data, return options,
-            and hydration guidance step by step.
+            RunSpot은 서울 러너가 코스를 빠르게 정하고, 주변 편의시설과 귀가 방법까지
+            확인할 수 있도록 단계별로 완성해 갑니다.
           </ThemedText>
         </ThemedView>
 

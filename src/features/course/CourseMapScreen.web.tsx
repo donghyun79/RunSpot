@@ -12,59 +12,60 @@ export default function CourseMapScreen() {
       <SafeAreaView style={styles.safeArea}>
         <ThemedView style={styles.header}>
           <ThemedText type="code" style={styles.eyebrow}>
-            MAP FOUNDATION
+            서울 러닝 코스
           </ThemedText>
           <ThemedText type="title" style={styles.title}>
             RunSpot
           </ThemedText>
           <ThemedText themeColor="textSecondary" style={styles.description}>
-            Native Android and iOS builds now have a map-ready course screen with current location
-            support, point selection, route previews, and runner spot filtering. Web keeps this
-            planning shell until a web map provider is selected.
+            모바일 앱에서는 현재 위치, 출발지와 도착지 선택, 코스 미리보기, 주변 러너
+            편의시설 필터링을 확인할 수 있습니다. 웹 화면은 지도 제공자를 정하기 전까지
+            계획용 화면으로 유지합니다.
           </ThemedText>
         </ThemedView>
 
         <ThemedView type="backgroundElement" style={styles.panel}>
-          <ThemedText type="smallBold">Course setup</ThemedText>
+          <ThemedText type="smallBold">코스 설정</ThemedText>
           <View style={styles.modeRow}>
             <View style={[styles.modeButton, styles.modeButtonActive]}>
               <ThemedText type="smallBold" style={styles.modeButtonTextActive}>
-                Set Start
+                출발지 설정
               </ThemedText>
             </View>
             <View style={styles.modeButton}>
-              <ThemedText type="smallBold">Set Finish</ThemedText>
+              <ThemedText type="smallBold">도착지 설정</ThemedText>
             </View>
           </View>
           <View style={styles.routeRow}>
             <View style={styles.startDot} />
             <ThemedText type="small" themeColor="textSecondary">
-              Start from current location or a selected map point.
+              현재 위치나 지도에서 선택한 지점을 출발지로 사용합니다.
             </ThemedText>
           </View>
           <View style={styles.routeRow}>
             <View style={styles.finishDot} />
             <ThemedText type="small" themeColor="textSecondary">
-              Finish at a destination, loop route, or return point.
+              목적지, 순환 코스 반환 지점, 귀가 시작 지점을 도착지로 설정합니다.
             </ThemedText>
           </View>
           <View style={styles.metricRow}>
-            <ThemedText type="smallBold">Route spot filtering</ThemedText>
+            <ThemedText type="smallBold">코스 주변 편의시설</ThemedText>
             <ThemedText type="small" themeColor="textSecondary">
-              Native builds show only sample runner spots within 500 m of the selected route.
+              모바일 앱에서는 선택한 코스 500m 안의 러너 편의시설만 보여줍니다.
             </ThemedText>
           </View>
           <Pressable style={styles.primaryButton}>
             <ThemedText type="smallBold" style={styles.primaryButtonText}>
-              Native map ready
+              모바일 지도 준비됨
             </ThemedText>
           </Pressable>
         </ThemedView>
 
         <ThemedView style={styles.spotSection}>
-          <ThemedText type="smallBold">Sample runner spots</ThemedText>
+          <ThemedText type="smallBold">샘플 러너 편의시설</ThemedText>
           <ThemedText type="small" themeColor="textSecondary">
-            Add EXPO_PUBLIC_SEOUL_OPEN_DATA_KEY to load Seoul Bike station data in native builds.
+            EXPO_PUBLIC_SEOUL_OPEN_DATA_KEY를 추가하면 모바일 앱에서 서울시 따릉이
+            대여소 데이터를 불러와 선택한 코스 주변만 보여줍니다.
           </ThemedText>
           <View style={styles.spotGrid}>
             {sampleRunnerSpots.map((spot) => (

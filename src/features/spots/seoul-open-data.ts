@@ -2,6 +2,8 @@ import { RunnerSpot } from '@/types/runspot';
 
 const SEOUL_OPEN_DATA_BASE_URL = 'http://openapi.seoul.go.kr:8088';
 const SEOUL_OPEN_DATA_KEY = process.env.EXPO_PUBLIC_SEOUL_OPEN_DATA_KEY;
+const BIKE_PAGE_SIZE = 1000;
+const MAX_BIKE_STATIONS = 3000;
 
 type SeoulOpenDataResult = {
   CODE?: string;
@@ -24,6 +26,11 @@ type BikeListResponse = {
     RESULT?: SeoulOpenDataResult;
     row?: BikeStationRow[];
   };
+};
+
+export type SeoulRunnerSpotData = {
+  spots: RunnerSpot[];
+  totalCount: number;
 };
 
 function parseCoordinate(value?: string) {
@@ -49,34 +56,50 @@ function normalizeBikeStation(row: BikeStationRow): RunnerSpot | null {
     name: row.stationName.replace(/^\d+\.\s*/, ''),
     latitude,
     longitude,
-    detail: `${row.parkingBikeTotCnt ?? '0'} bikes available`,
+    detail: `대여 가능 ${row.parkingBikeTotCnt ?? '0'}대`,
     source: 'seoul-open-data:bikeList',
     updatedAt: new Date().toISOString(),
   };
 }
 
-async function fetchSeoulBikeStations(start = 1, end = 1000): Promise<RunnerSpot[]> {
+async function fetchSeoulBikeStationsPage(start = 1, end = BIKE_PAGE_SIZE): Promise<SeoulRunnerSpotData> {
   if (!SEOUL_OPEN_DATA_KEY) {
-    return [];
+    return { spots: [], totalCount: 0 };
   }
 
   const url = `${SEOUL_OPEN_DATA_BASE_URL}/${SEOUL_OPEN_DATA_KEY}/json/bikeList/${start}/${end}`;
   const response = await fetch(url);
 
   if (!response.ok) {
-    return [];
+    return { spots: [], totalCount: 0 };
   }
 
   const data = (await response.json()) as BikeListResponse;
   const rows = data.rentBikeStatus?.row ?? [];
+  const totalCount = data.rentBikeStatus?.list_total_count ?? rows.length;
 
-  return rows.map(normalizeBikeStation).filter((spot): spot is RunnerSpot => spot !== null);
+  return {
+    spots: rows.map(normalizeBikeStation).filter((spot): spot is RunnerSpot => spot !== null),
+    totalCount,
+  };
 }
 
-export async function fetchSeoulRunnerSpots(): Promise<RunnerSpot[]> {
-  const bikeStations = await fetchSeoulBikeStations();
+export async function fetchSeoulRunnerSpots(): Promise<SeoulRunnerSpotData> {
+  const firstPage = await fetchSeoulBikeStationsPage(1, BIKE_PAGE_SIZE);
+  const allSpots = [...firstPage.spots];
+  const totalToFetch = Math.min(firstPage.totalCount, MAX_BIKE_STATIONS);
 
-  return bikeStations;
+  for (let start = BIKE_PAGE_SIZE + 1; start <= totalToFetch; start += BIKE_PAGE_SIZE) {
+    const end = Math.min(start + BIKE_PAGE_SIZE - 1, totalToFetch);
+    const page = await fetchSeoulBikeStationsPage(start, end);
+
+    allSpots.push(...page.spots);
+  }
+
+  return {
+    spots: allSpots,
+    totalCount: firstPage.totalCount,
+  };
 }
 
 export function hasSeoulOpenDataKey() {

@@ -10,7 +10,7 @@
     "ios": {
       "icon": "./assets/expo.icon",
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "RunSpot uses your location to set your running start point and show nearby runner spots."
+        "NSLocationWhenInUseUsageDescription": "RunSpot은 현재 위치를 사용해 러닝 출발지를 설정하고 주변 편의시설을 보여줍니다."
       }
     },
     "android": {
