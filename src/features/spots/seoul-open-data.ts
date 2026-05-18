@@ -1,9 +1,11 @@
 import { RunnerSpot } from '@/types/runspot';
+import { readCache, writeCache } from '@/services/reliability/cache';
 
 const SEOUL_OPEN_DATA_BASE_URL = 'http://openapi.seoul.go.kr:8088';
 const SEOUL_OPEN_DATA_KEY = process.env.EXPO_PUBLIC_SEOUL_OPEN_DATA_KEY;
 const BIKE_PAGE_SIZE = 1000;
 const MAX_BIKE_STATIONS = 3000;
+const BIKE_STATIONS_CACHE_KEY = 'runspot:seoul-open-data:bike-stations';
 
 type SeoulOpenDataResult = {
   CODE?: string;
@@ -62,7 +64,10 @@ function normalizeBikeStation(row: BikeStationRow): RunnerSpot | null {
   };
 }
 
-async function fetchSeoulBikeStationsPage(start = 1, end = BIKE_PAGE_SIZE): Promise<SeoulRunnerSpotData> {
+async function fetchSeoulBikeStationsPage(
+  start = 1,
+  end = BIKE_PAGE_SIZE
+): Promise<SeoulRunnerSpotData> {
   if (!SEOUL_OPEN_DATA_KEY) {
     return { spots: [], totalCount: 0 };
   }
@@ -85,21 +90,33 @@ async function fetchSeoulBikeStationsPage(start = 1, end = BIKE_PAGE_SIZE): Prom
 }
 
 export async function fetchSeoulRunnerSpots(): Promise<SeoulRunnerSpotData> {
-  const firstPage = await fetchSeoulBikeStationsPage(1, BIKE_PAGE_SIZE);
-  const allSpots = [...firstPage.spots];
-  const totalToFetch = Math.min(firstPage.totalCount, MAX_BIKE_STATIONS);
+  try {
+    const firstPage = await fetchSeoulBikeStationsPage(1, BIKE_PAGE_SIZE);
+    const allSpots = [...firstPage.spots];
+    const totalToFetch = Math.min(firstPage.totalCount, MAX_BIKE_STATIONS);
 
-  for (let start = BIKE_PAGE_SIZE + 1; start <= totalToFetch; start += BIKE_PAGE_SIZE) {
-    const end = Math.min(start + BIKE_PAGE_SIZE - 1, totalToFetch);
-    const page = await fetchSeoulBikeStationsPage(start, end);
+    for (let start = BIKE_PAGE_SIZE + 1; start <= totalToFetch; start += BIKE_PAGE_SIZE) {
+      const end = Math.min(start + BIKE_PAGE_SIZE - 1, totalToFetch);
+      const page = await fetchSeoulBikeStationsPage(start, end);
 
-    allSpots.push(...page.spots);
+      allSpots.push(...page.spots);
+    }
+
+    const result = {
+      spots: allSpots,
+      totalCount: firstPage.totalCount,
+    };
+
+    if (result.spots.length > 0) {
+      await writeCache(BIKE_STATIONS_CACHE_KEY, result);
+    }
+
+    return result;
+  } catch {
+    const cached = await readCache<SeoulRunnerSpotData>(BIKE_STATIONS_CACHE_KEY);
+
+    return cached?.value ?? { spots: [], totalCount: 0 };
   }
-
-  return {
-    spots: allSpots,
-    totalCount: firstPage.totalCount,
-  };
 }
 
 export function hasSeoulOpenDataKey() {

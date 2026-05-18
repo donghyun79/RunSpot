@@ -18,9 +18,9 @@ export default function CourseMapScreen() {
             RunSpot
           </ThemedText>
           <ThemedText themeColor="textSecondary" style={styles.description}>
-            모바일 앱에서는 현재 위치, 출발지와 도착지 선택, 코스 미리보기, 주변 러너
-            편의시설 필터링을 확인할 수 있습니다. 웹 화면은 지도 제공자를 정하기 전까지
-            계획용 화면으로 유지합니다.
+            실제 Android/iOS 앱에서는 현재 위치, 출발지와 목적지 선택, 코스 미리보기, 주변
+            러너 편의시설 필터링을 사용할 수 있습니다. 웹 화면은 개발 계획과 데이터 상태를
+            확인하는 보조 화면입니다.
           </ThemedText>
         </ThemedView>
 
@@ -33,7 +33,7 @@ export default function CourseMapScreen() {
               </ThemedText>
             </View>
             <View style={styles.modeButton}>
-              <ThemedText type="smallBold">도착지 설정</ThemedText>
+              <ThemedText type="smallBold">목적지 설정</ThemedText>
             </View>
           </View>
           <View style={styles.routeRow}>
@@ -45,7 +45,7 @@ export default function CourseMapScreen() {
           <View style={styles.routeRow}>
             <View style={styles.finishDot} />
             <ThemedText type="small" themeColor="textSecondary">
-              목적지, 순환 코스 반환 지점, 귀가 시작 지점을 도착지로 설정합니다.
+              목적지 또는 반환 지점을 설정하면 예상 코스를 계산합니다.
             </ThemedText>
           </View>
           <View style={styles.metricRow}>
@@ -64,8 +64,8 @@ export default function CourseMapScreen() {
         <ThemedView style={styles.spotSection}>
           <ThemedText type="smallBold">샘플 러너 편의시설</ThemedText>
           <ThemedText type="small" themeColor="textSecondary">
-            EXPO_PUBLIC_SEOUL_OPEN_DATA_KEY를 추가하면 모바일 앱에서 서울시 따릉이
-            대여소 데이터를 불러와 선택한 코스 주변만 보여줍니다.
+            EXPO_PUBLIC_SEOUL_OPEN_DATA_KEY를 추가하면 모바일 앱에서 서울시 따릉이 대여소
+            데이터를 불러와 선택한 코스 주변만 보여줍니다.
           </ThemedText>
           <View style={styles.spotGrid}>
             {sampleRunnerSpots.map((spot) => (

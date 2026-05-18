@@ -1,33 +1,47 @@
 import * as Location from 'expo-location';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
+import MapView, { Marker, Polyline, Region } from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import WebView, { WebViewMessageEvent } from 'react-native-webview';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, Spacing } from '@/constants/theme';
 import { sampleRunnerSpots } from '@/data/runspot-plan';
-import { RoutePreview, RunnerSpot, SpotType } from '@/types/runspot';
 import { fetchSeoulRunnerSpots, hasSeoulOpenDataKey } from '@/features/spots/seoul-open-data';
+import { openKakaoMapRoute } from '@/services/maps/kakao-map-links';
+import { fetchKakaoCategoryPlaces, hasKakaoLocalKey } from '@/services/maps/kakao-places';
+import { returnRouteOptions } from '@/services/maps/map-provider';
+import { ReturnRouteMode } from '@/services/maps/types';
+import { RoutePreview, RunnerSpot, SpotType } from '@/types/runspot';
 
-import { fetchRoutePreview, filterSpotsNearRoute } from './route-service';
+import {
+  calculateStraightDistanceMeters,
+  fetchRoutePreview,
+  filterSpotsNearRoute,
+} from './route-service';
 
 type LatLng = {
   latitude: number;
   longitude: number;
 };
 
-type Region = LatLng & {
-  latitudeDelta: number;
-  longitudeDelta: number;
+type DisplaySpot = RunnerSpot & {
+  distanceFromFocusMeters: number;
+  distanceFromRouteMeters?: number;
 };
+
+type PointMode = 'start' | 'finish';
 
 const SEOUL_REGION: Region = {
   latitude: 37.5665,
   longitude: 126.978,
   latitudeDelta: 0.045,
   longitudeDelta: 0.045,
+};
+const SEOUL_CENTER: LatLng = {
+  latitude: SEOUL_REGION.latitude,
+  longitude: SEOUL_REGION.longitude,
 };
 const CURRENT_LOCATION_DELTA = 0.018;
 const MAX_SPOTS_WITHOUT_ROUTE = 80;
@@ -38,121 +52,27 @@ const SEOUL_BOUNDS = {
   maxLongitude: 127.2,
 };
 
-const MAP_HTML = `
-<!doctype html>
-<html>
-  <head>
-    <meta name="viewport" content="initial-scale=1, maximum-scale=1, user-scalable=no" />
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <style>
-      html, body, #map { height: 100%; width: 100%; margin: 0; padding: 0; background: #EAE6D8; }
-      .leaflet-control-attribution { font-size: 10px; }
-      .spot-marker {
-        width: 14px;
-        height: 14px;
-        border-radius: 7px;
-        border: 2px solid #fff;
-        box-shadow: 0 1px 4px rgba(0,0,0,0.28);
-      }
-    </style>
-  </head>
-  <body>
-    <div id="map"></div>
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script>
-      const map = L.map('map', { zoomControl: false }).setView([37.5665, 126.978], 13);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-        attribution: '&copy; OpenStreetMap'
-      }).addTo(map);
-
-      const layers = L.layerGroup().addTo(map);
-
-      const makeSpotIcon = (color) => L.divIcon({
-        className: '',
-        html: '<div class="spot-marker" style="background:' + color + '"></div>',
-        iconSize: [18, 18],
-        iconAnchor: [9, 9],
-      });
-
-      const pinIcon = (label, color) => L.divIcon({
-        className: '',
-        html: '<div style="background:' + color + '; color:#fff; border-radius:14px; padding:4px 8px; font:700 12px system-ui; box-shadow:0 1px 5px rgba(0,0,0,.3);">' + label + '</div>',
-        iconSize: [52, 28],
-        iconAnchor: [26, 28],
-      });
-
-      window.setRunSpotState = function (state) {
-        layers.clearLayers();
-
-        if (state.route && state.route.length > 1) {
-          L.polyline(state.route.map((point) => [point.latitude, point.longitude]), {
-            color: '#17211B',
-            weight: 5,
-            opacity: 0.86
-          }).addTo(layers);
-        }
-
-        state.spots.forEach((spot) => {
-          L.marker([spot.latitude, spot.longitude], { icon: makeSpotIcon(spot.color) })
-            .bindPopup('<strong>' + spot.name + '</strong><br />' + (spot.detail || spot.address || ''))
-            .addTo(layers);
-        });
-
-        if (state.start) {
-          L.marker([state.start.latitude, state.start.longitude], { icon: pinIcon('출발', '#2D7A46') }).addTo(layers);
-        }
-
-        if (state.finish) {
-          L.marker([state.finish.latitude, state.finish.longitude], { icon: pinIcon('도착', '#F36F45') }).addTo(layers);
-        }
-
-        if (state.center) {
-          map.setView([state.center.latitude, state.center.longitude], state.zoom || map.getZoom(), { animate: true });
-        }
-      };
-
-      window.focusRunSpotMap = function (center, zoom) {
-        map.setView([center.latitude, center.longitude], zoom || map.getZoom(), { animate: true });
-      };
-
-      map.on('click', (event) => {
-        window.ReactNativeWebView.postMessage(JSON.stringify({
-          type: 'mapPress',
-          latitude: event.latlng.lat,
-          longitude: event.latlng.lng
-        }));
-      });
-
-      window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'mapReady' }));
-    </script>
-  </body>
-</html>
-`;
-
 const spotLabels: Record<SpotType, string> = {
-  water: '급수',
-  toilet: '화장실',
-  shower: '샤워',
-  convenience: '편의점',
-  bike: '따릉이',
-  transit: '대중교통',
+  water: 'Water',
+  restroom: 'Restroom',
+  shower: 'Shower',
+  convenience: 'Convenience',
+  bike: 'Ddareungi',
+  transit: 'Transit',
 };
 
 const spotColors: Record<SpotType, string> = {
   water: '#208AEF',
-  toilet: '#6D5BD0',
+  restroom: '#6D5BD0',
   shower: '#00A389',
   convenience: '#F36F45',
   bike: '#2D7A46',
   transit: '#17211B',
 };
 
-type PointMode = 'start' | 'finish';
-
 function formatCoordinate(point: LatLng | null) {
   if (!point) {
-    return '지도를 눌러 설정';
+    return 'Tap the map to set';
   }
 
   return `${point.latitude.toFixed(5)}, ${point.longitude.toFixed(5)}`;
@@ -170,13 +90,13 @@ function formatDuration(seconds: number) {
   const minutes = Math.max(1, Math.round(seconds / 60));
 
   if (minutes < 60) {
-    return `${minutes}분`;
+    return `${minutes} min`;
   }
 
   const hours = Math.floor(minutes / 60);
   const remainingMinutes = minutes % 60;
 
-  return `${hours}시간 ${remainingMinutes}분`;
+  return `${hours} hr ${remainingMinutes} min`;
 }
 
 function isPointInSeoul(point: LatLng) {
@@ -188,23 +108,31 @@ function isPointInSeoul(point: LatLng) {
   );
 }
 
+function toRegion(point: LatLng, delta = CURRENT_LOCATION_DELTA): Region {
+  return {
+    ...point,
+    latitudeDelta: delta,
+    longitudeDelta: delta,
+  };
+}
+
 export default function CourseMapScreen() {
-  const mapRef = useRef<WebView | null>(null);
+  const mapRef = useRef<MapView | null>(null);
   const [isLocating, setIsLocating] = useState(false);
-  const [isMapReady, setIsMapReady] = useState(false);
   const [selectionMode, setSelectionMode] = useState<PointMode>('finish');
   const [startPoint, setStartPoint] = useState<LatLng | null>(null);
   const [finishPoint, setFinishPoint] = useState<LatLng | null>(null);
   const [routePreview, setRoutePreview] = useState<RoutePreview | null>(null);
   const [runnerSpots, setRunnerSpots] = useState<RunnerSpot[]>(sampleRunnerSpots);
+  const [selectedSpot, setSelectedSpot] = useState<DisplaySpot | null>(null);
   const [isLoadingSpots, setIsLoadingSpots] = useState(false);
   const [isRouting, setIsRouting] = useState(false);
   const [spotDataMessage, setSpotDataMessage] = useState(
     hasSeoulOpenDataKey()
-      ? '서울 열린데이터에서 따릉이 대여소를 불러옵니다.'
-      : '서울 열린데이터 API 키가 없어 샘플 편의시설을 보여줍니다.'
+      ? 'Loading Seoul Open Data bike stations.'
+      : 'Showing mock runner-friendly spots. Add a Seoul Open Data key for live data.'
   );
-  const [message, setMessage] = useState('출발지를 잡으려면 위치 권한이 필요합니다.');
+  const [message, setMessage] = useState('Location permission helps set your start point.');
 
   const spotSummary = useMemo(
     () => Array.from(new Set(runnerSpots.map((spot) => spotLabels[spot.type]))).join(' / '),
@@ -230,73 +158,37 @@ export default function CourseMapScreen() {
 
     return filterSpotsNearRoute(runnerSpots, routePreview.coordinates, 500);
   }, [routePreview, runnerSpots]);
-  const routeSourceLabel = routePreview?.source === 'osrm' ? '경로 예상' : '직선 기준';
+  const focusPoint = finishPoint ?? startPoint ?? SEOUL_CENTER;
+  const distanceSortedSpots = useMemo<DisplaySpot[]>(
+    () =>
+      visibleRunnerSpots
+        .map((spot) => ({
+          ...spot,
+          distanceFromFocusMeters: calculateStraightDistanceMeters(
+            { latitude: spot.latitude, longitude: spot.longitude },
+            focusPoint
+          ),
+        }))
+        .sort((a, b) => a.distanceFromFocusMeters - b.distanceFromFocusMeters),
+    [focusPoint, visibleRunnerSpots]
+  );
+  const routeSourceLabel = routePreview?.source === 'osrm' ? 'route estimate' : 'straight-line';
   const routeSpotSummary = routePreview
-    ? `코스 500m 안 편의시설 ${routeSpots.length}곳`
-    : `${spotSummary || '편의시설'} 표시 중`;
+    ? `${routeSpots.length} spots within 500m of route`
+    : `${spotSummary || 'spots'} visible`;
 
   const focusMap = useCallback((point: LatLng, delta = CURRENT_LOCATION_DELTA) => {
-    mapRef.current?.injectJavaScript(
-      `window.focusRunSpotMap && window.focusRunSpotMap(${JSON.stringify(point)}, ${
-        delta <= CURRENT_LOCATION_DELTA ? 15 : 12
-      }); true;`
-    );
+    mapRef.current?.animateToRegion(toRegion(point, delta), 450);
   }, []);
 
-  const syncMapState = useCallback(() => {
-    const payload = {
-      start: startPoint,
-      finish: finishPoint,
-      route: routePreview?.coordinates ?? [],
-      spots: visibleRunnerSpots.map((spot) => ({
-        latitude: spot.latitude,
-        longitude: spot.longitude,
-        name: spot.name,
-        address: spot.address,
-        detail: spot.detail,
-        color: spotColors[spot.type],
-      })),
-    };
-
-    mapRef.current?.injectJavaScript(
-      `window.setRunSpotState && window.setRunSpotState(${JSON.stringify(payload)}); true;`
-    );
-  }, [finishPoint, routePreview, startPoint, visibleRunnerSpots]);
-
-  useEffect(() => {
-    if (isMapReady) {
-      syncMapState();
-    }
-  }, [isMapReady, syncMapState]);
-
-  function handleMapMessage(event: WebViewMessageEvent) {
-    try {
-      const data = JSON.parse(event.nativeEvent.data) as {
-        type?: string;
-        latitude?: number;
-        longitude?: number;
-      };
-
-      if (data.type === 'mapReady') {
-        setIsMapReady(true);
-        return;
-      }
-
-      if (
-        data.type === 'mapPress' &&
-        typeof data.latitude === 'number' &&
-        typeof data.longitude === 'number'
-      ) {
-        handleMapPress({ latitude: data.latitude, longitude: data.longitude });
-      }
-    } catch {
-      setMessage('지도 이벤트를 읽지 못했습니다. 다시 지도를 눌러주세요.');
-    }
+  function selectSpot(spot: DisplaySpot) {
+    setSelectedSpot(spot);
+    focusMap({ latitude: spot.latitude, longitude: spot.longitude }, 0.01);
   }
 
   const locateRunner = useCallback(async () => {
     setIsLocating(true);
-    setMessage('현재 위치를 찾는 중입니다...');
+    setMessage('Finding your current location...');
 
     const currentPermission = await Location.getForegroundPermissionsAsync();
     const permission =
@@ -306,7 +198,9 @@ export default function CourseMapScreen() {
 
     if (permission.status !== Location.PermissionStatus.GRANTED) {
       setIsLocating(false);
-      setMessage('위치 권한이 없어 서울시청 주변 지도를 먼저 보여드립니다.');
+      setMessage('Location permission denied. Showing the default Seoul map and spot list.');
+      focusMap(SEOUL_REGION, 0.06);
+      setSelectionMode('start');
       return;
     }
 
@@ -315,20 +209,22 @@ export default function CourseMapScreen() {
         maxAge: 60_000,
         requiredAccuracy: 200,
       });
-      const current = lastKnown ?? await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
+      const current =
+        lastKnown ??
+        (await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        }));
       const nextPoint = {
         latitude: current.coords.latitude,
         longitude: current.coords.longitude,
       };
 
       if (!isPointInSeoul(nextPoint)) {
-        focusMap(SEOUL_REGION);
+        focusMap(SEOUL_REGION, 0.06);
         setStartPoint(null);
         setSelectionMode('start');
         setMessage(
-          '현재 위치가 서울 밖으로 감지되어 서울시청 주변 지도를 보여드립니다. 지도에서 출발지를 직접 눌러주세요.'
+          'Your location appears outside Seoul. Showing Seoul City Hall; tap the map to set a start point.'
         );
         return;
       }
@@ -336,9 +232,11 @@ export default function CourseMapScreen() {
       focusMap(nextPoint);
       setStartPoint(nextPoint);
       setSelectionMode('finish');
-      setMessage('현재 위치를 출발지로 설정했습니다. 지도에서 도착지를 눌러주세요.');
+      setMessage('Current location set as start. Tap the map to set a finish point.');
     } catch {
-      setMessage('현재 위치를 읽지 못해 서울시청 주변 지도를 먼저 보여드립니다.');
+      focusMap(SEOUL_REGION, 0.06);
+      setSelectionMode('start');
+      setMessage('Could not read current location. Showing the default Seoul map.');
     } finally {
       setIsLocating(false);
     }
@@ -353,12 +251,12 @@ export default function CourseMapScreen() {
 
     async function loadRunnerSpots() {
       if (!hasSeoulOpenDataKey()) {
-        setSpotDataMessage('서울 열린데이터 API 키가 없어 샘플 편의시설을 보여줍니다.');
+        setSpotDataMessage('Showing mock spots because Seoul Open Data key is not configured.');
         return;
       }
 
       setIsLoadingSpots(true);
-      setSpotDataMessage('서울 열린데이터에서 따릉이 대여소를 불러오는 중입니다...');
+      setSpotDataMessage('Loading Seoul Open Data bike stations...');
       try {
         const seoulData = await fetchSeoulRunnerSpots();
 
@@ -368,16 +266,14 @@ export default function CourseMapScreen() {
 
         if (seoulData.spots.length > 0) {
           setRunnerSpots([...sampleRunnerSpots, ...seoulData.spots]);
-          setSpotDataMessage(
-            `서울시 따릉이 대여소 ${seoulData.spots.length}곳을 불러왔습니다.`
-          );
+          setSpotDataMessage(`Loaded ${seoulData.spots.length} Seoul bike stations.`);
           return;
         }
 
-        setSpotDataMessage('서울 데이터를 불러오지 못해 샘플 편의시설을 보여줍니다.');
+        setSpotDataMessage('Could not load Seoul data. Showing mock spots.');
       } catch {
         if (isCurrent) {
-          setSpotDataMessage('서울 데이터 연결에 실패해 샘플 편의시설을 보여줍니다.');
+          setSpotDataMessage('Seoul data failed. Showing mock or cached spots.');
         }
       } finally {
         if (isCurrent) {
@@ -404,7 +300,7 @@ export default function CourseMapScreen() {
       }
 
       setIsRouting(true);
-      setMessage('코스 미리보기를 계산하는 중입니다...');
+      setMessage('Calculating route preview...');
 
       const nextRoute = await fetchRoutePreview(startPoint, finishPoint);
 
@@ -416,8 +312,8 @@ export default function CourseMapScreen() {
       setIsRouting(false);
       setMessage(
         nextRoute.source === 'osrm'
-          ? '코스 미리보기가 준비되었습니다. 주변 편의시설을 함께 확인해보세요.'
-          : '경로 서비스를 사용할 수 없어 직선 기준으로 주변 편의시설을 보여드립니다.'
+          ? 'Route preview is ready. Check nearby spots below.'
+          : 'Route service unavailable. Showing nearby spots by straight-line fallback.'
       );
     }
 
@@ -428,9 +324,74 @@ export default function CourseMapScreen() {
     };
   }, [finishPoint, startPoint]);
 
+  useEffect(() => {
+    let isCurrent = true;
+
+    async function loadKakaoPlacesNearFinish() {
+      if (!finishPoint || !hasKakaoLocalKey()) {
+        return;
+      }
+
+      setIsLoadingSpots(true);
+      try {
+        const [convenienceSpots, transitSpots] = await Promise.all([
+          fetchKakaoCategoryPlaces({
+            center: finishPoint,
+            radiusMeters: 1200,
+            category: 'convenience',
+          }),
+          fetchKakaoCategoryPlaces({
+            center: finishPoint,
+            radiusMeters: 1200,
+            category: 'transit',
+          }),
+        ]);
+
+        if (!isCurrent) {
+          return;
+        }
+
+        const kakaoSpots = [...convenienceSpots, ...transitSpots];
+
+        setRunnerSpots((currentSpots) => {
+          const baseSpots = currentSpots.filter((spot) => !spot.source.startsWith('kakao-local:'));
+          const seenIds = new Set(baseSpots.map((spot) => spot.id));
+          const nextKakaoSpots = kakaoSpots.filter((spot) => {
+            if (seenIds.has(spot.id)) {
+              return false;
+            }
+
+            seenIds.add(spot.id);
+            return true;
+          });
+
+          return [...baseSpots, ...nextKakaoSpots];
+        });
+
+        if (kakaoSpots.length > 0) {
+          setSpotDataMessage(`Loaded ${kakaoSpots.length} Kakao places near the finish.`);
+        }
+      } catch {
+        if (isCurrent) {
+          setSpotDataMessage('Kakao place search failed. Showing existing spots.');
+        }
+      } finally {
+        if (isCurrent) {
+          setIsLoadingSpots(false);
+        }
+      }
+    }
+
+    loadKakaoPlacesNearFinish();
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [finishPoint]);
+
   function handleMapPress(coordinate: LatLng) {
     if (!isPointInSeoul(coordinate)) {
-      setMessage('RunSpot은 서울 안의 코스만 지원합니다. 서울 지역 안에서 지점을 선택해주세요.');
+      setMessage('RunSpot currently supports Seoul routes only. Select a point inside Seoul.');
       focusMap(SEOUL_REGION, 0.06);
       return;
     }
@@ -438,34 +399,68 @@ export default function CourseMapScreen() {
     if (selectionMode === 'start') {
       setStartPoint(coordinate);
       setSelectionMode('finish');
-      setMessage('출발지를 설정했습니다. 지도에서 도착지를 눌러주세요.');
+      setMessage('Start point set. Tap the map to set a finish point.');
       return;
     }
 
     setFinishPoint(coordinate);
-    setMessage('도착지를 설정했습니다. 아래에서 거리와 예상 시간을 확인하세요.');
+    setMessage('Finish point set. Distance and nearby spots are shown below.');
   }
 
   function resetRoute() {
     setStartPoint(null);
     setFinishPoint(null);
     setRoutePreview(null);
+    setSelectedSpot(null);
     setSelectionMode('start');
     focusMap(SEOUL_REGION, 0.06);
-    setMessage('코스를 지웠습니다. 지도에서 출발지를 다시 눌러주세요.');
+    setMessage('Route cleared. Tap the map to set a new start point.');
+  }
+
+  async function openReturnRoute(mode: ReturnRouteMode) {
+    if (!startPoint || !finishPoint) {
+      setMessage('Return route is available after both start and finish are set.');
+      return;
+    }
+
+    try {
+      await openKakaoMapRoute({
+        origin: finishPoint,
+        destination: startPoint,
+        mode,
+      });
+    } catch {
+      setMessage('Could not open Kakao Map route. Try again later.');
+    }
   }
 
   return (
     <View style={styles.screen}>
-      <WebView
+      <MapView
         ref={mapRef}
         style={styles.map}
-        source={{ html: MAP_HTML }}
-        originWhitelist={['*']}
-        javaScriptEnabled
-        domStorageEnabled
-        onMessage={handleMapMessage}
-      />
+        initialRegion={SEOUL_REGION}
+        showsUserLocation
+        showsMyLocationButton={false}
+        onPress={(event) => handleMapPress(event.nativeEvent.coordinate)}>
+        {routePreview && routePreview.coordinates.length > 1 && (
+          <Polyline coordinates={routePreview.coordinates} strokeColor="#17211B" strokeWidth={5} />
+        )}
+
+        {distanceSortedSpots.map((spot) => (
+          <Marker
+            key={spot.id}
+            coordinate={{ latitude: spot.latitude, longitude: spot.longitude }}
+            title={spot.name}
+            description={spot.detail || spot.address}
+            pinColor={spotColors[spot.type]}
+            onPress={() => selectSpot(spot)}
+          />
+        ))}
+
+        {startPoint && <Marker coordinate={startPoint} title="Start" pinColor="#2D7A46" />}
+        {finishPoint && <Marker coordinate={finishPoint} title="Finish" pinColor="#F36F45" />}
+      </MapView>
 
       <SafeAreaView pointerEvents="box-none" style={styles.overlay}>
         <ThemedView type="backgroundElement" style={styles.searchPanel}>
@@ -480,7 +475,7 @@ export default function CourseMapScreen() {
               <ThemedText
                 type="smallBold"
                 style={selectionMode === 'start' && styles.modeButtonTextActive}>
-                출발지 설정
+                Set start
               </ThemedText>
             </Pressable>
             <Pressable
@@ -493,7 +488,7 @@ export default function CourseMapScreen() {
               <ThemedText
                 type="smallBold"
                 style={selectionMode === 'finish' && styles.modeButtonTextActive}>
-                도착지 설정
+                Set finish
               </ThemedText>
             </Pressable>
           </View>
@@ -501,7 +496,7 @@ export default function CourseMapScreen() {
           <View style={styles.routeRow}>
             <View style={styles.startDot} />
             <View style={styles.routeText}>
-              <ThemedText type="smallBold">출발</ThemedText>
+              <ThemedText type="smallBold">Start</ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
                 {formatCoordinate(startPoint)}
               </ThemedText>
@@ -510,22 +505,22 @@ export default function CourseMapScreen() {
           <View style={styles.routeRow}>
             <View style={styles.finishDot} />
             <View style={styles.routeText}>
-              <ThemedText type="smallBold">도착</ThemedText>
+              <ThemedText type="smallBold">Finish</ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
                 {formatCoordinate(finishPoint)}
               </ThemedText>
             </View>
           </View>
           <View style={styles.metricRow}>
-            <ThemedText type="smallBold">예상 거리</ThemedText>
+            <ThemedText type="smallBold">Estimated route</ThemedText>
             <ThemedText type="small" themeColor="textSecondary">
               {routePreview
                 ? `${formatDistance(routePreview.distanceMeters)} / ${formatDuration(
                     routePreview.durationSeconds
                   )} ${routeSourceLabel}`
                 : isRouting
-                  ? '계산 중...'
-                  : '출발지와 도착지를 설정하세요'}
+                  ? 'Calculating...'
+                  : 'Set start and finish to preview distance'}
             </ThemedText>
           </View>
         </ThemedView>
@@ -535,9 +530,9 @@ export default function CourseMapScreen() {
         <ThemedView type="backgroundElement" style={styles.bottomPanel}>
           <View style={styles.bottomHeader}>
             <View style={styles.bottomTitle}>
-              <ThemedText type="smallBold">코스 주변 편의시설</ThemedText>
+              <ThemedText type="smallBold">Nearby spots</ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
-                {isLoadingSpots ? '서울 열린데이터를 불러오는 중...' : routeSpotSummary}
+                {isLoadingSpots ? 'Loading spot data...' : routeSpotSummary}
               </ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
                 {spotDataMessage}
@@ -552,7 +547,7 @@ export default function CourseMapScreen() {
                 isLocating && styles.disabled,
               ]}>
               <ThemedText type="smallBold" style={styles.locationButtonText}>
-                {isLocating ? '...' : isMapReady ? '현재 위치' : '지도 준비'}
+                {isLocating ? '...' : 'Locate'}
               </ThemedText>
             </Pressable>
           </View>
@@ -560,39 +555,80 @@ export default function CourseMapScreen() {
           <ThemedText type="small" themeColor="textSecondary">
             {message}
           </ThemedText>
-          {routePreview && routeSpots.length > 0 && (
-            <View style={styles.spotList}>
-              {routeSpots.slice(0, 3).map((spot) => (
-                <View key={spot.id} style={styles.spotRow}>
-                  <View style={[styles.spotDot, { backgroundColor: spotColors[spot.type] }]} />
-                  <ThemedText type="small" style={styles.spotName}>
-                    {spot.name}
-                  </ThemedText>
+
+          <View style={styles.spotList}>
+            {distanceSortedSpots.slice(0, 5).map((spot) => (
+              <Pressable
+                key={spot.id}
+                onPress={() => selectSpot(spot)}
+                style={({ pressed }) => [
+                  styles.spotRow,
+                  selectedSpot?.id === spot.id && styles.spotRowSelected,
+                  pressed && styles.pressed,
+                ]}>
+                <View style={[styles.spotDot, { backgroundColor: spotColors[spot.type] }]} />
+                <View style={styles.spotName}>
+                  <ThemedText type="smallBold">{spot.name}</ThemedText>
                   <ThemedText type="small" themeColor="textSecondary">
-                    {spot.detail
-                      ? `${spot.detail} / ${Math.round(spot.distanceFromRouteMeters)} m`
-                      : `${Math.round(spot.distanceFromRouteMeters)} m`}
+                    {spotLabels[spot.type]} / {formatDistance(spot.distanceFromFocusMeters)}
                   </ThemedText>
                 </View>
-              ))}
-            </View>
+              </Pressable>
+            ))}
+          </View>
+
+          {selectedSpot && (
+            <ThemedView type="backgroundSelected" style={styles.detailPanel}>
+              <View style={styles.detailHeader}>
+                <View style={[styles.spotDot, { backgroundColor: spotColors[selectedSpot.type] }]} />
+                <View style={styles.spotName}>
+                  <ThemedText type="smallBold">{selectedSpot.name}</ThemedText>
+                  <ThemedText type="small" themeColor="textSecondary">
+                    {spotLabels[selectedSpot.type]} / {formatDistance(selectedSpot.distanceFromFocusMeters)}
+                  </ThemedText>
+                </View>
+              </View>
+              <ThemedText type="small" themeColor="textSecondary">
+                {selectedSpot.address || selectedSpot.detail || 'No address available yet.'}
+              </ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">
+                Source: {selectedSpot.source}
+              </ThemedText>
+              <Pressable style={styles.favoritePlaceholder}>
+                <ThemedText type="smallBold">Favorite coming in step 5</ThemedText>
+              </Pressable>
+            </ThemedView>
           )}
-          {routePreview && routeSpots.length === 0 && (
-            <ThemedText type="small" themeColor="textSecondary">
-              이 코스 500m 안에는 표시할 샘플 편의시설이 없습니다.
-            </ThemedText>
+
+          {routePreview && startPoint && finishPoint && (
+            <View style={styles.returnRouteSection}>
+              <ThemedText type="smallBold">Return route</ThemedText>
+              <View style={styles.returnRouteRow}>
+                {returnRouteOptions.map((option) => (
+                  <Pressable
+                    key={option.id}
+                    onPress={() => openReturnRoute(option.id)}
+                    style={({ pressed }) => [
+                      styles.returnRouteButton,
+                      pressed && styles.pressed,
+                    ]}>
+                    <ThemedText type="smallBold">{option.label}</ThemedText>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
           )}
           <View style={styles.actionRow}>
             <Pressable
               onPress={resetRoute}
               style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}>
-              <ThemedText type="smallBold">코스 지우기</ThemedText>
+              <ThemedText type="smallBold">Clear route</ThemedText>
             </Pressable>
             <Pressable
               onPress={() => setSelectionMode(selectionMode === 'start' ? 'finish' : 'start')}
               style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}>
               <ThemedText type="smallBold">
-                다음: {selectionMode === 'start' ? '도착지' : '출발지'}
+                Next: {selectionMode === 'start' ? 'finish' : 'start'}
               </ThemedText>
             </Pressable>
           </View>
@@ -691,10 +727,6 @@ const styles = StyleSheet.create({
   locationButtonText: {
     color: '#FFFFFF',
   },
-  actionRow: {
-    flexDirection: 'row',
-    gap: Spacing.two,
-  },
   spotList: {
     gap: Spacing.one,
   },
@@ -702,6 +734,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.two,
+    minHeight: 48,
+    paddingVertical: Spacing.one,
+    paddingHorizontal: Spacing.two,
+    borderRadius: Spacing.two,
+  },
+  spotRowSelected: {
+    backgroundColor: '#DCE7DF',
   },
   spotDot: {
     width: 10,
@@ -710,6 +749,42 @@ const styles = StyleSheet.create({
   },
   spotName: {
     flex: 1,
+  },
+  detailPanel: {
+    gap: Spacing.two,
+    padding: Spacing.three,
+    borderRadius: Spacing.two,
+  },
+  detailHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  favoritePlaceholder: {
+    minHeight: 40,
+    borderRadius: Spacing.two,
+    backgroundColor: '#EEF4EF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionRow: {
+    flexDirection: 'row',
+    gap: Spacing.two,
+  },
+  returnRouteSection: {
+    gap: Spacing.two,
+  },
+  returnRouteRow: {
+    flexDirection: 'row',
+    gap: Spacing.two,
+  },
+  returnRouteButton: {
+    flex: 1,
+    minHeight: 40,
+    borderRadius: Spacing.two,
+    backgroundColor: '#EEF4EF',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   secondaryButton: {
     flex: 1,

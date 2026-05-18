@@ -10,7 +10,10 @@
     "ios": {
       "icon": "./assets/expo.icon",
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "RunSpot은 현재 위치를 사용해 러닝 출발지를 설정하고 주변 편의시설을 보여줍니다."
+        "NSLocationWhenInUseUsageDescription": "RunSpot은 현재 위치를 사용해 러닝 출발지를 설정하고 주변 편의시설을 보여줍니다.",
+        "LSApplicationQueriesSchemes": [
+          "kakaomap"
+        ]
       }
     },
     "android": {

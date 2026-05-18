@@ -1,0 +1,147 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return signedIn() && request.auth.token.role == 'admin';
+    }
+
+    function validUserProfile(userId) {
+      return request.resource.data.keys().hasOnly([
+        'uid',
+        'nickname',
+        'email',
+        'role',
+        'createdAt'
+      ])
+      && request.resource.data.uid == userId
+      && request.resource.data.role in ['user', 'admin'];
+    }
+
+    function validSpot() {
+      return request.resource.data.keys().hasOnly([
+        'id',
+        'type',
+        'name',
+        'address',
+        'latitude',
+        'longitude',
+        'openingHours',
+        'isPublic',
+        'source',
+        'verifiedStatus',
+        'updatedAt'
+      ])
+      && request.resource.data.type in ['water', 'restroom', 'shower', 'convenience']
+      && request.resource.data.source in ['publicData', 'userReport', 'admin']
+      && request.resource.data.verifiedStatus in ['pending', 'verified', 'rejected'];
+    }
+
+    function validReport() {
+      return request.resource.data.keys().hasOnly([
+        'id',
+        'userId',
+        'reportType',
+        'spotId',
+        'content',
+        'photoUrl',
+        'status',
+        'createdAt'
+      ])
+      && request.resource.data.status == 'pending';
+    }
+
+    function validFavorite(userId, spotId) {
+      return request.resource.data.keys().hasOnly([
+        'userId',
+        'spotId',
+        'label',
+        'createdAt'
+      ])
+      && request.resource.data.userId == userId
+      && request.resource.data.spotId == spotId
+      && request.resource.data.label in ['home', 'work', 'courseStart', 'custom'];
+    }
+
+    function validSavedPlace() {
+      return request.resource.data.keys().hasOnly([
+        'id',
+        'kind',
+        'label',
+        'privacyLevel',
+        'approximateLabel',
+        'encryptedCoordinates',
+        'nearbyRoutePoint',
+        'createdAt',
+        'updatedAt'
+      ]);
+    }
+
+    function validSavedCourse() {
+      return request.resource.data.keys().hasOnly([
+        'id',
+        'title',
+        'startPoint',
+        'finishPoint',
+        'distanceMeters',
+        'durationSeconds',
+        'createdAt',
+        'updatedAt'
+      ]);
+    }
+
+    match /users/{userId} {
+      allow create: if isOwner(userId)
+        && validUserProfile(userId);
+      allow read, delete: if isOwner(userId) || isAdmin();
+      allow update: if (isOwner(userId) || isAdmin())
+        && validUserProfile(userId);
+    }
+
+    match /spots/{spotId} {
+      allow read: if true;
+      allow create, update: if isAdmin()
+        && validSpot();
+      allow delete: if isAdmin();
+    }
+
+    match /reports/{reportId} {
+      allow create: if signedIn()
+        && request.resource.data.userId == request.auth.uid
+        && validReport();
+      allow read: if isAdmin()
+        || (signedIn() && resource.data.userId == request.auth.uid);
+      allow update, delete: if isAdmin();
+    }
+
+    match /favorites/{userId}/items/{spotId} {
+      allow read, delete: if isOwner(userId);
+      allow create, update: if isOwner(userId)
+        && validFavorite(userId, spotId);
+    }
+
+    match /savedPlaces/{userId}/items/{placeId} {
+      allow read, delete: if isOwner(userId);
+      allow create, update: if isOwner(userId)
+        && validSavedPlace();
+    }
+
+    match /savedCourses/{userId}/items/{courseId} {
+      allow read, delete: if isOwner(userId);
+      allow create, update: if isOwner(userId)
+        && validSavedCourse();
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
