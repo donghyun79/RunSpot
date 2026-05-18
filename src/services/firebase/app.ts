@@ -1,11 +1,13 @@
 import { getApp, getApps, initializeApp } from 'firebase/app';
-import { initializeAppCheck, ReCaptchaV3Provider } from 'firebase/app-check';
+import { AppCheck, initializeAppCheck, ReCaptchaV3Provider } from 'firebase/app-check';
 import { getAuth } from 'firebase/auth';
 import { getFunctions } from 'firebase/functions';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
 import { firebaseAppCheckSiteKey, firebaseConfig, hasFirebaseConfig } from './config';
+
+let runSpotAppCheck: AppCheck | null = null;
 
 export function getRunSpotFirebaseApp() {
   if (!hasFirebaseConfig()) {
@@ -22,10 +24,20 @@ export function initializeRunSpotAppCheck() {
     return null;
   }
 
-  return initializeAppCheck(app, {
-    provider: new ReCaptchaV3Provider(firebaseAppCheckSiteKey),
-    isTokenAutoRefreshEnabled: true,
-  });
+  if (runSpotAppCheck) {
+    return runSpotAppCheck;
+  }
+
+  try {
+    runSpotAppCheck = initializeAppCheck(app, {
+      provider: new ReCaptchaV3Provider(firebaseAppCheckSiteKey),
+      isTokenAutoRefreshEnabled: true,
+    });
+  } catch {
+    runSpotAppCheck = null;
+  }
+
+  return runSpotAppCheck;
 }
 
 export function getRunSpotFirebaseServices() {

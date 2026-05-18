@@ -1,12 +1,44 @@
+import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
-import { sampleRunnerSpots } from '@/data/runspot-plan';
+import { getPublicSpotsWithSource } from '@/services/spots/spot-repository';
+import { RunnerSpot } from '@/types/runspot';
 
 export default function CourseMapScreen() {
+  const [spots, setSpots] = useState<RunnerSpot[]>([]);
+  const [spotMessage, setSpotMessage] = useState('공개 편의시설 데이터를 불러오는 중입니다.');
+
+  useEffect(() => {
+    let isCurrent = true;
+
+    async function loadSpots() {
+      const result = await getPublicSpotsWithSource();
+
+      if (!isCurrent) {
+        return;
+      }
+
+      setSpots(result.spots);
+      setSpotMessage(
+        result.source === 'firestore'
+          ? `Firestore에서 검증된 편의시설 ${result.spots.length}개를 불러왔습니다.`
+          : result.source === 'cache'
+            ? `Firestore를 사용할 수 없어 캐시된 편의시설 ${result.spots.length}개를 보여줍니다.`
+            : 'Firestore 데이터가 아직 없어 샘플 편의시설을 보여줍니다.'
+      );
+    }
+
+    loadSpots();
+
+    return () => {
+      isCurrent = false;
+    };
+  }, []);
+
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
@@ -62,13 +94,12 @@ export default function CourseMapScreen() {
         </ThemedView>
 
         <ThemedView style={styles.spotSection}>
-          <ThemedText type="smallBold">샘플 러너 편의시설</ThemedText>
+          <ThemedText type="smallBold">공개 러너 편의시설</ThemedText>
           <ThemedText type="small" themeColor="textSecondary">
-            EXPO_PUBLIC_SEOUL_OPEN_DATA_KEY를 추가하면 모바일 앱에서 서울시 따릉이 대여소
-            데이터를 불러와 선택한 코스 주변만 보여줍니다.
+            {spotMessage}
           </ThemedText>
           <View style={styles.spotGrid}>
-            {sampleRunnerSpots.map((spot) => (
+            {spots.map((spot) => (
               <ThemedView key={spot.id} type="backgroundElement" style={styles.spotCard}>
                 <ThemedText type="code" style={styles.spotType}>
                   {spot.type}

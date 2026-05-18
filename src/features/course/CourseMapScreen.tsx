@@ -1,1 +1,1 @@
-export { default } from './CourseMapScreen.native';
+export { default } from './CourseMapScreen.web';

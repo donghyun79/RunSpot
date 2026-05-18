@@ -7,13 +7,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, Spacing } from '@/constants/theme';
-import { sampleRunnerSpots } from '@/data/runspot-plan';
 import { fetchSeoulRunnerSpots, hasSeoulOpenDataKey } from '@/features/spots/seoul-open-data';
+import { useFavorites } from '@/hooks/use-favorites';
+import { useRunSpotAuth } from '@/hooks/use-runspot-auth';
 import { openKakaoMapRoute } from '@/services/maps/kakao-map-links';
 import { fetchKakaoCategoryPlaces, hasKakaoLocalKey } from '@/services/maps/kakao-places';
 import { returnRouteOptions } from '@/services/maps/map-provider';
 import { ReturnRouteMode } from '@/services/maps/types';
-import { RoutePreview, RunnerSpot, SpotType } from '@/types/runspot';
+import { getPublicSpotsWithSource } from '@/services/spots/spot-repository';
+import { FavoriteLabel, RoutePreview, RunnerSpot, SpotType } from '@/types/runspot';
 
 import {
   calculateStraightDistanceMeters,
@@ -117,21 +119,19 @@ function toRegion(point: LatLng, delta = CURRENT_LOCATION_DELTA): Region {
 }
 
 export default function CourseMapScreen() {
+  const auth = useRunSpotAuth();
+  const favorites = useFavorites(auth.session?.profile.uid);
   const mapRef = useRef<MapView | null>(null);
   const [isLocating, setIsLocating] = useState(false);
   const [selectionMode, setSelectionMode] = useState<PointMode>('finish');
   const [startPoint, setStartPoint] = useState<LatLng | null>(null);
   const [finishPoint, setFinishPoint] = useState<LatLng | null>(null);
   const [routePreview, setRoutePreview] = useState<RoutePreview | null>(null);
-  const [runnerSpots, setRunnerSpots] = useState<RunnerSpot[]>(sampleRunnerSpots);
+  const [runnerSpots, setRunnerSpots] = useState<RunnerSpot[]>([]);
   const [selectedSpot, setSelectedSpot] = useState<DisplaySpot | null>(null);
   const [isLoadingSpots, setIsLoadingSpots] = useState(false);
   const [isRouting, setIsRouting] = useState(false);
-  const [spotDataMessage, setSpotDataMessage] = useState(
-    hasSeoulOpenDataKey()
-      ? 'Loading Seoul Open Data bike stations.'
-      : 'Showing mock runner-friendly spots. Add a Seoul Open Data key for live data.'
-  );
+  const [spotDataMessage, setSpotDataMessage] = useState('Loading public runner spots.');
   const [message, setMessage] = useState('Location permission helps set your start point.');
 
   const spotSummary = useMemo(
@@ -176,6 +176,7 @@ export default function CourseMapScreen() {
   const routeSpotSummary = routePreview
     ? `${routeSpots.length} spots within 500m of route`
     : `${spotSummary || 'spots'} visible`;
+  const selectedFavorite = selectedSpot ? favorites.favoriteBySpotId.get(selectedSpot.id) : null;
 
   const focusMap = useCallback((point: LatLng, delta = CURRENT_LOCATION_DELTA) => {
     mapRef.current?.animateToRegion(toRegion(point, delta), 450);
@@ -184,6 +185,22 @@ export default function CourseMapScreen() {
   function selectSpot(spot: DisplaySpot) {
     setSelectedSpot(spot);
     focusMap({ latitude: spot.latitude, longitude: spot.longitude }, 0.01);
+  }
+
+  async function saveSelectedSpot(label: FavoriteLabel) {
+    if (!selectedSpot) {
+      return;
+    }
+
+    await favorites.saveFavorite(selectedSpot.id, label);
+  }
+
+  async function removeSelectedSpotFavorite() {
+    if (!selectedSpot) {
+      return;
+    }
+
+    await favorites.removeFavorite(selectedSpot.id);
   }
 
   const locateRunner = useCallback(async () => {
@@ -250,30 +267,43 @@ export default function CourseMapScreen() {
     let isCurrent = true;
 
     async function loadRunnerSpots() {
-      if (!hasSeoulOpenDataKey()) {
-        setSpotDataMessage('Showing mock spots because Seoul Open Data key is not configured.');
-        return;
-      }
-
       setIsLoadingSpots(true);
-      setSpotDataMessage('Loading Seoul Open Data bike stations...');
+      setSpotDataMessage('Loading public runner spots...');
       try {
-        const seoulData = await fetchSeoulRunnerSpots();
+        const publicSpotResult = await getPublicSpotsWithSource();
 
         if (!isCurrent) {
           return;
         }
 
-        if (seoulData.spots.length > 0) {
-          setRunnerSpots([...sampleRunnerSpots, ...seoulData.spots]);
-          setSpotDataMessage(`Loaded ${seoulData.spots.length} Seoul bike stations.`);
-          return;
+        let nextSpots: RunnerSpot[] = publicSpotResult.spots;
+        let nextMessage =
+          publicSpotResult.source === 'firestore'
+            ? `Loaded ${publicSpotResult.spots.length} verified Firestore spots.`
+            : publicSpotResult.source === 'cache'
+              ? `Firestore unavailable. Showing ${publicSpotResult.spots.length} cached spots.`
+              : 'Showing bundled mock spots until Firestore has verified data.';
+
+        if (hasSeoulOpenDataKey()) {
+          const seoulData = await fetchSeoulRunnerSpots();
+
+          if (!isCurrent) {
+            return;
+          }
+
+          if (seoulData.spots.length > 0) {
+            nextSpots = [...nextSpots, ...seoulData.spots];
+            nextMessage = `${nextMessage} Added ${seoulData.spots.length} Seoul bike stations.`;
+          }
+        } else {
+          nextMessage = `${nextMessage} Add a Seoul Open Data key for live bike stations.`;
         }
 
-        setSpotDataMessage('Could not load Seoul data. Showing mock spots.');
+        setRunnerSpots(nextSpots);
+        setSpotDataMessage(nextMessage);
       } catch {
         if (isCurrent) {
-          setSpotDataMessage('Seoul data failed. Showing mock or cached spots.');
+          setSpotDataMessage('Spot data failed. Showing cached or bundled fallback spots.');
         }
       } finally {
         if (isCurrent) {
@@ -571,6 +601,7 @@ export default function CourseMapScreen() {
                   <ThemedText type="smallBold">{spot.name}</ThemedText>
                   <ThemedText type="small" themeColor="textSecondary">
                     {spotLabels[spot.type]} / {formatDistance(spot.distanceFromFocusMeters)}
+                    {favorites.favoriteBySpotId.has(spot.id) ? ' / saved' : ''}
                   </ThemedText>
                 </View>
               </Pressable>
@@ -594,9 +625,80 @@ export default function CourseMapScreen() {
               <ThemedText type="small" themeColor="textSecondary">
                 Source: {selectedSpot.source}
               </ThemedText>
-              <Pressable style={styles.favoritePlaceholder}>
-                <ThemedText type="smallBold">Favorite coming in step 5</ThemedText>
-              </Pressable>
+              <View style={styles.favoriteStatus}>
+                <ThemedText type="smallBold">
+                  {selectedFavorite ? `Saved as ${selectedFavorite.label}` : 'Not saved yet'}
+                </ThemedText>
+                <ThemedText type="small" themeColor="textSecondary">
+                  {auth.session
+                    ? 'Save this public spot as a favorite, course start, or privacy-safe home landmark.'
+                    : 'Sign in as a guest from the plan tab to save favorites.'}
+                </ThemedText>
+                {favorites.favoriteError ? (
+                  <ThemedText type="small" style={styles.favoriteError}>
+                    {favorites.favoriteError}
+                  </ThemedText>
+                ) : null}
+              </View>
+              <View style={styles.favoriteActionGrid}>
+                <Pressable
+                  disabled={!auth.session || favorites.isSavingFavorite}
+                  onPress={() => saveSelectedSpot('custom')}
+                  style={({ pressed }) => [
+                    styles.favoriteButton,
+                    selectedFavorite?.label === 'custom' && styles.favoriteButtonActive,
+                    pressed && styles.pressed,
+                    (!auth.session || favorites.isSavingFavorite) && styles.disabled,
+                  ]}>
+                  <ThemedText
+                    type="smallBold"
+                    style={selectedFavorite?.label === 'custom' && styles.favoriteButtonTextActive}>
+                    Favorite
+                  </ThemedText>
+                </Pressable>
+                <Pressable
+                  disabled={!auth.session || favorites.isSavingFavorite}
+                  onPress={() => saveSelectedSpot('courseStart')}
+                  style={({ pressed }) => [
+                    styles.favoriteButton,
+                    selectedFavorite?.label === 'courseStart' && styles.favoriteButtonActive,
+                    pressed && styles.pressed,
+                    (!auth.session || favorites.isSavingFavorite) && styles.disabled,
+                  ]}>
+                  <ThemedText
+                    type="smallBold"
+                    style={
+                      selectedFavorite?.label === 'courseStart' && styles.favoriteButtonTextActive
+                    }>
+                    Course start
+                  </ThemedText>
+                </Pressable>
+                <Pressable
+                  disabled={!auth.session || favorites.isSavingFavorite}
+                  onPress={() => saveSelectedSpot('home')}
+                  style={({ pressed }) => [
+                    styles.favoriteButton,
+                    selectedFavorite?.label === 'home' && styles.favoriteButtonActive,
+                    pressed && styles.pressed,
+                    (!auth.session || favorites.isSavingFavorite) && styles.disabled,
+                  ]}>
+                  <ThemedText
+                    type="smallBold"
+                    style={selectedFavorite?.label === 'home' && styles.favoriteButtonTextActive}>
+                    Home nearby
+                  </ThemedText>
+                </Pressable>
+                <Pressable
+                  disabled={!selectedFavorite || favorites.isSavingFavorite}
+                  onPress={removeSelectedSpotFavorite}
+                  style={({ pressed }) => [
+                    styles.favoriteButton,
+                    pressed && styles.pressed,
+                    (!selectedFavorite || favorites.isSavingFavorite) && styles.disabled,
+                  ]}>
+                  <ThemedText type="smallBold">Remove</ThemedText>
+                </Pressable>
+              </View>
             </ThemedView>
           )}
 
@@ -760,12 +862,31 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.two,
   },
-  favoritePlaceholder: {
+  favoriteStatus: {
+    gap: Spacing.one,
+  },
+  favoriteError: {
+    color: '#C43D2B',
+  },
+  favoriteActionGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.two,
+  },
+  favoriteButton: {
     minHeight: 40,
+    minWidth: 116,
     borderRadius: Spacing.two,
     backgroundColor: '#EEF4EF',
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: Spacing.two,
+  },
+  favoriteButtonActive: {
+    backgroundColor: '#17211B',
+  },
+  favoriteButtonTextActive: {
+    color: '#FFFFFF',
   },
   actionRow: {
     flexDirection: 'row',
