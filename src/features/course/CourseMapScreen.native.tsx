@@ -1,6 +1,6 @@
 import * as Location from 'expo-location';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import MapView, { Marker, Polyline, Region } from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -9,13 +9,17 @@ import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, Spacing } from '@/constants/theme';
 import { fetchSeoulRunnerSpots, hasSeoulOpenDataKey } from '@/features/spots/seoul-open-data';
 import { useFavorites } from '@/hooks/use-favorites';
+import { useReports } from '@/hooks/use-reports';
 import { useRunSpotAuth } from '@/hooks/use-runspot-auth';
 import { openKakaoMapRoute } from '@/services/maps/kakao-map-links';
 import { fetchKakaoCategoryPlaces, hasKakaoLocalKey } from '@/services/maps/kakao-places';
 import { returnRouteOptions } from '@/services/maps/map-provider';
 import { ReturnRouteMode } from '@/services/maps/types';
+import { getRunSpotCopy } from '@/services/i18n/runspot-copy';
 import { getPublicSpotsWithSource } from '@/services/spots/spot-repository';
-import { FavoriteLabel, RoutePreview, RunnerSpot, SpotType } from '@/types/runspot';
+import { trackRunSpotEvent } from '@/services/observability/analytics';
+import { recordNonFatalError } from '@/services/observability/crash-reporting';
+import { FavoriteLabel, RoutePreview, RunnerSpot, SpotType, UserReportType } from '@/types/runspot';
 
 import {
   calculateStraightDistanceMeters,
@@ -54,14 +58,8 @@ const SEOUL_BOUNDS = {
   maxLongitude: 127.2,
 };
 
-const spotLabels: Record<SpotType, string> = {
-  water: 'Water',
-  restroom: 'Restroom',
-  shower: 'Shower',
-  convenience: 'Convenience',
-  bike: 'Ddareungi',
-  transit: 'Transit',
-};
+const copy = getRunSpotCopy();
+const spotLabels: Record<SpotType, string> = copy.spots.typeLabels;
 
 const spotColors: Record<SpotType, string> = {
   water: '#208AEF',
@@ -74,7 +72,7 @@ const spotColors: Record<SpotType, string> = {
 
 function formatCoordinate(point: LatLng | null) {
   if (!point) {
-    return 'Tap the map to set';
+    return copy.course.tapMapToSet;
   }
 
   return `${point.latitude.toFixed(5)}, ${point.longitude.toFixed(5)}`;
@@ -92,13 +90,13 @@ function formatDuration(seconds: number) {
   const minutes = Math.max(1, Math.round(seconds / 60));
 
   if (minutes < 60) {
-    return `${minutes} min`;
+    return `${minutes}${copy.course.minute}`;
   }
 
   const hours = Math.floor(minutes / 60);
   const remainingMinutes = minutes % 60;
 
-  return `${hours} hr ${remainingMinutes} min`;
+  return `${hours}${copy.course.hour} ${remainingMinutes}${copy.course.minute}`;
 }
 
 function isPointInSeoul(point: LatLng) {
@@ -121,6 +119,7 @@ function toRegion(point: LatLng, delta = CURRENT_LOCATION_DELTA): Region {
 export default function CourseMapScreen() {
   const auth = useRunSpotAuth();
   const favorites = useFavorites(auth.session?.profile.uid);
+  const reports = useReports(auth.session?.profile.uid);
   const mapRef = useRef<MapView | null>(null);
   const [isLocating, setIsLocating] = useState(false);
   const [selectionMode, setSelectionMode] = useState<PointMode>('finish');
@@ -131,8 +130,11 @@ export default function CourseMapScreen() {
   const [selectedSpot, setSelectedSpot] = useState<DisplaySpot | null>(null);
   const [isLoadingSpots, setIsLoadingSpots] = useState(false);
   const [isRouting, setIsRouting] = useState(false);
-  const [spotDataMessage, setSpotDataMessage] = useState('Loading public runner spots.');
-  const [message, setMessage] = useState('Location permission helps set your start point.');
+  const [isMapReady, setIsMapReady] = useState(false);
+  const [reportType, setReportType] = useState<UserReportType>('spotWrongInfo');
+  const [reportContent, setReportContent] = useState('');
+  const [spotDataMessage, setSpotDataMessage] = useState<string>(copy.spots.loading);
+  const [message, setMessage] = useState<string>(copy.course.initialHelp);
 
   const spotSummary = useMemo(
     () => Array.from(new Set(runnerSpots.map((spot) => spotLabels[spot.type]))).join(' / '),
@@ -172,10 +174,11 @@ export default function CourseMapScreen() {
         .sort((a, b) => a.distanceFromFocusMeters - b.distanceFromFocusMeters),
     [focusPoint, visibleRunnerSpots]
   );
-  const routeSourceLabel = routePreview?.source === 'osrm' ? 'route estimate' : 'straight-line';
+  const routeSourceLabel =
+    routePreview?.source === 'osrm' ? copy.course.routeEstimate : copy.course.straightLine;
   const routeSpotSummary = routePreview
-    ? `${routeSpots.length} spots within 500m of route`
-    : `${spotSummary || 'spots'} visible`;
+    ? copy.spots.routeSummary(routeSpots.length)
+    : copy.spots.visibleSummary(spotSummary);
   const selectedFavorite = selectedSpot ? favorites.favoriteBySpotId.get(selectedSpot.id) : null;
 
   const focusMap = useCallback((point: LatLng, delta = CURRENT_LOCATION_DELTA) => {
@@ -184,6 +187,14 @@ export default function CourseMapScreen() {
 
   function selectSpot(spot: DisplaySpot) {
     setSelectedSpot(spot);
+    reports.clearReportStatus();
+    void trackRunSpotEvent({
+      name: 'spot_selected',
+      params: {
+        spot_type: spot.type,
+        source: spot.source,
+      },
+    });
     focusMap({ latitude: spot.latitude, longitude: spot.longitude }, 0.01);
   }
 
@@ -203,9 +214,18 @@ export default function CourseMapScreen() {
     await favorites.removeFavorite(selectedSpot.id);
   }
 
+  async function submitSelectedSpotReport() {
+    if (!selectedSpot) {
+      return;
+    }
+
+    await reports.submitReport(selectedSpot.id, reportType, reportContent);
+    setReportContent('');
+  }
+
   const locateRunner = useCallback(async () => {
     setIsLocating(true);
-    setMessage('Finding your current location...');
+    setMessage(copy.course.findingLocation);
 
     const currentPermission = await Location.getForegroundPermissionsAsync();
     const permission =
@@ -215,7 +235,13 @@ export default function CourseMapScreen() {
 
     if (permission.status !== Location.PermissionStatus.GRANTED) {
       setIsLocating(false);
-      setMessage('Location permission denied. Showing the default Seoul map and spot list.');
+      setMessage(copy.course.permissionDenied);
+      void trackRunSpotEvent({
+        name: 'location_permission_result',
+        params: {
+          result: 'denied',
+        },
+      });
       focusMap(SEOUL_REGION, 0.06);
       setSelectionMode('start');
       return;
@@ -240,20 +266,37 @@ export default function CourseMapScreen() {
         focusMap(SEOUL_REGION, 0.06);
         setStartPoint(null);
         setSelectionMode('start');
-        setMessage(
-          'Your location appears outside Seoul. Showing Seoul City Hall; tap the map to set a start point.'
-        );
+        setMessage(copy.course.outsideSeoul);
+        void trackRunSpotEvent({
+          name: 'location_permission_result',
+          params: {
+            result: 'outside_seoul',
+          },
+        });
         return;
       }
 
       focusMap(nextPoint);
       setStartPoint(nextPoint);
       setSelectionMode('finish');
-      setMessage('Current location set as start. Tap the map to set a finish point.');
-    } catch {
+      setMessage(copy.course.currentLocationSet);
+      void trackRunSpotEvent({
+        name: 'location_permission_result',
+        params: {
+          result: 'granted',
+        },
+      });
+    } catch (error) {
+      void recordNonFatalError(error, 'current_location_read');
+      void trackRunSpotEvent({
+        name: 'location_permission_result',
+        params: {
+          result: 'failed',
+        },
+      });
       focusMap(SEOUL_REGION, 0.06);
       setSelectionMode('start');
-      setMessage('Could not read current location. Showing the default Seoul map.');
+      setMessage(copy.course.locationReadFailed);
     } finally {
       setIsLocating(false);
     }
@@ -264,11 +307,20 @@ export default function CourseMapScreen() {
   }, [locateRunner]);
 
   useEffect(() => {
+    void trackRunSpotEvent({
+      name: 'screen_view',
+      params: {
+        screen_name: 'course_map',
+      },
+    });
+  }, []);
+
+  useEffect(() => {
     let isCurrent = true;
 
     async function loadRunnerSpots() {
       setIsLoadingSpots(true);
-      setSpotDataMessage('Loading public runner spots...');
+      setSpotDataMessage(copy.spots.loadingShort);
       try {
         const publicSpotResult = await getPublicSpotsWithSource();
 
@@ -279,10 +331,10 @@ export default function CourseMapScreen() {
         let nextSpots: RunnerSpot[] = publicSpotResult.spots;
         let nextMessage =
           publicSpotResult.source === 'firestore'
-            ? `Loaded ${publicSpotResult.spots.length} verified Firestore spots.`
+            ? copy.spots.firestoreLoaded(publicSpotResult.spots.length)
             : publicSpotResult.source === 'cache'
-              ? `Firestore unavailable. Showing ${publicSpotResult.spots.length} cached spots.`
-              : 'Showing bundled mock spots until Firestore has verified data.';
+              ? copy.spots.cacheLoaded(publicSpotResult.spots.length, publicSpotResult.updatedAt)
+              : copy.spots.mockLoaded;
 
         if (hasSeoulOpenDataKey()) {
           const seoulData = await fetchSeoulRunnerSpots();
@@ -293,17 +345,18 @@ export default function CourseMapScreen() {
 
           if (seoulData.spots.length > 0) {
             nextSpots = [...nextSpots, ...seoulData.spots];
-            nextMessage = `${nextMessage} Added ${seoulData.spots.length} Seoul bike stations.`;
+            nextMessage = `${nextMessage} ${copy.spots.seoulBikeAdded(seoulData.spots.length)}`;
           }
         } else {
-          nextMessage = `${nextMessage} Add a Seoul Open Data key for live bike stations.`;
+          nextMessage = `${nextMessage} ${copy.spots.seoulOpenDataKeyMissing}`;
         }
 
         setRunnerSpots(nextSpots);
         setSpotDataMessage(nextMessage);
-      } catch {
+      } catch (error) {
         if (isCurrent) {
-          setSpotDataMessage('Spot data failed. Showing cached or bundled fallback spots.');
+          void recordNonFatalError(error, 'runner_spots_load');
+          setSpotDataMessage(copy.spots.failed);
         }
       } finally {
         if (isCurrent) {
@@ -330,7 +383,7 @@ export default function CourseMapScreen() {
       }
 
       setIsRouting(true);
-      setMessage('Calculating route preview...');
+      setMessage(copy.course.calculating);
 
       const nextRoute = await fetchRoutePreview(startPoint, finishPoint);
 
@@ -340,10 +393,17 @@ export default function CourseMapScreen() {
 
       setRoutePreview(nextRoute);
       setIsRouting(false);
+      void trackRunSpotEvent({
+        name: 'route_preview_ready',
+        params: {
+          source: nextRoute.source,
+          distance_bucket_km: Math.round(nextRoute.distanceMeters / 1000),
+        },
+      });
       setMessage(
         nextRoute.source === 'osrm'
-          ? 'Route preview is ready. Check nearby spots below.'
-          : 'Route service unavailable. Showing nearby spots by straight-line fallback.'
+          ? copy.course.routeReady
+          : copy.course.routeFallback
       );
     }
 
@@ -399,11 +459,12 @@ export default function CourseMapScreen() {
         });
 
         if (kakaoSpots.length > 0) {
-          setSpotDataMessage(`Loaded ${kakaoSpots.length} Kakao places near the finish.`);
+          setSpotDataMessage(copy.course.kakaoPlacesLoaded(kakaoSpots.length));
         }
-      } catch {
+      } catch (error) {
         if (isCurrent) {
-          setSpotDataMessage('Kakao place search failed. Showing existing spots.');
+          void recordNonFatalError(error, 'kakao_places_load');
+          setSpotDataMessage(copy.course.kakaoPlacesFailed);
         }
       } finally {
         if (isCurrent) {
@@ -421,7 +482,7 @@ export default function CourseMapScreen() {
 
   function handleMapPress(coordinate: LatLng) {
     if (!isPointInSeoul(coordinate)) {
-      setMessage('RunSpot currently supports Seoul routes only. Select a point inside Seoul.');
+      setMessage(copy.course.seoulOnly);
       focusMap(SEOUL_REGION, 0.06);
       return;
     }
@@ -429,12 +490,12 @@ export default function CourseMapScreen() {
     if (selectionMode === 'start') {
       setStartPoint(coordinate);
       setSelectionMode('finish');
-      setMessage('Start point set. Tap the map to set a finish point.');
+      setMessage(copy.course.startSet);
       return;
     }
 
     setFinishPoint(coordinate);
-    setMessage('Finish point set. Distance and nearby spots are shown below.');
+    setMessage(copy.course.finishSet);
   }
 
   function resetRoute() {
@@ -444,12 +505,12 @@ export default function CourseMapScreen() {
     setSelectedSpot(null);
     setSelectionMode('start');
     focusMap(SEOUL_REGION, 0.06);
-    setMessage('Route cleared. Tap the map to set a new start point.');
+    setMessage(copy.course.routeCleared);
   }
 
   async function openReturnRoute(mode: ReturnRouteMode) {
     if (!startPoint || !finishPoint) {
-      setMessage('Return route is available after both start and finish are set.');
+      setMessage(copy.course.returnRouteUnavailable);
       return;
     }
 
@@ -459,8 +520,15 @@ export default function CourseMapScreen() {
         destination: startPoint,
         mode,
       });
-    } catch {
-      setMessage('Could not open Kakao Map route. Try again later.');
+      void trackRunSpotEvent({
+        name: 'return_route_opened',
+        params: {
+          mode,
+        },
+      });
+    } catch (error) {
+      void recordNonFatalError(error, 'kakao_return_route_open');
+      setMessage(copy.course.kakaoRouteFailed);
     }
   }
 
@@ -472,6 +540,7 @@ export default function CourseMapScreen() {
         initialRegion={SEOUL_REGION}
         showsUserLocation
         showsMyLocationButton={false}
+        onMapReady={() => setIsMapReady(true)}
         onPress={(event) => handleMapPress(event.nativeEvent.coordinate)}>
         {routePreview && routePreview.coordinates.length > 1 && (
           <Polyline coordinates={routePreview.coordinates} strokeColor="#17211B" strokeWidth={5} />
@@ -488,9 +557,21 @@ export default function CourseMapScreen() {
           />
         ))}
 
-        {startPoint && <Marker coordinate={startPoint} title="Start" pinColor="#2D7A46" />}
-        {finishPoint && <Marker coordinate={finishPoint} title="Finish" pinColor="#F36F45" />}
+        {startPoint && (
+          <Marker coordinate={startPoint} title={copy.course.start} pinColor="#2D7A46" />
+        )}
+        {finishPoint && (
+          <Marker coordinate={finishPoint} title={copy.course.finish} pinColor="#F36F45" />
+        )}
       </MapView>
+
+      {!isMapReady && (
+        <View pointerEvents="none" style={styles.mapStatus}>
+          <ThemedText type="smallBold" style={styles.mapStatusText}>
+            {copy.maps.loading}
+          </ThemedText>
+        </View>
+      )}
 
       <SafeAreaView pointerEvents="box-none" style={styles.overlay}>
         <ThemedView type="backgroundElement" style={styles.searchPanel}>
@@ -505,7 +586,7 @@ export default function CourseMapScreen() {
               <ThemedText
                 type="smallBold"
                 style={selectionMode === 'start' && styles.modeButtonTextActive}>
-                Set start
+                {copy.course.setStart}
               </ThemedText>
             </Pressable>
             <Pressable
@@ -518,7 +599,7 @@ export default function CourseMapScreen() {
               <ThemedText
                 type="smallBold"
                 style={selectionMode === 'finish' && styles.modeButtonTextActive}>
-                Set finish
+                {copy.course.setFinish}
               </ThemedText>
             </Pressable>
           </View>
@@ -526,7 +607,7 @@ export default function CourseMapScreen() {
           <View style={styles.routeRow}>
             <View style={styles.startDot} />
             <View style={styles.routeText}>
-              <ThemedText type="smallBold">Start</ThemedText>
+              <ThemedText type="smallBold">{copy.course.start}</ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
                 {formatCoordinate(startPoint)}
               </ThemedText>
@@ -535,22 +616,22 @@ export default function CourseMapScreen() {
           <View style={styles.routeRow}>
             <View style={styles.finishDot} />
             <View style={styles.routeText}>
-              <ThemedText type="smallBold">Finish</ThemedText>
+              <ThemedText type="smallBold">{copy.course.finish}</ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
                 {formatCoordinate(finishPoint)}
               </ThemedText>
             </View>
           </View>
           <View style={styles.metricRow}>
-            <ThemedText type="smallBold">Estimated route</ThemedText>
+            <ThemedText type="smallBold">{copy.course.estimatedRoute}</ThemedText>
             <ThemedText type="small" themeColor="textSecondary">
               {routePreview
                 ? `${formatDistance(routePreview.distanceMeters)} / ${formatDuration(
                     routePreview.durationSeconds
                   )} ${routeSourceLabel}`
                 : isRouting
-                  ? 'Calculating...'
-                  : 'Set start and finish to preview distance'}
+                  ? copy.course.calculating
+                  : copy.course.previewPrompt}
             </ThemedText>
           </View>
         </ThemedView>
@@ -560,9 +641,9 @@ export default function CourseMapScreen() {
         <ThemedView type="backgroundElement" style={styles.bottomPanel}>
           <View style={styles.bottomHeader}>
             <View style={styles.bottomTitle}>
-              <ThemedText type="smallBold">Nearby spots</ThemedText>
+              <ThemedText type="smallBold">{copy.spots.nearbyTitle}</ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
-                {isLoadingSpots ? 'Loading spot data...' : routeSpotSummary}
+                {isLoadingSpots ? copy.spots.loadingList : routeSpotSummary}
               </ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
                 {spotDataMessage}
@@ -577,7 +658,7 @@ export default function CourseMapScreen() {
                 isLocating && styles.disabled,
               ]}>
               <ThemedText type="smallBold" style={styles.locationButtonText}>
-                {isLocating ? '...' : 'Locate'}
+                {isLocating ? copy.course.locating : copy.course.locate}
               </ThemedText>
             </Pressable>
           </View>
@@ -601,7 +682,7 @@ export default function CourseMapScreen() {
                   <ThemedText type="smallBold">{spot.name}</ThemedText>
                   <ThemedText type="small" themeColor="textSecondary">
                     {spotLabels[spot.type]} / {formatDistance(spot.distanceFromFocusMeters)}
-                    {favorites.favoriteBySpotId.has(spot.id) ? ' / saved' : ''}
+                    {favorites.favoriteBySpotId.has(spot.id) ? ` / ${copy.spots.savedSuffix}` : ''}
                   </ThemedText>
                 </View>
               </Pressable>
@@ -620,19 +701,19 @@ export default function CourseMapScreen() {
                 </View>
               </View>
               <ThemedText type="small" themeColor="textSecondary">
-                {selectedSpot.address || selectedSpot.detail || 'No address available yet.'}
+                {selectedSpot.address || selectedSpot.detail || copy.spots.emptyAddress}
               </ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
-                Source: {selectedSpot.source}
+                {copy.spots.sourceLabel}: {selectedSpot.source}
               </ThemedText>
               <View style={styles.favoriteStatus}>
                 <ThemedText type="smallBold">
-                  {selectedFavorite ? `Saved as ${selectedFavorite.label}` : 'Not saved yet'}
+                  {selectedFavorite
+                    ? copy.favorites.savedAs(selectedFavorite.label)
+                    : copy.favorites.notSaved}
                 </ThemedText>
                 <ThemedText type="small" themeColor="textSecondary">
-                  {auth.session
-                    ? 'Save this public spot as a favorite, course start, or privacy-safe home landmark.'
-                    : 'Sign in as a guest from the plan tab to save favorites.'}
+                  {auth.session ? copy.favorites.signedInHelp : copy.favorites.signedOutHelp}
                 </ThemedText>
                 {favorites.favoriteError ? (
                   <ThemedText type="small" style={styles.favoriteError}>
@@ -653,7 +734,7 @@ export default function CourseMapScreen() {
                   <ThemedText
                     type="smallBold"
                     style={selectedFavorite?.label === 'custom' && styles.favoriteButtonTextActive}>
-                    Favorite
+                    {copy.favorites.saveFavorite}
                   </ThemedText>
                 </Pressable>
                 <Pressable
@@ -670,7 +751,7 @@ export default function CourseMapScreen() {
                     style={
                       selectedFavorite?.label === 'courseStart' && styles.favoriteButtonTextActive
                     }>
-                    Course start
+                    {copy.favorites.saveCourseStart}
                   </ThemedText>
                 </Pressable>
                 <Pressable
@@ -685,7 +766,7 @@ export default function CourseMapScreen() {
                   <ThemedText
                     type="smallBold"
                     style={selectedFavorite?.label === 'home' && styles.favoriteButtonTextActive}>
-                    Home nearby
+                    {copy.favorites.saveHome}
                   </ThemedText>
                 </Pressable>
                 <Pressable
@@ -696,7 +777,61 @@ export default function CourseMapScreen() {
                     pressed && styles.pressed,
                     (!selectedFavorite || favorites.isSavingFavorite) && styles.disabled,
                   ]}>
-                  <ThemedText type="smallBold">Remove</ThemedText>
+                  <ThemedText type="smallBold">{copy.favorites.remove}</ThemedText>
+                </Pressable>
+              </View>
+              <View style={styles.reportSection}>
+                <ThemedText type="smallBold">{copy.reports.title}</ThemedText>
+                <ThemedText type="small" themeColor="textSecondary">
+                  {copy.reports.help}
+                </ThemedText>
+                <View style={styles.reportTypeGrid}>
+                  {(Object.keys(copy.reports.types) as UserReportType[]).map((type) => (
+                    <Pressable
+                      key={type}
+                      onPress={() => setReportType(type)}
+                      style={({ pressed }) => [
+                        styles.reportTypeButton,
+                        reportType === type && styles.favoriteButtonActive,
+                        pressed && styles.pressed,
+                      ]}>
+                      <ThemedText
+                        type="smallBold"
+                        style={reportType === type && styles.favoriteButtonTextActive}>
+                        {copy.reports.types[type]}
+                      </ThemedText>
+                    </Pressable>
+                  ))}
+                </View>
+                <TextInput
+                  value={reportContent}
+                  onChangeText={setReportContent}
+                  placeholder={copy.reports.notePlaceholder}
+                  placeholderTextColor="#6C7C70"
+                  multiline
+                  style={styles.reportInput}
+                />
+                {reports.reportMessage ? (
+                  <ThemedText type="small" style={styles.reportSuccess}>
+                    {reports.reportMessage}
+                  </ThemedText>
+                ) : null}
+                {reports.reportError ? (
+                  <ThemedText type="small" style={styles.favoriteError}>
+                    {reports.reportError}
+                  </ThemedText>
+                ) : null}
+                <Pressable
+                  disabled={!auth.session || reports.isSubmittingReport}
+                  onPress={submitSelectedSpotReport}
+                  style={({ pressed }) => [
+                    styles.reportSubmitButton,
+                    pressed && styles.pressed,
+                    (!auth.session || reports.isSubmittingReport) && styles.disabled,
+                  ]}>
+                  <ThemedText type="smallBold" style={styles.locationButtonText}>
+                    {reports.isSubmittingReport ? copy.reports.submitting : copy.reports.submit}
+                  </ThemedText>
                 </Pressable>
               </View>
             </ThemedView>
@@ -704,7 +839,7 @@ export default function CourseMapScreen() {
 
           {routePreview && startPoint && finishPoint && (
             <View style={styles.returnRouteSection}>
-              <ThemedText type="smallBold">Return route</ThemedText>
+              <ThemedText type="smallBold">{copy.course.returnRoute}</ThemedText>
               <View style={styles.returnRouteRow}>
                 {returnRouteOptions.map((option) => (
                   <Pressable
@@ -724,13 +859,13 @@ export default function CourseMapScreen() {
             <Pressable
               onPress={resetRoute}
               style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}>
-              <ThemedText type="smallBold">Clear route</ThemedText>
+              <ThemedText type="smallBold">{copy.course.clearRoute}</ThemedText>
             </Pressable>
             <Pressable
               onPress={() => setSelectionMode(selectionMode === 'start' ? 'finish' : 'start')}
               style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}>
               <ThemedText type="smallBold">
-                Next: {selectionMode === 'start' ? 'finish' : 'start'}
+                {copy.course.nextMode(selectionMode)}
               </ThemedText>
             </Pressable>
           </View>
@@ -746,6 +881,20 @@ const styles = StyleSheet.create({
   },
   map: {
     ...StyleSheet.absoluteFillObject,
+  },
+  mapStatus: {
+    position: 'absolute',
+    top: Spacing.four,
+    alignSelf: 'center',
+    minHeight: 36,
+    borderRadius: Spacing.two,
+    backgroundColor: 'rgba(23, 33, 27, 0.88)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.three,
+  },
+  mapStatusText: {
+    color: '#FFFFFF',
   },
   overlay: {
     flex: 1,
@@ -887,6 +1036,44 @@ const styles = StyleSheet.create({
   },
   favoriteButtonTextActive: {
     color: '#FFFFFF',
+  },
+  reportSection: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: '#9EB8A7',
+    paddingTop: Spacing.two,
+    gap: Spacing.two,
+  },
+  reportTypeGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.two,
+  },
+  reportTypeButton: {
+    minHeight: 36,
+    paddingHorizontal: Spacing.two,
+    borderRadius: Spacing.two,
+    backgroundColor: '#DCE7DF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reportInput: {
+    minHeight: 72,
+    borderRadius: Spacing.two,
+    backgroundColor: '#F4FAF5',
+    color: '#17211B',
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
+    textAlignVertical: 'top',
+  },
+  reportSubmitButton: {
+    minHeight: 40,
+    borderRadius: Spacing.two,
+    backgroundColor: '#17211B',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reportSuccess: {
+    color: '#2D7A46',
   },
   actionRow: {
     flexDirection: 'row',

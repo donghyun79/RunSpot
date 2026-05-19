@@ -6,8 +6,12 @@ import {
   signInAsGuestRunner,
   signOutRunSpotUser,
 } from '@/services/auth/auth-service';
+import { getRunSpotCopy } from '@/services/i18n/runspot-copy';
+import { setRunSpotAnalyticsUser } from '@/services/observability/analytics';
+import { recordNonFatalError } from '@/services/observability/crash-reporting';
 
 export function useRunSpotAuth() {
+  const copy = getRunSpotCopy();
   const [authState, setAuthState] = useState<AuthState>({
     session: null,
     isConfigured: true,
@@ -20,6 +24,7 @@ export function useRunSpotAuth() {
     const unsubscribe = observeRunSpotAuth((nextState) => {
       setAuthState(nextState);
       setErrorMessage(nextState.errorMessage ?? null);
+      void setRunSpotAnalyticsUser(nextState.session?.profile.uid ?? null);
       setIsLoading(false);
     });
 
@@ -33,11 +38,15 @@ export function useRunSpotAuth() {
     try {
       await signInAsGuestRunner();
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : '로그인에 실패했습니다.');
+      void recordNonFatalError(error, 'guest_sign_in');
+      const message = error instanceof Error ? error.message : copy.auth.signInFailed;
+      setErrorMessage(
+        message.includes('auth/configuration-not-found') ? copy.auth.providerNotEnabled : message
+      );
     } finally {
       setIsWorking(false);
     }
-  }, []);
+  }, [copy.auth.providerNotEnabled, copy.auth.signInFailed]);
 
   const signOut = useCallback(async () => {
     setIsWorking(true);
@@ -46,11 +55,12 @@ export function useRunSpotAuth() {
     try {
       await signOutRunSpotUser();
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : '로그아웃에 실패했습니다.');
+      void recordNonFatalError(error, 'sign_out');
+      setErrorMessage(error instanceof Error ? error.message : copy.auth.signOutFailed);
     } finally {
       setIsWorking(false);
     }
-  }, []);
+  }, [copy.auth.signOutFailed]);
 
   return {
     ...authState,

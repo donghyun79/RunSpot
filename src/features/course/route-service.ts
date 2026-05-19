@@ -1,4 +1,5 @@
 import { NearbyRunnerSpot, RoutePoint, RoutePreview, RunnerSpot } from '@/types/runspot';
+import { recordNonFatalError } from '@/services/observability/crash-reporting';
 
 type OsrmRouteResponse = {
   code: string;
@@ -139,7 +140,8 @@ export async function fetchRoutePreview(
       durationSeconds: route.duration,
       source: 'osrm',
     };
-  } catch {
+  } catch (error) {
+    void recordNonFatalError(error, 'route_preview_fetch');
     return buildFallbackRoute(start, finish);
   }
 }

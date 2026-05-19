@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import { getApp, getApps, initializeApp } from 'firebase/app';
 import { AppCheck, initializeAppCheck, ReCaptchaV3Provider } from 'firebase/app-check';
 import { getAuth } from 'firebase/auth';
@@ -5,7 +6,16 @@ import { getFunctions } from 'firebase/functions';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
-import { firebaseAppCheckSiteKey, firebaseConfig, hasFirebaseConfig } from './config';
+import {
+  firebaseAppCheckDebugToken,
+  firebaseAppCheckSiteKey,
+  firebaseConfig,
+  hasFirebaseConfig,
+} from './config';
+
+declare global {
+  var FIREBASE_APPCHECK_DEBUG_TOKEN: string | boolean | undefined;
+}
 
 let runSpotAppCheck: AppCheck | null = null;
 
@@ -20,7 +30,7 @@ export function getRunSpotFirebaseApp() {
 export function initializeRunSpotAppCheck() {
   const app = getRunSpotFirebaseApp();
 
-  if (!app || !firebaseAppCheckSiteKey) {
+  if (!app || Platform.OS !== 'web' || !firebaseAppCheckSiteKey) {
     return null;
   }
 
@@ -29,6 +39,10 @@ export function initializeRunSpotAppCheck() {
   }
 
   try {
+    if (__DEV__ && firebaseAppCheckDebugToken) {
+      globalThis.FIREBASE_APPCHECK_DEBUG_TOKEN = firebaseAppCheckDebugToken;
+    }
+
     runSpotAppCheck = initializeAppCheck(app, {
       provider: new ReCaptchaV3Provider(firebaseAppCheckSiteKey),
       isTokenAutoRefreshEnabled: true,

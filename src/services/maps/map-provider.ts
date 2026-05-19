@@ -1,7 +1,23 @@
-import { PlaceCategory, ReturnRouteOption } from './types';
+import { MapProviderPlan, PlaceCategory, ReturnRouteOption } from './types';
 
 export const activeMapProvider = 'react-native-maps';
 export const targetMapProvider = 'kakao';
+
+export const mapProviderPlan: MapProviderPlan = {
+  renderer: {
+    current: activeMapProvider,
+    target: targetMapProvider,
+  },
+  placeData: {
+    primary: ['firestore', 'seoul-open-data', 'kakao-local'],
+  },
+  routePreview: {
+    current: ['osrm', 'straight-line'],
+  },
+  routeHandoff: {
+    primary: 'kakao-map',
+  },
+};
 
 export const returnRouteOptions: ReturnRouteOption[] = [
   {

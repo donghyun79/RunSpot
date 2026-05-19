@@ -5,9 +5,11 @@ import {
   removeUserFavorite,
   saveUserFavorite,
 } from '@/services/favorites/favorite-repository';
+import { getRunSpotCopy } from '@/services/i18n/runspot-copy';
 import { Favorite, FavoriteLabel } from '@/types/runspot';
 
 export function useFavorites(userId?: string) {
+  const copy = getRunSpotCopy();
   const [favorites, setFavorites] = useState<Favorite[]>([]);
   const [isLoadingFavorites, setIsLoadingFavorites] = useState(false);
   const [isSavingFavorite, setIsSavingFavorite] = useState(false);
@@ -34,7 +36,7 @@ export function useFavorites(userId?: string) {
         }
       } catch (error) {
         if (isCurrent) {
-          setFavoriteError(error instanceof Error ? error.message : 'Could not load favorites.');
+          setFavoriteError(error instanceof Error ? error.message : copy.favorites.loadFailed);
         }
       } finally {
         if (isCurrent) {
@@ -48,7 +50,7 @@ export function useFavorites(userId?: string) {
     return () => {
       isCurrent = false;
     };
-  }, [userId]);
+  }, [copy.favorites.loadFailed, userId]);
 
   const favoriteBySpotId = useMemo(
     () => new Map(favorites.map((favorite) => [favorite.spotId, favorite])),
@@ -58,7 +60,7 @@ export function useFavorites(userId?: string) {
   const saveFavorite = useCallback(
     async (spotId: string, label: FavoriteLabel) => {
       if (!userId) {
-        setFavoriteError('Sign in to save favorites.');
+        setFavoriteError(copy.favorites.signInToSave);
         return;
       }
 
@@ -73,18 +75,18 @@ export function useFavorites(userId?: string) {
           favorite,
         ]);
       } catch (error) {
-        setFavoriteError(error instanceof Error ? error.message : 'Could not save favorite.');
+        setFavoriteError(error instanceof Error ? error.message : copy.favorites.saveFailed);
       } finally {
         setIsSavingFavorite(false);
       }
     },
-    [userId]
+    [copy.favorites.saveFailed, copy.favorites.signInToSave, userId]
   );
 
   const removeFavorite = useCallback(
     async (spotId: string) => {
       if (!userId) {
-        setFavoriteError('Sign in to remove favorites.');
+        setFavoriteError(copy.favorites.signInToRemove);
         return;
       }
 
@@ -97,12 +99,12 @@ export function useFavorites(userId?: string) {
           currentFavorites.filter((favorite) => favorite.spotId !== spotId)
         );
       } catch (error) {
-        setFavoriteError(error instanceof Error ? error.message : 'Could not remove favorite.');
+        setFavoriteError(error instanceof Error ? error.message : copy.favorites.removeFailed);
       } finally {
         setIsSavingFavorite(false);
       }
     },
-    [userId]
+    [copy.favorites.removeFailed, copy.favorites.signInToRemove, userId]
   );
 
   return {

@@ -1,0 +1,26 @@
+# dependencies
+node_modules/
+
+# local Expo state
+.expo/
+dist/
+web-build/
+
+# local environment
+.env
+.env*.local
+
+# logs and debug output
+*.log
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+firebase-debug.log
+
+# generated native folders
+android/
+ios/
+
+# local editor and OS files
+.vscode/
+.DS_Store

@@ -8,12 +8,9 @@ import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 import { launchPlanSteps } from '@/data/runspot-plan';
 import { useRunSpotAuth } from '@/hooks/use-runspot-auth';
 import { useTheme } from '@/hooks/use-theme';
+import { getRunSpotCopy } from '@/services/i18n/runspot-copy';
 
-const statusLabels = {
-  ready: '준비됨',
-  next: '다음 작업',
-  later: '예정',
-};
+const copy = getRunSpotCopy();
 
 export default function PlanScreen() {
   const safeAreaInsets = useSafeAreaInsets();
@@ -50,31 +47,28 @@ export default function PlanScreen() {
       contentContainerStyle={[styles.contentContainer, contentPlatformStyle]}>
       <ThemedView style={styles.container}>
         <ThemedView style={styles.header}>
-          <ThemedText type="subtitle">개발 계획</ThemedText>
-          <ThemedText themeColor="textSecondary">
-            RunSpot은 서울 러너가 코스를 빠르게 정하고 주변 편의시설과 귀가 방법까지 확인할 수
-            있도록 단계별로 완성해 갑니다.
-          </ThemedText>
+          <ThemedText type="subtitle">{copy.plan.title}</ThemedText>
+          <ThemedText themeColor="textSecondary">{copy.plan.description}</ThemedText>
         </ThemedView>
 
         <ThemedView type="backgroundElement" style={styles.authCard}>
           <View style={styles.authTextGroup}>
-            <ThemedText type="smallBold">계정 상태</ThemedText>
+            <ThemedText type="smallBold">{copy.auth.statusTitle}</ThemedText>
             {auth.isLoading ? (
               <ThemedText type="small" themeColor="textSecondary">
-                로그인 상태를 확인하는 중입니다.
+                {copy.auth.checking}
               </ThemedText>
             ) : auth.session ? (
               <ThemedText type="small" themeColor="textSecondary">
-                {auth.session.profile.nickname}로 로그인됨
+                {copy.auth.signedIn(auth.session.profile.nickname)}
               </ThemedText>
             ) : auth.isConfigured ? (
               <ThemedText type="small" themeColor="textSecondary">
-                3단계 Firebase Authentication 준비가 완료되었습니다.
+                {copy.auth.configured}
               </ThemedText>
             ) : (
               <ThemedText type="small" themeColor="textSecondary">
-                Firebase 환경 변수를 설정하면 로그인 테스트를 시작할 수 있습니다.
+                {copy.auth.unconfigured}
               </ThemedText>
             )}
             {auth.errorMessage ? (
@@ -97,7 +91,7 @@ export default function PlanScreen() {
               <ActivityIndicator color={theme.background} />
             ) : (
               <ThemedText type="smallBold" style={[styles.authButtonText, { color: theme.background }]}>
-                {auth.session ? '로그아웃' : '게스트 로그인'}
+                {auth.session ? copy.auth.signOut : copy.auth.signIn}
               </ThemedText>
             )}
           </Pressable>
@@ -111,7 +105,7 @@ export default function PlanScreen() {
                   {String(index + 1).padStart(2, '0')}
                 </ThemedText>
                 <ThemedText type="code" style={styles.status}>
-                  {statusLabels[step.status]}
+                  {copy.plan.statusLabels[step.status]}
                 </ThemedText>
               </View>
               <ThemedText type="smallBold">{step.title}</ThemedText>

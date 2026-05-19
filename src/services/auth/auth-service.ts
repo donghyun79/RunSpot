@@ -2,6 +2,7 @@ import { User, onAuthStateChanged, signInAnonymously, signOut as firebaseSignOut
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 import { getRunSpotFirebaseServices } from '@/services/firebase/app';
+import { getRunSpotCopy } from '@/services/i18n/runspot-copy';
 import { RunSpotUserProfile } from '@/types/runspot';
 
 export type RunSpotAuthSession = {
@@ -16,9 +17,11 @@ export type AuthState = {
 };
 
 function createDefaultProfile(user: User): RunSpotUserProfile {
+  const copy = getRunSpotCopy();
+
   return {
     uid: user.uid,
-    nickname: user.isAnonymous ? '익명 러너' : user.displayName || '러너',
+    nickname: user.isAnonymous ? copy.auth.guestNickname : user.displayName || copy.auth.fallbackNickname,
     email: user.email ?? undefined,
     role: 'user',
     createdAt: new Date().toISOString(),
@@ -29,7 +32,7 @@ async function ensureUserProfile(user: User): Promise<RunSpotUserProfile> {
   const services = getRunSpotFirebaseServices();
 
   if (!services) {
-    throw new Error('Firebase 환경 변수가 설정되지 않았습니다.');
+    throw new Error(getRunSpotCopy().auth.firebaseMissing);
   }
 
   const profileRef = doc(services.firestore, 'users', user.uid);
@@ -45,6 +48,7 @@ async function ensureUserProfile(user: User): Promise<RunSpotUserProfile> {
 }
 
 export function observeRunSpotAuth(callback: (state: AuthState) => void) {
+  const copy = getRunSpotCopy();
   const services = getRunSpotFirebaseServices();
 
   if (!services) {
@@ -65,8 +69,7 @@ export function observeRunSpotAuth(callback: (state: AuthState) => void) {
       callback({
         session: null,
         isConfigured: true,
-        errorMessage:
-          error instanceof Error ? error.message : '사용자 프로필을 불러오지 못했습니다.',
+        errorMessage: error instanceof Error ? error.message : copy.auth.profileLoadFailed,
       });
     }
   });
@@ -76,7 +79,7 @@ export async function signInAsGuestRunner() {
   const services = getRunSpotFirebaseServices();
 
   if (!services) {
-    throw new Error('Firebase 환경 변수가 설정되지 않았습니다.');
+    throw new Error(getRunSpotCopy().auth.firebaseMissing);
   }
 
   const credential = await signInAnonymously(services.auth);

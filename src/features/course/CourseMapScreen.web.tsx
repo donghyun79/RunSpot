@@ -5,31 +5,50 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import { getRunSpotCopy } from '@/services/i18n/runspot-copy';
+import { trackRunSpotEvent } from '@/services/observability/analytics';
+import { recordNonFatalError } from '@/services/observability/crash-reporting';
 import { getPublicSpotsWithSource } from '@/services/spots/spot-repository';
 import { RunnerSpot } from '@/types/runspot';
 
+const copy = getRunSpotCopy();
+
 export default function CourseMapScreen() {
   const [spots, setSpots] = useState<RunnerSpot[]>([]);
-  const [spotMessage, setSpotMessage] = useState('공개 편의시설 데이터를 불러오는 중입니다.');
+  const [spotMessage, setSpotMessage] = useState<string>(copy.spots.loading);
 
   useEffect(() => {
     let isCurrent = true;
 
+    void trackRunSpotEvent({
+      name: 'screen_view',
+      params: {
+        screen_name: 'course_map',
+      },
+    });
+
     async function loadSpots() {
-      const result = await getPublicSpotsWithSource();
+      try {
+        const result = await getPublicSpotsWithSource();
 
-      if (!isCurrent) {
-        return;
+        if (!isCurrent) {
+          return;
+        }
+
+        setSpots(result.spots);
+        setSpotMessage(
+          result.source === 'firestore'
+            ? copy.spots.firestoreLoaded(result.spots.length)
+            : result.source === 'cache'
+              ? copy.spots.cacheLoaded(result.spots.length, result.updatedAt)
+              : copy.spots.mockLoaded
+        );
+      } catch (error) {
+        if (isCurrent) {
+          void recordNonFatalError(error, 'web_spots_load');
+          setSpotMessage(copy.spots.failed);
+        }
       }
-
-      setSpots(result.spots);
-      setSpotMessage(
-        result.source === 'firestore'
-          ? `Firestore에서 검증된 편의시설 ${result.spots.length}개를 불러왔습니다.`
-          : result.source === 'cache'
-            ? `Firestore를 사용할 수 없어 캐시된 편의시설 ${result.spots.length}개를 보여줍니다.`
-            : 'Firestore 데이터가 아직 없어 샘플 편의시설을 보여줍니다.'
-      );
     }
 
     loadSpots();
@@ -50,9 +69,9 @@ export default function CourseMapScreen() {
             RunSpot
           </ThemedText>
           <ThemedText themeColor="textSecondary" style={styles.description}>
-            실제 Android/iOS 앱에서는 현재 위치, 출발지와 목적지 선택, 코스 미리보기, 주변
-            러너 편의시설 필터링을 사용할 수 있습니다. 웹 화면은 개발 계획과 데이터 상태를
-            확인하는 보조 화면입니다.
+            실제 Android/iOS 앱에서는 현재 위치, 출발지와 목적지 선택, 코스 미리보기, 주변 러너
+            편의시설 필터링을 사용할 수 있습니다. 웹 화면은 개발 계획과 데이터 연결 상태를 확인하는
+            보조 화면입니다.
           </ThemedText>
         </ThemedView>
 
@@ -71,7 +90,7 @@ export default function CourseMapScreen() {
           <View style={styles.routeRow}>
             <View style={styles.startDot} />
             <ThemedText type="small" themeColor="textSecondary">
-              현재 위치나 지도에서 선택한 지점을 출발지로 사용합니다.
+              현재 위치 또는 지도에서 선택한 지점을 출발지로 사용합니다.
             </ThemedText>
           </View>
           <View style={styles.routeRow}>
@@ -94,7 +113,7 @@ export default function CourseMapScreen() {
         </ThemedView>
 
         <ThemedView style={styles.spotSection}>
-          <ThemedText type="smallBold">공개 러너 편의시설</ThemedText>
+          <ThemedText type="smallBold">{copy.spots.sectionTitle}</ThemedText>
           <ThemedText type="small" themeColor="textSecondary">
             {spotMessage}
           </ThemedText>
@@ -102,7 +121,7 @@ export default function CourseMapScreen() {
             {spots.map((spot) => (
               <ThemedView key={spot.id} type="backgroundElement" style={styles.spotCard}>
                 <ThemedText type="code" style={styles.spotType}>
-                  {spot.type}
+                  {copy.spots.typeLabels[spot.type]}
                 </ThemedText>
                 <ThemedText type="smallBold">{spot.name}</ThemedText>
                 <ThemedText type="small" themeColor="textSecondary">
