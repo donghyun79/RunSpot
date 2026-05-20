@@ -60,6 +60,22 @@ export const runSpotCopy = {
         next: '다음 작업',
         later: '예정',
       },
+      spotDataStatus: {
+        checkingLabel: '확인 중',
+        missingLabel: '데이터 부족',
+        checkingDescription: '공개 편의시설 데이터 공개 상태를 확인하고 있습니다.',
+        readyTitle: '기본 편의시설 공개 확인됨',
+        missingTitle: '기본 편의시설 공개 데이터가 부족합니다',
+        missingHelp:
+          '아리수, 공중화장실, 샤워장 3종이 Firestore 공개 데이터로 모두 확인되어야 1번 항목을 완료로 볼 수 있습니다.',
+        sourceLabels: {
+          firestore: 'Firestore',
+          cache: '캐시',
+          mock: '기본 샘플',
+        },
+        summary: (source: string, water: number, restroom: number, shower: number) =>
+          `${source} 기준: 아리수 ${water}개 / 공중화장실 ${restroom}개 / 샤워장 ${shower}개`,
+      },
     },
     favorites: {
       labels: favoriteLabelKo,
@@ -217,6 +233,22 @@ export const runSpotCopy = {
         ready: 'Ready',
         next: 'Next',
         later: 'Later',
+      },
+      spotDataStatus: {
+        checkingLabel: 'Checking',
+        missingLabel: 'Data gap',
+        checkingDescription: 'Checking published facility data status.',
+        readyTitle: 'Base facility data is published',
+        missingTitle: 'Base facility public data is incomplete',
+        missingHelp:
+          'Water, public restroom, and shower data must all be present in Firestore public data before step 1 is complete.',
+        sourceLabels: {
+          firestore: 'Firestore',
+          cache: 'Cache',
+          mock: 'Bundled sample',
+        },
+        summary: (source: string, water: number, restroom: number, shower: number) =>
+          `${source}: water ${water} / restroom ${restroom} / shower ${shower}`,
       },
     },
     favorites: {
