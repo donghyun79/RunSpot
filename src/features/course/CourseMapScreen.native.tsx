@@ -12,9 +12,13 @@ import { useFavorites } from '@/hooks/use-favorites';
 import { useReports } from '@/hooks/use-reports';
 import { useRunSpotAuth } from '@/hooks/use-runspot-auth';
 import { openKakaoMapRoute } from '@/services/maps/kakao-map-links';
-import { fetchKakaoCategoryPlaces, hasKakaoLocalKey } from '@/services/maps/kakao-places';
+import {
+  fetchKakaoCategoryPlaces,
+  fetchKakaoKeywordPlaces,
+  hasKakaoLocalKey,
+} from '@/services/maps/kakao-places';
 import { returnRouteOptions } from '@/services/maps/map-provider';
-import { ReturnRouteMode } from '@/services/maps/types';
+import { KeywordPlaceSearchResult, ReturnRouteMode } from '@/services/maps/types';
 import { getRunSpotCopy } from '@/services/i18n/runspot-copy';
 import { getPublicSpotsWithSource } from '@/services/spots/spot-repository';
 import { trackRunSpotEvent } from '@/services/observability/analytics';
@@ -328,6 +332,10 @@ export default function CourseMapScreen() {
   const [reportContent, setReportContent] = useState('');
   const [spotDataMessage, setSpotDataMessage] = useState<string>(copy.spots.loading);
   const [message, setMessage] = useState<string>(copy.course.initialHelp);
+  const [placeSearchQuery, setPlaceSearchQuery] = useState('');
+  const [placeSearchResults, setPlaceSearchResults] = useState<KeywordPlaceSearchResult[]>([]);
+  const [isSearchingPlaces, setIsSearchingPlaces] = useState(false);
+  const [placeSearchMessage, setPlaceSearchMessage] = useState<string | null>(null);
 
   const spotSummary = useMemo(
     () => Array.from(new Set(runnerSpots.map((spot) => spotLabels[spot.type]))).join(' / '),
@@ -716,6 +724,78 @@ export default function CourseMapScreen() {
     setMessage(copy.course.finishSet);
   }
 
+  function applyPlaceSearchResult(place: KeywordPlaceSearchResult) {
+    const coordinate = {
+      latitude: place.latitude,
+      longitude: place.longitude,
+    };
+
+    if (!isPointInSeoul(coordinate)) {
+      setMessage(copy.course.seoulOnly);
+      setPlaceSearchMessage(copy.course.placeSearchSeoulOnly);
+      focusMap(SEOUL_REGION, 0.06);
+      return;
+    }
+
+    setSelectedSpot(null);
+    setIsMapPickMode(false);
+    setPlaceSearchResults([]);
+    setPlaceSearchQuery('');
+    setPlaceSearchMessage(null);
+    focusMap(coordinate);
+
+    if (selectionMode === 'start') {
+      setStartPoint(coordinate);
+      setSelectionMode('finish');
+      setMessage(copy.course.placeSearchStartSet(place.name));
+      return;
+    }
+
+    setFinishPoint(coordinate);
+    setMessage(copy.course.placeSearchFinishSet(place.name));
+  }
+
+  async function searchRoutePlace() {
+    const query = placeSearchQuery.trim();
+
+    if (!query) {
+      setPlaceSearchResults([]);
+      setPlaceSearchMessage(copy.course.placeSearchEmpty);
+      return;
+    }
+
+    if (!hasKakaoLocalKey()) {
+      setPlaceSearchResults([]);
+      setPlaceSearchMessage(copy.course.placeSearchKeyMissing);
+      return;
+    }
+
+    setIsSearchingPlaces(true);
+    setPlaceSearchMessage(copy.course.searchingPlace);
+
+    try {
+      const results = await fetchKakaoKeywordPlaces({
+        query,
+        center: focusPoint,
+        radiusMeters: 20000,
+      });
+      const seoulResults = results.filter((result) =>
+        isPointInSeoul({ latitude: result.latitude, longitude: result.longitude })
+      );
+
+      setPlaceSearchResults(seoulResults.slice(0, 5));
+      setPlaceSearchMessage(
+        seoulResults.length > 0 ? null : copy.course.placeSearchNoResults
+      );
+    } catch (error) {
+      void recordNonFatalError(error, 'kakao_keyword_place_search');
+      setPlaceSearchResults([]);
+      setPlaceSearchMessage(copy.course.placeSearchFailed);
+    } finally {
+      setIsSearchingPlaces(false);
+    }
+  }
+
   function handleMapMessage(event: WebViewMessageEvent) {
     try {
       const data = JSON.parse(event.nativeEvent.data) as
@@ -821,6 +901,62 @@ export default function CourseMapScreen() {
     }
   }
 
+  function renderPlaceSearchControls() {
+    return (
+      <View style={styles.placeSearchSection}>
+        <View style={styles.placeSearchRow}>
+          <TextInput
+            value={placeSearchQuery}
+            onChangeText={setPlaceSearchQuery}
+            placeholder={copy.course.placeSearchPlaceholder(
+              selectionMode === 'start' ? copy.course.start : copy.course.finish
+            )}
+            placeholderTextColor="#6C7C70"
+            returnKeyType="search"
+            onSubmitEditing={() => void searchRoutePlace()}
+            style={styles.placeSearchInput}
+          />
+          <Pressable
+            disabled={isSearchingPlaces}
+            onPress={() => void searchRoutePlace()}
+            style={({ pressed }) => [
+              styles.placeSearchButton,
+              pressed && styles.pressed,
+              isSearchingPlaces && styles.disabled,
+            ]}>
+            <ThemedText type="smallBold" style={styles.locationButtonText}>
+              {isSearchingPlaces ? copy.course.searchingPlaceShort : copy.course.searchPlace}
+            </ThemedText>
+          </Pressable>
+        </View>
+        {placeSearchMessage ? (
+          <ThemedText type="small" themeColor="textSecondary">
+            {placeSearchMessage}
+          </ThemedText>
+        ) : null}
+        {placeSearchResults.length > 0 ? (
+          <View style={styles.placeResultList}>
+            {placeSearchResults.map((place) => (
+              <Pressable
+                key={place.id}
+                onPress={() => applyPlaceSearchResult(place)}
+                style={({ pressed }) => [styles.placeResultRow, pressed && styles.pressed]}>
+                <View style={styles.placeResultText}>
+                  <ThemedText type="smallBold" numberOfLines={1}>
+                    {place.name}
+                  </ThemedText>
+                  <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
+                    {place.address || place.detail || copy.spots.emptyAddress}
+                  </ThemedText>
+                </View>
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
+      </View>
+    );
+  }
+
   return (
     <View style={styles.screen}>
       {kakaoMapHtml ? (
@@ -881,6 +1017,7 @@ export default function CourseMapScreen() {
                 <ThemedText type="smallBold">{copy.course.showPanel}</ThemedText>
               </Pressable>
             </View>
+            {renderPlaceSearchControls()}
           </ThemedView>
         ) : (
         <ThemedView type="backgroundElement" style={styles.searchPanel}>
@@ -912,6 +1049,8 @@ export default function CourseMapScreen() {
               </ThemedText>
             </Pressable>
           </View>
+
+          {renderPlaceSearchControls()}
 
           <View style={styles.routeRow}>
             <View style={styles.startDot} />
@@ -1298,6 +1437,46 @@ const styles = StyleSheet.create({
   },
   modeButtonTextActive: {
     color: '#FFFFFF',
+  },
+  placeSearchSection: {
+    gap: Spacing.one,
+  },
+  placeSearchRow: {
+    flexDirection: 'row',
+    gap: Spacing.two,
+  },
+  placeSearchInput: {
+    flex: 1,
+    minHeight: 40,
+    borderRadius: Spacing.two,
+    backgroundColor: '#F4FAF5',
+    color: '#17211B',
+    paddingHorizontal: Spacing.three,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  placeSearchButton: {
+    minWidth: 64,
+    minHeight: 40,
+    borderRadius: Spacing.two,
+    backgroundColor: '#17211B',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.two,
+  },
+  placeResultList: {
+    gap: Spacing.one,
+  },
+  placeResultRow: {
+    minHeight: 46,
+    borderRadius: Spacing.two,
+    backgroundColor: '#EEF4EF',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.two,
+    paddingVertical: Spacing.one,
+  },
+  placeResultText: {
+    gap: 2,
   },
   routeRow: {
     flexDirection: 'row',

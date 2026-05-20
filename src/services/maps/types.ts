@@ -40,6 +40,21 @@ export type PlaceSearchRequest = {
   category: PlaceCategory;
 };
 
+export type KeywordPlaceSearchRequest = {
+  query: string;
+  center?: RoutePoint;
+  radiusMeters?: number;
+};
+
+export type KeywordPlaceSearchResult = {
+  id: string;
+  name: string;
+  address: string;
+  detail?: string;
+  latitude: number;
+  longitude: number;
+};
+
 export type ExternalRouteRequest = {
   origin: RoutePoint;
   destination: RoutePoint;

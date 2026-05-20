@@ -1,9 +1,14 @@
 import { RunnerSpot } from '@/types/runspot';
 
 import { kakaoCategoryCodes } from './map-provider';
-import { PlaceSearchRequest } from './types';
+import {
+  KeywordPlaceSearchRequest,
+  KeywordPlaceSearchResult,
+  PlaceSearchRequest,
+} from './types';
 
 const KAKAO_LOCAL_CATEGORY_SEARCH_URL = 'https://dapi.kakao.com/v2/local/search/category.json';
+const KAKAO_LOCAL_KEYWORD_SEARCH_URL = 'https://dapi.kakao.com/v2/local/search/keyword.json';
 const KAKAO_REST_API_KEY = process.env.EXPO_PUBLIC_KAKAO_REST_API_KEY;
 
 type KakaoPlaceDocument = {
@@ -21,6 +26,12 @@ type KakaoPlaceDocument = {
 type KakaoPlaceResponse = {
   documents?: KakaoPlaceDocument[];
 };
+
+function buildKakaoHeaders() {
+  return {
+    Authorization: `KakaoAK ${KAKAO_REST_API_KEY}`,
+  };
+}
 
 function toRunnerSpot(document: KakaoPlaceDocument, source: string): RunnerSpot | null {
   const latitude = Number(document.y);
@@ -65,9 +76,7 @@ export async function fetchKakaoCategoryPlaces({
     sort: 'distance',
   });
   const response = await fetch(`${KAKAO_LOCAL_CATEGORY_SEARCH_URL}?${params.toString()}`, {
-    headers: {
-      Authorization: `KakaoAK ${KAKAO_REST_API_KEY}`,
-    },
+    headers: buildKakaoHeaders(),
   });
 
   if (!response.ok) {
@@ -80,4 +89,58 @@ export async function fetchKakaoCategoryPlaces({
   return (data.documents ?? [])
     .map((document) => toRunnerSpot(document, source))
     .filter((spot): spot is RunnerSpot => spot !== null);
+}
+
+export async function fetchKakaoKeywordPlaces({
+  query,
+  center,
+  radiusMeters,
+}: KeywordPlaceSearchRequest): Promise<KeywordPlaceSearchResult[]> {
+  const normalizedQuery = query.trim();
+
+  if (!KAKAO_REST_API_KEY || normalizedQuery.length === 0) {
+    return [];
+  }
+
+  const params = new URLSearchParams({
+    query: normalizedQuery,
+    size: '10',
+    sort: center ? 'distance' : 'accuracy',
+  });
+
+  if (center) {
+    params.set('x', String(center.longitude));
+    params.set('y', String(center.latitude));
+    params.set('radius', String(Math.min(radiusMeters ?? 20000, 20000)));
+  }
+
+  const response = await fetch(`${KAKAO_LOCAL_KEYWORD_SEARCH_URL}?${params.toString()}`, {
+    headers: buildKakaoHeaders(),
+  });
+
+  if (!response.ok) {
+    return [];
+  }
+
+  const data = (await response.json()) as KakaoPlaceResponse;
+
+  return (data.documents ?? [])
+    .map((document): KeywordPlaceSearchResult | null => {
+      const latitude = Number(document.y);
+      const longitude = Number(document.x);
+
+      if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+        return null;
+      }
+
+      return {
+        id: `kakao-place-${document.id}`,
+        name: document.place_name,
+        address: document.road_address_name || document.address_name,
+        detail: document.category_group_name,
+        latitude,
+        longitude,
+      };
+    })
+    .filter((place): place is KeywordPlaceSearchResult => place !== null);
 }
