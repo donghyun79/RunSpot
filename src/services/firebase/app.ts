@@ -1,11 +1,11 @@
 import { Platform } from 'react-native';
 import { getApp, getApps, initializeApp } from 'firebase/app';
 import { AppCheck, initializeAppCheck, ReCaptchaV3Provider } from 'firebase/app-check';
-import { getAuth } from 'firebase/auth';
 import { getFunctions } from 'firebase/functions';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
+import { getRunSpotFirebaseAuth } from './auth-persistence';
 import {
   firebaseAppCheckDebugToken,
   firebaseAppCheckSiteKey,
@@ -65,7 +65,7 @@ export function getRunSpotFirebaseServices() {
 
   return {
     app,
-    auth: getAuth(app),
+    auth: getRunSpotFirebaseAuth(app),
     firestore: getFirestore(app),
     functions: getFunctions(app),
     storage: getStorage(app),
