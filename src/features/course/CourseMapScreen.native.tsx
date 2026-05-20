@@ -1,6 +1,6 @@
 import * as Location from 'expo-location';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Keyboard, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import WebView, { WebViewMessageEvent } from 'react-native-webview';
 
@@ -725,6 +725,8 @@ export default function CourseMapScreen() {
   }
 
   function applyPlaceSearchResult(place: KeywordPlaceSearchResult) {
+    Keyboard.dismiss();
+
     const coordinate = {
       latitude: place.latitude,
       longitude: place.longitude,
@@ -770,6 +772,7 @@ export default function CourseMapScreen() {
       return;
     }
 
+    Keyboard.dismiss();
     setIsSearchingPlaces(true);
     setPlaceSearchMessage(copy.course.searchingPlace);
 
@@ -913,6 +916,7 @@ export default function CourseMapScreen() {
             )}
             placeholderTextColor="#6C7C70"
             returnKeyType="search"
+            blurOnSubmit
             onSubmitEditing={() => void searchRoutePlace()}
             style={styles.placeSearchInput}
           />
@@ -947,6 +951,18 @@ export default function CourseMapScreen() {
                   </ThemedText>
                   <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
                     {place.address || place.detail || copy.spots.emptyAddress}
+                  </ThemedText>
+                  <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
+                    {place.source === 'address'
+                      ? copy.course.addressSearchResult
+                      : place.detail || copy.course.placeSearchResult}
+                    {' / '}
+                    {formatDistance(
+                      calculateStraightDistanceMeters(
+                        { latitude: place.latitude, longitude: place.longitude },
+                        focusPoint
+                      )
+                    )}
                   </ThemedText>
                 </View>
               </Pressable>

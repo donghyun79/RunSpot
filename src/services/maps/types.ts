@@ -51,6 +51,7 @@ export type KeywordPlaceSearchResult = {
   name: string;
   address: string;
   detail?: string;
+  source: 'address' | 'keyword';
   latitude: number;
   longitude: number;
 };
