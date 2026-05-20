@@ -636,7 +636,7 @@ export default function CourseMapScreen() {
           </View>
         </ThemedView>
 
-        <View style={styles.flexSpacer} />
+        <View pointerEvents="none" style={styles.flexSpacer} />
 
         <ThemedView type="backgroundElement" style={styles.bottomPanel}>
           <View style={styles.bottomHeader}>
