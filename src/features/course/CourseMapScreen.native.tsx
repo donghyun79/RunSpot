@@ -128,6 +128,7 @@ export default function CourseMapScreen() {
   const [routePreview, setRoutePreview] = useState<RoutePreview | null>(null);
   const [runnerSpots, setRunnerSpots] = useState<RunnerSpot[]>([]);
   const [selectedSpot, setSelectedSpot] = useState<DisplaySpot | null>(null);
+  const [isMapPickMode, setIsMapPickMode] = useState(false);
   const [isLoadingSpots, setIsLoadingSpots] = useState(false);
   const [isRouting, setIsRouting] = useState(false);
   const [isMapReady, setIsMapReady] = useState(false);
@@ -490,11 +491,13 @@ export default function CourseMapScreen() {
     if (selectionMode === 'start') {
       setStartPoint(coordinate);
       setSelectionMode('finish');
+      setIsMapPickMode(false);
       setMessage(copy.course.startSet);
       return;
     }
 
     setFinishPoint(coordinate);
+    setIsMapPickMode(false);
     setMessage(copy.course.finishSet);
   }
 
@@ -504,8 +507,18 @@ export default function CourseMapScreen() {
     setRoutePreview(null);
     setSelectedSpot(null);
     setSelectionMode('start');
+    setIsMapPickMode(false);
     focusMap(SEOUL_REGION, 0.06);
     setMessage(copy.course.routeCleared);
+  }
+
+  function beginMapPickMode(mode: PointMode) {
+    setSelectionMode(mode);
+    setSelectedSpot(null);
+    setIsMapPickMode(true);
+    setMessage(
+      `${copy.course.tapMapToSet}: ${mode === 'start' ? copy.course.start : copy.course.finish}`
+    );
   }
 
   async function openReturnRoute(mode: ReturnRouteMode) {
@@ -574,10 +587,29 @@ export default function CourseMapScreen() {
       )}
 
       <SafeAreaView pointerEvents="box-none" style={styles.overlay}>
+        {isMapPickMode ? (
+          <ThemedView type="backgroundElement" style={styles.pickPanel}>
+            <View style={styles.pickPanelHeader}>
+              <View style={styles.routeText}>
+                <ThemedText type="smallBold">
+                  {selectionMode === 'start' ? copy.course.setStart : copy.course.setFinish}
+                </ThemedText>
+                <ThemedText type="small" themeColor="textSecondary">
+                  {copy.course.tapMapToSet}
+                </ThemedText>
+              </View>
+              <Pressable
+                onPress={() => setIsMapPickMode(false)}
+                style={({ pressed }) => [styles.compactButton, pressed && styles.pressed]}>
+                <ThemedText type="smallBold">{copy.course.showPanel}</ThemedText>
+              </Pressable>
+            </View>
+          </ThemedView>
+        ) : (
         <ThemedView type="backgroundElement" style={styles.searchPanel}>
           <View style={styles.modeRow}>
             <Pressable
-              onPress={() => setSelectionMode('start')}
+              onPress={() => beginMapPickMode('start')}
               style={({ pressed }) => [
                 styles.modeButton,
                 selectionMode === 'start' && styles.modeButtonActive,
@@ -590,7 +622,7 @@ export default function CourseMapScreen() {
               </ThemedText>
             </Pressable>
             <Pressable
-              onPress={() => setSelectionMode('finish')}
+              onPress={() => beginMapPickMode('finish')}
               style={({ pressed }) => [
                 styles.modeButton,
                 selectionMode === 'finish' && styles.modeButtonActive,
@@ -635,9 +667,11 @@ export default function CourseMapScreen() {
             </ThemedText>
           </View>
         </ThemedView>
+        )}
 
         <View pointerEvents="none" style={styles.flexSpacer} />
 
+        {!isMapPickMode && (
         <ThemedView type="backgroundElement" style={styles.bottomPanel}>
           <View style={styles.bottomHeader}>
             <View style={styles.bottomTitle}>
@@ -870,6 +904,7 @@ export default function CourseMapScreen() {
             </Pressable>
           </View>
         </ThemedView>
+        )}
       </SafeAreaView>
     </View>
   );
@@ -905,6 +940,24 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
     padding: Spacing.three,
     borderRadius: Spacing.three,
+  },
+  pickPanel: {
+    gap: Spacing.two,
+    padding: Spacing.three,
+    borderRadius: Spacing.three,
+  },
+  pickPanelHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.three,
+  },
+  compactButton: {
+    minHeight: 40,
+    paddingHorizontal: Spacing.three,
+    borderRadius: Spacing.two,
+    backgroundColor: '#DCE7DF',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   modeRow: {
     flexDirection: 'row',

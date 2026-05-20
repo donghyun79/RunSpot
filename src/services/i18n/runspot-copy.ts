@@ -124,6 +124,7 @@ export const runSpotCopy = {
       kakaoPlacesFailed: '카카오 장소 검색에 실패했습니다. 기존 편의시설을 보여줍니다.',
       returnRoute: '귀가 경로',
       clearRoute: '초기화',
+      showPanel: '패널 보기',
       nextMode: (mode: 'start' | 'finish') => `다음: ${mode === 'start' ? '출발지' : '도착지'}`,
     },
     maps: {
@@ -251,6 +252,7 @@ export const runSpotCopy = {
       kakaoPlacesFailed: 'Kakao place search failed. Showing existing spots.',
       returnRoute: 'Return route',
       clearRoute: 'Clear route',
+      showPanel: 'Show panel',
       nextMode: (mode: 'start' | 'finish') => `Next: ${mode === 'start' ? 'finish' : 'start'}`,
     },
     maps: {
