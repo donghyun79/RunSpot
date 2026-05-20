@@ -255,6 +255,10 @@ function buildKakaoMapHtml({
             map.panTo(new kakao.maps.LatLng(latitude, longitude));
             if (level) map.setLevel(level);
           };
+          window.runspotRelayout = () => {
+            map.relayout();
+            map.setCenter(toLatLng(payload.center));
+          };
 
           kakao.maps.event.addListener(map, 'click', (mouseEvent) => {
             const latLng = mouseEvent.latLng;
@@ -279,7 +283,16 @@ function buildKakaoMapHtml({
           payload.spots.forEach((spot) => createDotOverlay(map, spot));
           createPointOverlay(map, payload.start, payload.labels.start, 'start');
           createPointOverlay(map, payload.finish, payload.labels.finish, 'finish');
-          post({ type: 'ready' });
+
+          setTimeout(() => {
+            map.relayout();
+            map.setCenter(toLatLng(payload.center));
+            post({ type: 'ready' });
+          }, 250);
+          setTimeout(() => {
+            map.relayout();
+            map.setCenter(toLatLng(payload.center));
+          }, 900);
         });
       }
 
@@ -786,8 +799,14 @@ export default function CourseMapScreen() {
           originWhitelist={['*']}
           javaScriptEnabled
           domStorageEnabled
+          mixedContentMode="always"
+          thirdPartyCookiesEnabled
+          setSupportMultipleWindows={false}
           onMessage={handleMapMessage}
           onLoadStart={() => setIsMapReady(false)}
+          onLayout={() => {
+            mapRef.current?.injectJavaScript('window.runspotRelayout?.(); true;');
+          }}
           onError={(event) => {
             setIsMapReady(true);
             setMessage(`${copy.maps.kakaoFailed}: ${event.nativeEvent.description}`);
