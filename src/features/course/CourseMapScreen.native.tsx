@@ -1,6 +1,6 @@
 import * as Location from 'expo-location';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Keyboard, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Keyboard, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import WebView, { WebViewMessageEvent } from 'react-native-webview';
 
@@ -1068,6 +1068,12 @@ export default function CourseMapScreen() {
             {renderPlaceSearchControls()}
           </ThemedView>
         ) : (
+        <View style={styles.sheetWrapper}>
+          <ScrollView
+            style={styles.sheetScroller}
+            contentContainerStyle={styles.sheetContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}>
         <ThemedView type="backgroundElement" style={styles.searchPanel}>
           <View style={styles.modeRow}>
             <Pressable
@@ -1165,11 +1171,7 @@ export default function CourseMapScreen() {
             ) : null}
           </View>
         </ThemedView>
-        )}
 
-        <View pointerEvents="none" style={styles.flexSpacer} />
-
-        {!isMapPickMode && (
         <ThemedView type="backgroundElement" style={styles.bottomPanel}>
           <View style={styles.bottomHeader}>
             <View style={styles.bottomTitle}>
@@ -1402,6 +1404,8 @@ export default function CourseMapScreen() {
             </Pressable>
           </View>
         </ThemedView>
+          </ScrollView>
+        </View>
         )}
       </SafeAreaView>
     </View>
@@ -1442,8 +1446,20 @@ const styles = StyleSheet.create({
   },
   overlay: {
     flex: 1,
+    justifyContent: 'flex-end',
     padding: Spacing.three,
     paddingBottom: BottomTabInset + Spacing.three,
+  },
+  sheetWrapper: {
+    width: '100%',
+    maxHeight: '68%',
+  },
+  sheetScroller: {
+    flexGrow: 0,
+  },
+  sheetContent: {
+    gap: Spacing.two,
+    paddingBottom: Spacing.two,
   },
   searchPanel: {
     gap: Spacing.two,
