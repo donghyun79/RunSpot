@@ -1,8 +1,8 @@
 import * as Location from 'expo-location';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
-import MapView, { Marker, Polyline, Region } from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import WebView, { WebViewMessageEvent } from 'react-native-webview';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -32,6 +32,11 @@ type LatLng = {
   longitude: number;
 };
 
+type Region = LatLng & {
+  latitudeDelta: number;
+  longitudeDelta: number;
+};
+
 type DisplaySpot = RunnerSpot & {
   distanceFromFocusMeters: number;
   distanceFromRouteMeters?: number;
@@ -59,6 +64,7 @@ const SEOUL_BOUNDS = {
 };
 
 const copy = getRunSpotCopy();
+const KAKAO_JAVASCRIPT_KEY = process.env.EXPO_PUBLIC_KAKAO_JAVASCRIPT_KEY;
 const spotLabels: Record<SpotType, string> = copy.spots.typeLabels;
 
 const spotColors: Record<SpotType, string> = {
@@ -108,19 +114,171 @@ function isPointInSeoul(point: LatLng) {
   );
 }
 
-function toRegion(point: LatLng, delta = CURRENT_LOCATION_DELTA): Region {
-  return {
-    ...point,
-    latitudeDelta: delta,
-    longitudeDelta: delta,
-  };
+function buildKakaoMapHtml({
+  appKey,
+  center,
+  spots,
+  route,
+  start,
+  finish,
+}: {
+  appKey: string;
+  center: LatLng;
+  spots: DisplaySpot[];
+  route: LatLng[];
+  start: LatLng | null;
+  finish: LatLng | null;
+}) {
+  const payload = JSON.stringify({
+    center,
+    spots: spots.map((spot) => ({
+      id: spot.id,
+      name: spot.name,
+      type: spot.type,
+      latitude: spot.latitude,
+      longitude: spot.longitude,
+    })),
+    route,
+    start,
+    finish,
+    colors: spotColors,
+    labels: {
+      start: copy.course.start,
+      finish: copy.course.finish,
+    },
+  }).replace(/</g, '\\u003c');
+
+  return `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="initial-scale=1, maximum-scale=1, user-scalable=no, width=device-width" />
+    <style>
+      html, body, #map { width: 100%; height: 100%; margin: 0; padding: 0; background: #EAF2E9; }
+      .marker {
+        width: 18px;
+        height: 18px;
+        border: 3px solid #ffffff;
+        border-radius: 999px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+        transform: translate(-50%, -50%);
+      }
+      .point {
+        min-width: 54px;
+        min-height: 28px;
+        padding: 5px 9px;
+        border-radius: 999px;
+        background: #17211B;
+        color: #ffffff;
+        font: 700 13px/1.2 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.24);
+        transform: translate(-50%, -100%);
+        text-align: center;
+      }
+      .finish { background: #F36F45; }
+      .empty {
+        display: grid;
+        place-items: center;
+        height: 100%;
+        padding: 24px;
+        box-sizing: border-box;
+        color: #17211B;
+        font: 700 15px/1.4 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        text-align: center;
+      }
+    </style>
+    <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(appKey)}&autoload=false"></script>
+  </head>
+  <body>
+    <div id="map"></div>
+    <script>
+      const payload = ${payload};
+      const post = (message) => window.ReactNativeWebView?.postMessage(JSON.stringify(message));
+      const toLatLng = (point) => new kakao.maps.LatLng(point.latitude, point.longitude);
+
+      function createDotOverlay(map, spot) {
+        const element = document.createElement('button');
+        element.className = 'marker';
+        element.title = spot.name;
+        element.style.background = payload.colors[spot.type] || '#208AEF';
+        element.style.border = '3px solid #ffffff';
+        element.style.padding = '0';
+        element.style.appearance = 'none';
+        element.addEventListener('click', (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          post({ type: 'spotPress', spotId: spot.id });
+        });
+
+        const overlay = new kakao.maps.CustomOverlay({
+          position: toLatLng(spot),
+          content: element,
+          yAnchor: 0.5,
+          zIndex: 4,
+        });
+        overlay.setMap(map);
+      }
+
+      function createPointOverlay(map, point, label, className) {
+        if (!point) return;
+        const element = document.createElement('div');
+        element.className = 'point ' + className;
+        element.textContent = label;
+        const overlay = new kakao.maps.CustomOverlay({
+          position: toLatLng(point),
+          content: element,
+          yAnchor: 1,
+          zIndex: 6,
+        });
+        overlay.setMap(map);
+      }
+
+      kakao.maps.load(() => {
+        const map = new kakao.maps.Map(document.getElementById('map'), {
+          center: toLatLng(payload.center),
+          level: 5,
+        });
+        window.runspotMap = map;
+        window.runspotFocus = (latitude, longitude, level) => {
+          map.panTo(new kakao.maps.LatLng(latitude, longitude));
+          if (level) map.setLevel(level);
+        };
+
+        kakao.maps.event.addListener(map, 'click', (mouseEvent) => {
+          const latLng = mouseEvent.latLng;
+          post({
+            type: 'mapPress',
+            latitude: latLng.getLat(),
+            longitude: latLng.getLng(),
+          });
+        });
+
+        if (payload.route.length > 1) {
+          new kakao.maps.Polyline({
+            map,
+            path: payload.route.map(toLatLng),
+            strokeWeight: 5,
+            strokeColor: '#17211B',
+            strokeOpacity: 0.88,
+            strokeStyle: 'solid',
+          });
+        }
+
+        payload.spots.forEach((spot) => createDotOverlay(map, spot));
+        createPointOverlay(map, payload.start, payload.labels.start, 'start');
+        createPointOverlay(map, payload.finish, payload.labels.finish, 'finish');
+        post({ type: 'ready' });
+      });
+    </script>
+  </body>
+</html>`;
 }
 
 export default function CourseMapScreen() {
   const auth = useRunSpotAuth();
   const favorites = useFavorites(auth.session?.profile.uid);
   const reports = useReports(auth.session?.profile.uid);
-  const mapRef = useRef<MapView | null>(null);
+  const mapRef = useRef<WebView | null>(null);
   const [isLocating, setIsLocating] = useState(false);
   const [selectionMode, setSelectionMode] = useState<PointMode>('finish');
   const [startPoint, setStartPoint] = useState<LatLng | null>(null);
@@ -182,8 +340,26 @@ export default function CourseMapScreen() {
     : copy.spots.visibleSummary(spotSummary);
   const selectedFavorite = selectedSpot ? favorites.favoriteBySpotId.get(selectedSpot.id) : null;
 
+  const kakaoMapHtml = useMemo(
+    () =>
+      KAKAO_JAVASCRIPT_KEY
+        ? buildKakaoMapHtml({
+            appKey: KAKAO_JAVASCRIPT_KEY,
+            center: focusPoint,
+            spots: distanceSortedSpots,
+            route: routePreview?.coordinates ?? [],
+            start: startPoint,
+            finish: finishPoint,
+          })
+        : null,
+    [distanceSortedSpots, finishPoint, focusPoint, routePreview?.coordinates, startPoint]
+  );
+
   const focusMap = useCallback((point: LatLng, delta = CURRENT_LOCATION_DELTA) => {
-    mapRef.current?.animateToRegion(toRegion(point, delta), 450);
+    const level = delta <= 0.01 ? 4 : delta <= CURRENT_LOCATION_DELTA ? 5 : 7;
+    mapRef.current?.injectJavaScript(
+      `window.runspotFocus?.(${point.latitude}, ${point.longitude}, ${level}); true;`
+    );
   }, []);
 
   function selectSpot(spot: DisplaySpot) {
@@ -501,6 +677,35 @@ export default function CourseMapScreen() {
     setMessage(copy.course.finishSet);
   }
 
+  function handleMapMessage(event: WebViewMessageEvent) {
+    try {
+      const data = JSON.parse(event.nativeEvent.data) as
+        | { type: 'ready' }
+        | { type: 'mapPress'; latitude: number; longitude: number }
+        | { type: 'spotPress'; spotId: string };
+
+      if (data.type === 'ready') {
+        setIsMapReady(true);
+        return;
+      }
+
+      if (data.type === 'mapPress') {
+        handleMapPress({ latitude: data.latitude, longitude: data.longitude });
+        return;
+      }
+
+      if (data.type === 'spotPress') {
+        const spot = distanceSortedSpots.find((item) => item.id === data.spotId);
+
+        if (spot) {
+          selectSpot(spot);
+        }
+      }
+    } catch (error) {
+      void recordNonFatalError(error, 'kakao_map_message_parse');
+    }
+  }
+
   function resetRoute() {
     setStartPoint(null);
     setFinishPoint(null);
@@ -547,36 +752,31 @@ export default function CourseMapScreen() {
 
   return (
     <View style={styles.screen}>
-      <MapView
-        ref={mapRef}
-        style={styles.map}
-        initialRegion={SEOUL_REGION}
-        showsUserLocation
-        showsMyLocationButton={false}
-        onMapReady={() => setIsMapReady(true)}
-        onPress={(event) => handleMapPress(event.nativeEvent.coordinate)}>
-        {routePreview && routePreview.coordinates.length > 1 && (
-          <Polyline coordinates={routePreview.coordinates} strokeColor="#17211B" strokeWidth={5} />
-        )}
-
-        {distanceSortedSpots.map((spot) => (
-          <Marker
-            key={spot.id}
-            coordinate={{ latitude: spot.latitude, longitude: spot.longitude }}
-            title={spot.name}
-            description={spot.detail || spot.address}
-            pinColor={spotColors[spot.type]}
-            onPress={() => selectSpot(spot)}
-          />
-        ))}
-
-        {startPoint && (
-          <Marker coordinate={startPoint} title={copy.course.start} pinColor="#2D7A46" />
-        )}
-        {finishPoint && (
-          <Marker coordinate={finishPoint} title={copy.course.finish} pinColor="#F36F45" />
-        )}
-      </MapView>
+      {kakaoMapHtml ? (
+        <WebView
+          ref={mapRef}
+          source={{ html: kakaoMapHtml, baseUrl: 'https://runspot.local' }}
+          style={styles.map}
+          originWhitelist={['*']}
+          javaScriptEnabled
+          domStorageEnabled
+          onMessage={handleMapMessage}
+          onLoadStart={() => setIsMapReady(false)}
+          onError={(event) => {
+            setIsMapReady(true);
+            setMessage(`${copy.maps.kakaoFailed}: ${event.nativeEvent.description}`);
+          }}
+        />
+      ) : (
+        <View style={[styles.map, styles.mapFallback]}>
+          <ThemedView type="backgroundElement" style={styles.mapFallbackPanel}>
+            <ThemedText type="smallBold">{copy.maps.kakaoKeyMissingTitle}</ThemedText>
+            <ThemedText type="small" themeColor="textSecondary">
+              {copy.maps.kakaoKeyMissingDescription}
+            </ThemedText>
+          </ThemedView>
+        </View>
+      )}
 
       {!isMapReady && (
         <View pointerEvents="none" style={styles.mapStatus}>
@@ -916,6 +1116,17 @@ const styles = StyleSheet.create({
   },
   map: {
     ...StyleSheet.absoluteFillObject,
+  },
+  mapFallback: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: Spacing.four,
+    backgroundColor: '#EAF2E9',
+  },
+  mapFallbackPanel: {
+    gap: Spacing.two,
+    padding: Spacing.three,
+    borderRadius: Spacing.three,
   },
   mapStatus: {
     position: 'absolute',

@@ -1,6 +1,6 @@
 import { MapProviderPlan, PlaceCategory, ReturnRouteOption } from './types';
 
-export const activeMapProvider = 'react-native-maps';
+export const activeMapProvider = 'kakao';
 export const targetMapProvider = 'kakao';
 
 export const mapProviderPlan: MapProviderPlan = {

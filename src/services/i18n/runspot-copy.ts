@@ -129,6 +129,10 @@ export const runSpotCopy = {
     },
     maps: {
       loading: '지도 불러오는 중',
+      kakaoFailed: '카카오 지도를 불러오지 못했습니다',
+      kakaoKeyMissingTitle: '카카오 지도 키가 필요합니다',
+      kakaoKeyMissingDescription:
+        'EXPO_PUBLIC_KAKAO_JAVASCRIPT_KEY를 설정하고 개발 서버를 다시 시작하면 카카오 지도를 사용할 수 있습니다.',
     },
     spots: {
       loading: '공개 러닝 편의시설을 불러오는 중입니다.',
@@ -257,6 +261,10 @@ export const runSpotCopy = {
     },
     maps: {
       loading: 'Loading map',
+      kakaoFailed: 'Could not load Kakao map',
+      kakaoKeyMissingTitle: 'Kakao map key required',
+      kakaoKeyMissingDescription:
+        'Set EXPO_PUBLIC_KAKAO_JAVASCRIPT_KEY and restart the development server to use Kakao Maps.',
     },
     spots: {
       loading: 'Loading public runner spots.',
