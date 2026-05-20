@@ -187,88 +187,107 @@ function buildKakaoMapHtml({
         text-align: center;
       }
     </style>
-    <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(appKey)}&autoload=false"></script>
   </head>
   <body>
     <div id="map"></div>
     <script>
       const payload = ${payload};
       const post = (message) => window.ReactNativeWebView?.postMessage(JSON.stringify(message));
-      const toLatLng = (point) => new kakao.maps.LatLng(point.latitude, point.longitude);
-
-      function createDotOverlay(map, spot) {
-        const element = document.createElement('button');
-        element.className = 'marker';
-        element.title = spot.name;
-        element.style.background = payload.colors[spot.type] || '#208AEF';
-        element.style.border = '3px solid #ffffff';
-        element.style.padding = '0';
-        element.style.appearance = 'none';
-        element.addEventListener('click', (event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          post({ type: 'spotPress', spotId: spot.id });
+      window.onerror = (message, source, lineno, colno, error) => {
+        post({
+          type: 'error',
+          message: String(error?.message || message || 'Kakao map script error'),
         });
+      };
 
-        const overlay = new kakao.maps.CustomOverlay({
-          position: toLatLng(spot),
-          content: element,
-          yAnchor: 0.5,
-          zIndex: 4,
-        });
-        overlay.setMap(map);
-      }
-
-      function createPointOverlay(map, point, label, className) {
-        if (!point) return;
-        const element = document.createElement('div');
-        element.className = 'point ' + className;
-        element.textContent = label;
-        const overlay = new kakao.maps.CustomOverlay({
-          position: toLatLng(point),
-          content: element,
-          yAnchor: 1,
-          zIndex: 6,
-        });
-        overlay.setMap(map);
-      }
-
-      kakao.maps.load(() => {
-        const map = new kakao.maps.Map(document.getElementById('map'), {
-          center: toLatLng(payload.center),
-          level: 5,
-        });
-        window.runspotMap = map;
-        window.runspotFocus = (latitude, longitude, level) => {
-          map.panTo(new kakao.maps.LatLng(latitude, longitude));
-          if (level) map.setLevel(level);
-        };
-
-        kakao.maps.event.addListener(map, 'click', (mouseEvent) => {
-          const latLng = mouseEvent.latLng;
-          post({
-            type: 'mapPress',
-            latitude: latLng.getLat(),
-            longitude: latLng.getLng(),
-          });
-        });
-
-        if (payload.route.length > 1) {
-          new kakao.maps.Polyline({
-            map,
-            path: payload.route.map(toLatLng),
-            strokeWeight: 5,
-            strokeColor: '#17211B',
-            strokeOpacity: 0.88,
-            strokeStyle: 'solid',
-          });
+      function startKakaoMap() {
+        if (!window.kakao?.maps) {
+          post({ type: 'error', message: 'Kakao Maps SDK was not available after load.' });
+          return;
         }
 
-        payload.spots.forEach((spot) => createDotOverlay(map, spot));
-        createPointOverlay(map, payload.start, payload.labels.start, 'start');
-        createPointOverlay(map, payload.finish, payload.labels.finish, 'finish');
-        post({ type: 'ready' });
-      });
+        kakao.maps.load(() => {
+          const toLatLng = (point) => new kakao.maps.LatLng(point.latitude, point.longitude);
+
+          function createDotOverlay(map, spot) {
+            const element = document.createElement('button');
+            element.className = 'marker';
+            element.title = spot.name;
+            element.style.background = payload.colors[spot.type] || '#208AEF';
+            element.style.border = '3px solid #ffffff';
+            element.style.padding = '0';
+            element.style.appearance = 'none';
+            element.addEventListener('click', (event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              post({ type: 'spotPress', spotId: spot.id });
+            });
+
+            const overlay = new kakao.maps.CustomOverlay({
+              position: toLatLng(spot),
+              content: element,
+              yAnchor: 0.5,
+              zIndex: 4,
+            });
+            overlay.setMap(map);
+          }
+
+          function createPointOverlay(map, point, label, className) {
+            if (!point) return;
+            const element = document.createElement('div');
+            element.className = 'point ' + className;
+            element.textContent = label;
+            const overlay = new kakao.maps.CustomOverlay({
+              position: toLatLng(point),
+              content: element,
+              yAnchor: 1,
+              zIndex: 6,
+            });
+            overlay.setMap(map);
+          }
+
+          const map = new kakao.maps.Map(document.getElementById('map'), {
+            center: toLatLng(payload.center),
+            level: 5,
+          });
+          window.runspotMap = map;
+          window.runspotFocus = (latitude, longitude, level) => {
+            map.panTo(new kakao.maps.LatLng(latitude, longitude));
+            if (level) map.setLevel(level);
+          };
+
+          kakao.maps.event.addListener(map, 'click', (mouseEvent) => {
+            const latLng = mouseEvent.latLng;
+            post({
+              type: 'mapPress',
+              latitude: latLng.getLat(),
+              longitude: latLng.getLng(),
+            });
+          });
+
+          if (payload.route.length > 1) {
+            new kakao.maps.Polyline({
+              map,
+              path: payload.route.map(toLatLng),
+              strokeWeight: 5,
+              strokeColor: '#17211B',
+              strokeOpacity: 0.88,
+              strokeStyle: 'solid',
+            });
+          }
+
+          payload.spots.forEach((spot) => createDotOverlay(map, spot));
+          createPointOverlay(map, payload.start, payload.labels.start, 'start');
+          createPointOverlay(map, payload.finish, payload.labels.finish, 'finish');
+          post({ type: 'ready' });
+        });
+      }
+
+      const script = document.createElement('script');
+      script.src = 'https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(appKey)}&autoload=false';
+      script.onload = startKakaoMap;
+      script.onerror = () => post({ type: 'error', message: 'Failed to load Kakao Maps SDK script.' });
+      document.head.appendChild(script);
     </script>
   </body>
 </html>`;
@@ -681,11 +700,18 @@ export default function CourseMapScreen() {
     try {
       const data = JSON.parse(event.nativeEvent.data) as
         | { type: 'ready' }
+        | { type: 'error'; message: string }
         | { type: 'mapPress'; latitude: number; longitude: number }
         | { type: 'spotPress'; spotId: string };
 
       if (data.type === 'ready') {
         setIsMapReady(true);
+        return;
+      }
+
+      if (data.type === 'error') {
+        setIsMapReady(true);
+        setMessage(`${copy.maps.kakaoFailed}: ${data.message}`);
         return;
       }
 
@@ -755,7 +781,7 @@ export default function CourseMapScreen() {
       {kakaoMapHtml ? (
         <WebView
           ref={mapRef}
-          source={{ html: kakaoMapHtml, baseUrl: 'https://runspot.local' }}
+          source={{ html: kakaoMapHtml, baseUrl: 'https://runspot.local/' }}
           style={styles.map}
           originWhitelist={['*']}
           javaScriptEnabled
