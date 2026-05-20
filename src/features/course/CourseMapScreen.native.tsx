@@ -43,6 +43,7 @@ type DisplaySpot = RunnerSpot & {
 };
 
 type PointMode = 'start' | 'finish';
+type RoutePreference = 'bikeRoad' | 'shortest';
 
 const SEOUL_REGION: Region = {
   latitude: 37.5665,
@@ -313,6 +314,7 @@ export default function CourseMapScreen() {
   const mapRef = useRef<WebView | null>(null);
   const [isLocating, setIsLocating] = useState(false);
   const [selectionMode, setSelectionMode] = useState<PointMode>('finish');
+  const [routePreference, setRoutePreference] = useState<RoutePreference>('bikeRoad');
   const [startPoint, setStartPoint] = useState<LatLng | null>(null);
   const [finishPoint, setFinishPoint] = useState<LatLng | null>(null);
   const [routePreview, setRoutePreview] = useState<RoutePreview | null>(null);
@@ -367,6 +369,10 @@ export default function CourseMapScreen() {
   );
   const routeSourceLabel =
     routePreview?.source === 'osrm' ? copy.course.routeEstimate : copy.course.straightLine;
+  const routePreferenceMode: Extract<ReturnRouteMode, 'bicycle' | 'foot'> =
+    routePreference === 'bikeRoad' ? 'bicycle' : 'foot';
+  const routePreferenceLabel = copy.course.routePreferences[routePreference].label;
+  const routePreferenceDescription = copy.course.routePreferences[routePreference].description;
   const routeSpotSummary = routePreview
     ? copy.spots.routeSummary(routeSpots.length)
     : copy.spots.visibleSummary(spotSummary);
@@ -606,6 +612,7 @@ export default function CourseMapScreen() {
         name: 'route_preview_ready',
         params: {
           source: nextRoute.source,
+          route_preference: routePreference,
           distance_bucket_km: Math.round(nextRoute.distanceMeters / 1000),
         },
       });
@@ -621,7 +628,7 @@ export default function CourseMapScreen() {
     return () => {
       isCurrent = false;
     };
-  }, [finishPoint, startPoint]);
+  }, [finishPoint, routePreference, startPoint]);
 
   useEffect(() => {
     let isCurrent = true;
@@ -789,6 +796,31 @@ export default function CourseMapScreen() {
     }
   }
 
+  async function openSelectedRoute() {
+    if (!startPoint || !finishPoint) {
+      setMessage(copy.course.returnRouteUnavailable);
+      return;
+    }
+
+    try {
+      await openKakaoMapRoute({
+        origin: startPoint,
+        destination: finishPoint,
+        mode: routePreferenceMode,
+      });
+      void trackRunSpotEvent({
+        name: 'route_handoff_opened',
+        params: {
+          mode: routePreferenceMode,
+          route_preference: routePreference,
+        },
+      });
+    } catch (error) {
+      void recordNonFatalError(error, 'kakao_route_handoff_open');
+      setMessage(copy.course.kakaoRouteFailed);
+    }
+  }
+
   return (
     <View style={styles.screen}>
       {kakaoMapHtml ? (
@@ -901,15 +933,49 @@ export default function CourseMapScreen() {
           </View>
           <View style={styles.metricRow}>
             <ThemedText type="smallBold">{copy.course.estimatedRoute}</ThemedText>
+            <View style={styles.routePreferenceRow}>
+              {(Object.keys(copy.course.routePreferences) as RoutePreference[]).map(
+                (preference) => (
+                  <Pressable
+                    key={preference}
+                    onPress={() => setRoutePreference(preference)}
+                    style={({ pressed }) => [
+                      styles.preferenceButton,
+                      routePreference === preference && styles.preferenceButtonActive,
+                      pressed && styles.pressed,
+                    ]}>
+                    <ThemedText
+                      type="smallBold"
+                      style={
+                        routePreference === preference && styles.preferenceButtonTextActive
+                      }>
+                      {copy.course.routePreferences[preference].label}
+                    </ThemedText>
+                  </Pressable>
+                )
+              )}
+            </View>
+            <ThemedText type="small" themeColor="textSecondary">
+              {routePreferenceDescription}
+            </ThemedText>
             <ThemedText type="small" themeColor="textSecondary">
               {routePreview
                 ? `${formatDistance(routePreview.distanceMeters)} / ${formatDuration(
                     routePreview.durationSeconds
-                  )} ${routeSourceLabel}`
+                  )} ${routeSourceLabel} / ${routePreferenceLabel}`
                 : isRouting
                   ? copy.course.calculating
                   : copy.course.previewPrompt}
             </ThemedText>
+            {startPoint && finishPoint ? (
+              <Pressable
+                onPress={openSelectedRoute}
+                style={({ pressed }) => [styles.primaryRouteButton, pressed && styles.pressed]}>
+                <ThemedText type="smallBold" style={styles.locationButtonText}>
+                  {copy.course.openRouteInKakao(routePreferenceLabel)}
+                </ThemedText>
+              </Pressable>
+            ) : null}
           </View>
         </ThemedView>
         )}
@@ -1258,6 +1324,33 @@ const styles = StyleSheet.create({
     borderTopColor: '#9EB8A7',
     paddingTop: Spacing.two,
     gap: Spacing.one,
+  },
+  routePreferenceRow: {
+    flexDirection: 'row',
+    gap: Spacing.two,
+  },
+  preferenceButton: {
+    flex: 1,
+    minHeight: 36,
+    borderRadius: Spacing.two,
+    backgroundColor: '#DCE7DF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.two,
+  },
+  preferenceButtonActive: {
+    backgroundColor: '#17211B',
+  },
+  preferenceButtonTextActive: {
+    color: '#FFFFFF',
+  },
+  primaryRouteButton: {
+    minHeight: 42,
+    borderRadius: Spacing.two,
+    backgroundColor: '#17211B',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.three,
   },
   flexSpacer: {
     flex: 1,

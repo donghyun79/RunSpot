@@ -27,6 +27,7 @@ export type RunSpotAnalyticsEvent =
       name: 'route_preview_ready';
       params: {
         source: 'osrm' | 'fallback';
+        route_preference?: 'bikeRoad' | 'shortest';
         distance_bucket_km: number;
       };
     }
@@ -58,6 +59,13 @@ export type RunSpotAnalyticsEvent =
       name: 'return_route_opened';
       params: {
         mode: 'publictransit' | 'bicycle' | 'foot';
+      };
+    }
+  | {
+      name: 'route_handoff_opened';
+      params: {
+        mode: 'bicycle' | 'foot';
+        route_preference: 'bikeRoad' | 'shortest';
       };
     }
   | {

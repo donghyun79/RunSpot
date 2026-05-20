@@ -125,6 +125,17 @@ export const runSpotCopy = {
       returnRoute: '귀가 경로',
       clearRoute: '초기화',
       showPanel: '패널 보기',
+      routePreferences: {
+        bikeRoad: {
+          label: '자전거 도로 우선',
+          description: '러닝 기본 추천입니다. 카카오맵에서는 자전거 경로로 열어 자전거도로와 천변길을 우선 확인합니다.',
+        },
+        shortest: {
+          label: '최단거리',
+          description: '짧은 이동 거리 확인용입니다. 카카오맵에서는 도보 경로로 열어 가장 짧은 길을 확인합니다.',
+        },
+      },
+      openRouteInKakao: (mode: string) => `카카오맵에서 ${mode} 보기`,
       nextMode: (mode: 'start' | 'finish') => `다음: ${mode === 'start' ? '출발지' : '도착지'}`,
     },
     maps: {
@@ -257,6 +268,18 @@ export const runSpotCopy = {
       returnRoute: 'Return route',
       clearRoute: 'Clear route',
       showPanel: 'Show panel',
+      routePreferences: {
+        bikeRoad: {
+          label: 'Bike-road first',
+          description:
+            'Default for running. Opens Kakao Map bicycle routing to favor bike roads and riverside paths.',
+        },
+        shortest: {
+          label: 'Shortest',
+          description: 'Use for quick distance checks. Opens Kakao Map walking routing.',
+        },
+      },
+      openRouteInKakao: (mode: string) => `Open ${mode} in Kakao Map`,
       nextMode: (mode: 'start' | 'finish') => `Next: ${mode === 'start' ? 'finish' : 'start'}`,
     },
     maps: {
