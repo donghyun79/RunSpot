@@ -2,6 +2,8 @@ import { RunnerSpot } from '@/types/runspot';
 
 import { kakaoCategoryCodes } from './map-provider';
 import {
+  CoordinateAddressSearchRequest,
+  CoordinateAddressSearchResult,
   KeywordPlaceSearchRequest,
   KeywordPlaceSearchResult,
   PlaceSearchRequest,
@@ -10,6 +12,7 @@ import {
 const KAKAO_LOCAL_CATEGORY_SEARCH_URL = 'https://dapi.kakao.com/v2/local/search/category.json';
 const KAKAO_LOCAL_KEYWORD_SEARCH_URL = 'https://dapi.kakao.com/v2/local/search/keyword.json';
 const KAKAO_LOCAL_ADDRESS_SEARCH_URL = 'https://dapi.kakao.com/v2/local/search/address.json';
+const KAKAO_LOCAL_COORDINATE_ADDRESS_URL = 'https://dapi.kakao.com/v2/local/geo/coord2address.json';
 const KAKAO_REST_API_KEY = process.env.EXPO_PUBLIC_KAKAO_REST_API_KEY;
 
 type KakaoPlaceDocument = {
@@ -44,6 +47,20 @@ type KakaoAddressDocument = {
 
 type KakaoAddressResponse = {
   documents?: KakaoAddressDocument[];
+};
+
+type KakaoCoordinateAddressDocument = {
+  address?: {
+    address_name: string;
+  } | null;
+  road_address?: {
+    address_name: string;
+    building_name?: string;
+  } | null;
+};
+
+type KakaoCoordinateAddressResponse = {
+  documents?: KakaoCoordinateAddressDocument[];
 };
 
 function buildKakaoHeaders() {
@@ -252,4 +269,45 @@ export async function fetchKakaoKeywordPlaces({
       scorePlaceSearchResult(b, normalizedSearchQuery) -
       scorePlaceSearchResult(a, normalizedSearchQuery)
   );
+}
+
+export async function fetchKakaoCoordinateAddress({
+  point,
+}: CoordinateAddressSearchRequest): Promise<CoordinateAddressSearchResult | null> {
+  if (!KAKAO_REST_API_KEY) {
+    return null;
+  }
+
+  const params = new URLSearchParams({
+    x: String(point.longitude),
+    y: String(point.latitude),
+  });
+  const response = await fetch(`${KAKAO_LOCAL_COORDINATE_ADDRESS_URL}?${params.toString()}`, {
+    headers: buildKakaoHeaders(),
+  });
+
+  if (!response.ok) {
+    return null;
+  }
+
+  const data = (await response.json()) as KakaoCoordinateAddressResponse;
+  const document = data.documents?.[0];
+
+  if (!document) {
+    return null;
+  }
+
+  const roadAddress = document.road_address?.address_name;
+  const buildingName = document.road_address?.building_name?.trim();
+  const address = roadAddress || document.address?.address_name || '';
+  const name = buildingName || address;
+
+  if (!name) {
+    return null;
+  }
+
+  return {
+    name,
+    address,
+  };
 }

@@ -14,6 +14,7 @@ import { useRunSpotAuth } from '@/hooks/use-runspot-auth';
 import { openKakaoMapRoute } from '@/services/maps/kakao-map-links';
 import {
   fetchKakaoCategoryPlaces,
+  fetchKakaoCoordinateAddress,
   fetchKakaoKeywordPlaces,
   hasKakaoLocalKey,
 } from '@/services/maps/kakao-places';
@@ -81,12 +82,12 @@ const spotColors: Record<SpotType, string> = {
   transit: '#17211B',
 };
 
-function formatCoordinate(point: LatLng | null) {
+function formatRoutePointLabel(point: LatLng | null, label: string | null) {
   if (!point) {
     return copy.course.tapMapToSet;
   }
 
-  return `${point.latitude.toFixed(5)}, ${point.longitude.toFixed(5)}`;
+  return label ?? copy.course.selectedMapPoint;
 }
 
 function formatDistance(meters: number) {
@@ -321,6 +322,8 @@ export default function CourseMapScreen() {
   const [routePreference, setRoutePreference] = useState<RoutePreference>('bikeRoad');
   const [startPoint, setStartPoint] = useState<LatLng | null>(null);
   const [finishPoint, setFinishPoint] = useState<LatLng | null>(null);
+  const [startLabel, setStartLabel] = useState<string | null>(null);
+  const [finishLabel, setFinishLabel] = useState<string | null>(null);
   const [routePreview, setRoutePreview] = useState<RoutePreview | null>(null);
   const [runnerSpots, setRunnerSpots] = useState<RunnerSpot[]>([]);
   const [selectedSpot, setSelectedSpot] = useState<DisplaySpot | null>(null);
@@ -408,6 +411,25 @@ export default function CourseMapScreen() {
     );
   }, []);
 
+  const resolveRoutePointLabel = useCallback(async (point: LatLng, fallback: string) => {
+    if (!hasKakaoLocalKey()) {
+      return fallback;
+    }
+
+    try {
+      const result = await fetchKakaoCoordinateAddress({ point });
+
+      return result?.name ?? fallback;
+    } catch (error) {
+      void recordNonFatalError(error, 'kakao_coordinate_address_lookup');
+      return fallback;
+    }
+  }, []);
+
+  function formatSearchPlaceLabel(place: KeywordPlaceSearchResult) {
+    return place.name || place.address || copy.course.selectedMapPoint;
+  }
+
   function selectSpot(spot: DisplaySpot) {
     setSelectedSpot(spot);
     reports.clearReportStatus();
@@ -488,6 +510,7 @@ export default function CourseMapScreen() {
       if (!isPointInSeoul(nextPoint)) {
         focusMap(SEOUL_REGION, 0.06);
         setStartPoint(null);
+        setStartLabel(null);
         setSelectionMode('start');
         setMessage(copy.course.outsideSeoul);
         void trackRunSpotEvent({
@@ -501,6 +524,7 @@ export default function CourseMapScreen() {
 
       focusMap(nextPoint);
       setStartPoint(nextPoint);
+      setStartLabel(await resolveRoutePointLabel(nextPoint, copy.course.currentLocationLabel));
       setSelectionMode('finish');
       setMessage(copy.course.currentLocationSet);
       void trackRunSpotEvent({
@@ -523,7 +547,7 @@ export default function CourseMapScreen() {
     } finally {
       setIsLocating(false);
     }
-  }, [focusMap]);
+  }, [focusMap, resolveRoutePointLabel]);
 
   useEffect(() => {
     locateRunner();
@@ -713,6 +737,8 @@ export default function CourseMapScreen() {
 
     if (selectionMode === 'start') {
       setStartPoint(coordinate);
+      setStartLabel(copy.course.selectedMapPoint);
+      void resolveRoutePointLabel(coordinate, copy.course.selectedMapPoint).then(setStartLabel);
       setSelectionMode('finish');
       setIsMapPickMode(false);
       setMessage(copy.course.startSet);
@@ -720,6 +746,8 @@ export default function CourseMapScreen() {
     }
 
     setFinishPoint(coordinate);
+    setFinishLabel(copy.course.selectedMapPoint);
+    void resolveRoutePointLabel(coordinate, copy.course.selectedMapPoint).then(setFinishLabel);
     setIsMapPickMode(false);
     setMessage(copy.course.finishSet);
   }
@@ -748,12 +776,14 @@ export default function CourseMapScreen() {
 
     if (selectionMode === 'start') {
       setStartPoint(coordinate);
+      setStartLabel(formatSearchPlaceLabel(place));
       setSelectionMode('finish');
       setMessage(copy.course.placeSearchStartSet(place.name));
       return;
     }
 
     setFinishPoint(coordinate);
+    setFinishLabel(formatSearchPlaceLabel(place));
     setMessage(copy.course.placeSearchFinishSet(place.name));
   }
 
@@ -838,6 +868,8 @@ export default function CourseMapScreen() {
   function resetRoute() {
     setStartPoint(null);
     setFinishPoint(null);
+    setStartLabel(null);
+    setFinishLabel(null);
     setRoutePreview(null);
     setSelectedSpot(null);
     setSelectionMode('start');
@@ -1073,7 +1105,7 @@ export default function CourseMapScreen() {
             <View style={styles.routeText}>
               <ThemedText type="smallBold">{copy.course.start}</ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
-                {formatCoordinate(startPoint)}
+                {formatRoutePointLabel(startPoint, startLabel)}
               </ThemedText>
             </View>
           </View>
@@ -1082,7 +1114,7 @@ export default function CourseMapScreen() {
             <View style={styles.routeText}>
               <ThemedText type="smallBold">{copy.course.finish}</ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
-                {formatCoordinate(finishPoint)}
+                {formatRoutePointLabel(finishPoint, finishLabel)}
               </ThemedText>
             </View>
           </View>

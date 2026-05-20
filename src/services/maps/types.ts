@@ -56,6 +56,15 @@ export type KeywordPlaceSearchResult = {
   longitude: number;
 };
 
+export type CoordinateAddressSearchRequest = {
+  point: RoutePoint;
+};
+
+export type CoordinateAddressSearchResult = {
+  name: string;
+  address: string;
+};
+
 export type ExternalRouteRequest = {
   origin: RoutePoint;
   destination: RoutePoint;
