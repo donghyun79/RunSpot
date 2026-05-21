@@ -16,7 +16,7 @@ export const launchPlanSteps: RunPlanStep[] = [
   {
     id: 'stage-3-firebase-authentication',
     title: '3. Firebase Authentication',
-    description: '최소 개인정보 수집 원칙을 유지하며 게스트 로그인을 연결합니다.',
+    description: '최소 개인정보 수집 원칙을 지키며 게스트 로그인을 연결합니다.',
     status: 'ready',
   },
   {
@@ -46,13 +46,13 @@ export const launchPlanSteps: RunPlanStep[] = [
   {
     id: 'stage-8-crashlytics-analytics',
     title: '8. Crashlytics와 Analytics',
-    description: '개인정보를 줄인 이벤트 추적과 비치명 오류 기록 계층을 준비합니다.',
+    description: '개인정보를 줄인 이벤트 추적과 비치명 오류 기록 경로를 준비합니다.',
     status: 'ready',
   },
   {
     id: 'stage-9-test-distribution',
     title: '9. Android/iOS 테스트 배포',
-    description: 'development build와 테스트 배포로 실제 기기 검수를 진행합니다.',
+    description: 'development build와 테스트 배포로 실제 기기 검증을 진행합니다.',
     status: 'next',
   },
 ];
@@ -84,7 +84,7 @@ export const sampleRunnerSpots: RunnerSpot[] = [
     name: '따릉이 대여소',
     latitude: 37.525,
     longitude: 126.936,
-    address: '러닝 도착지 인근',
+    address: '러닝 종료지 인근',
     source: 'sample',
     updatedAt: '2026-05-17',
   },

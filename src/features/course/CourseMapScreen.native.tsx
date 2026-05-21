@@ -265,6 +265,61 @@ function buildKakaoMapHtml({
             map.relayout();
             map.setCenter(toLatLng(payload.center));
           };
+          window.runspotSearchPlace = (query, latitude, longitude) => {
+            const places = new kakao.maps.services.Places();
+            const geocoder = new kakao.maps.services.Geocoder();
+            const center = new kakao.maps.LatLng(latitude, longitude);
+            const options = {
+              location: center,
+              radius: 20000,
+              size: 5,
+              sort: kakao.maps.services.SortBy.DISTANCE,
+            };
+
+            const normalizePlace = (place) => ({
+              id: 'js-keyword-' + (place.id || place.place_name || place.x + '-' + place.y),
+              name: place.place_name,
+              address: place.road_address_name || place.address_name || '',
+              detail: place.category_group_name || place.category_name || '',
+              source: 'keyword',
+              latitude: Number(place.y),
+              longitude: Number(place.x),
+            });
+            const normalizeAddress = (address) => ({
+              id: 'js-address-' + address.x + '-' + address.y + '-' + address.address_name,
+              name: address.road_address?.building_name || address.address_name,
+              address: address.road_address?.address_name || address.address?.address_name || address.address_name,
+              detail: address.address_type || '',
+              source: 'address',
+              latitude: Number(address.y),
+              longitude: Number(address.x),
+            });
+            let keywordResults = [];
+            let addressResults = [];
+            let pending = 2;
+
+            const finish = () => {
+              pending -= 1;
+              if (pending > 0) return;
+              const merged = [...addressResults, ...keywordResults]
+                .filter((place) => Number.isFinite(place.latitude) && Number.isFinite(place.longitude))
+                .slice(0, 5);
+              post({ type: 'placeSearchResults', results: merged });
+            };
+
+            places.keywordSearch(query, (data, status) => {
+              if (status === kakao.maps.services.Status.OK) {
+                keywordResults = data.map(normalizePlace);
+              }
+              finish();
+            }, options);
+            geocoder.addressSearch(query, (data, status) => {
+              if (status === kakao.maps.services.Status.OK) {
+                addressResults = data.map(normalizeAddress);
+              }
+              finish();
+            });
+          };
 
           kakao.maps.event.addListener(map, 'click', (mouseEvent) => {
             const latLng = mouseEvent.latLng;
@@ -303,7 +358,7 @@ function buildKakaoMapHtml({
       }
 
       const script = document.createElement('script');
-      script.src = 'https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(appKey)}&autoload=false';
+      script.src = 'https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(appKey)}&libraries=services&autoload=false';
       script.onload = startKakaoMap;
       script.onerror = () => post({ type: 'error', message: 'Failed to load Kakao Maps SDK script.' });
       document.head.appendChild(script);
@@ -796,15 +851,16 @@ export default function CourseMapScreen() {
       return;
     }
 
-    if (!hasKakaoLocalKey()) {
-      setPlaceSearchResults([]);
-      setPlaceSearchMessage(copy.course.placeSearchKeyMissing);
-      return;
-    }
-
     Keyboard.dismiss();
     setIsSearchingPlaces(true);
     setPlaceSearchMessage(copy.course.searchingPlace);
+
+    if (!hasKakaoLocalKey()) {
+      mapRef.current?.injectJavaScript(
+        `window.runspotSearchPlace?.(${JSON.stringify(query)}, ${focusPoint.latitude}, ${focusPoint.longitude}); true;`
+      );
+      return;
+    }
 
     try {
       const results = await fetchKakaoKeywordPlaces({
@@ -835,7 +891,8 @@ export default function CourseMapScreen() {
         | { type: 'ready' }
         | { type: 'error'; message: string }
         | { type: 'mapPress'; latitude: number; longitude: number }
-        | { type: 'spotPress'; spotId: string };
+        | { type: 'spotPress'; spotId: string }
+        | { type: 'placeSearchResults'; results: KeywordPlaceSearchResult[] };
 
       if (data.type === 'ready') {
         setIsMapReady(true);
@@ -859,6 +916,19 @@ export default function CourseMapScreen() {
         if (spot) {
           selectSpot(spot);
         }
+        return;
+      }
+
+      if (data.type === 'placeSearchResults') {
+        const seoulResults = data.results.filter((result) =>
+          isPointInSeoul({ latitude: result.latitude, longitude: result.longitude })
+        );
+
+        setPlaceSearchResults(seoulResults.slice(0, 5));
+        setPlaceSearchMessage(
+          seoulResults.length > 0 ? null : copy.course.placeSearchNoResults
+        );
+        setIsSearchingPlaces(false);
       }
     } catch (error) {
       void recordNonFatalError(error, 'kakao_map_message_parse');
@@ -1007,37 +1077,40 @@ export default function CourseMapScreen() {
 
   return (
     <View style={styles.screen}>
-      {kakaoMapHtml ? (
-        <WebView
-          ref={mapRef}
-          source={{ html: kakaoMapHtml, baseUrl: 'https://runspot.local/' }}
-          style={styles.map}
-          originWhitelist={['*']}
-          javaScriptEnabled
-          domStorageEnabled
-          mixedContentMode="always"
-          thirdPartyCookiesEnabled
-          setSupportMultipleWindows={false}
-          onMessage={handleMapMessage}
-          onLoadStart={() => setIsMapReady(false)}
-          onLayout={() => {
-            mapRef.current?.injectJavaScript('window.runspotRelayout?.(); true;');
-          }}
-          onError={(event) => {
-            setIsMapReady(true);
-            setMessage(`${copy.maps.kakaoFailed}: ${event.nativeEvent.description}`);
-          }}
-        />
-      ) : (
-        <View style={[styles.map, styles.mapFallback]}>
-          <ThemedView type="backgroundElement" style={styles.mapFallbackPanel}>
-            <ThemedText type="smallBold">{copy.maps.kakaoKeyMissingTitle}</ThemedText>
-            <ThemedText type="small" themeColor="textSecondary">
-              {copy.maps.kakaoKeyMissingDescription}
-            </ThemedText>
-          </ThemedView>
-        </View>
-      )}
+      <View style={styles.mapLayer}>
+        {kakaoMapHtml ? (
+          <WebView
+            ref={mapRef}
+            source={{ html: kakaoMapHtml, baseUrl: 'https://runspot.local/' }}
+            style={styles.map}
+            containerStyle={styles.map}
+            originWhitelist={['*']}
+            javaScriptEnabled
+            domStorageEnabled
+            mixedContentMode="always"
+            thirdPartyCookiesEnabled
+            setSupportMultipleWindows={false}
+            onMessage={handleMapMessage}
+            onLoadStart={() => setIsMapReady(false)}
+            onLayout={() => {
+              mapRef.current?.injectJavaScript('window.runspotRelayout?.(); true;');
+            }}
+            onError={(event) => {
+              setIsMapReady(true);
+              setMessage(`${copy.maps.kakaoFailed}: ${event.nativeEvent.description}`);
+            }}
+          />
+        ) : (
+          <View style={[styles.map, styles.mapFallback]}>
+            <ThemedView type="backgroundElement" style={styles.mapFallbackPanel}>
+              <ThemedText type="smallBold">{copy.maps.kakaoKeyMissingTitle}</ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">
+                {copy.maps.kakaoKeyMissingDescription}
+              </ThemedText>
+            </ThemedView>
+          </View>
+        )}
+      </View>
 
       {!isMapReady && (
         <View pointerEvents="none" style={styles.mapStatus}>
@@ -1049,24 +1122,26 @@ export default function CourseMapScreen() {
 
       <SafeAreaView pointerEvents="box-none" style={styles.overlay}>
         {isMapPickMode ? (
-          <ThemedView type="backgroundElement" style={styles.pickPanel}>
-            <View style={styles.pickPanelHeader}>
-              <View style={styles.routeText}>
-                <ThemedText type="smallBold">
-                  {selectionMode === 'start' ? copy.course.setStart : copy.course.setFinish}
-                </ThemedText>
-                <ThemedText type="small" themeColor="textSecondary">
-                  {copy.course.tapMapToSet}
-                </ThemedText>
+          <View style={styles.pickSheetWrapper}>
+            <ThemedView type="backgroundElement" style={styles.pickPanel}>
+              <View style={styles.pickPanelHeader}>
+                <View style={styles.routeText}>
+                  <ThemedText type="smallBold">
+                    {selectionMode === 'start' ? copy.course.setStart : copy.course.setFinish}
+                  </ThemedText>
+                  <ThemedText type="small" themeColor="textSecondary">
+                    {copy.course.tapMapToSet}
+                  </ThemedText>
+                </View>
+                <Pressable
+                  onPress={() => setIsMapPickMode(false)}
+                  style={({ pressed }) => [styles.compactButton, pressed && styles.pressed]}>
+                  <ThemedText type="smallBold">{copy.course.showPanel}</ThemedText>
+                </Pressable>
               </View>
-              <Pressable
-                onPress={() => setIsMapPickMode(false)}
-                style={({ pressed }) => [styles.compactButton, pressed && styles.pressed]}>
-                <ThemedText type="smallBold">{copy.course.showPanel}</ThemedText>
-              </Pressable>
-            </View>
-            {renderPlaceSearchControls()}
-          </ThemedView>
+              {renderPlaceSearchControls()}
+            </ThemedView>
+          </View>
         ) : (
         <View style={styles.sheetWrapper}>
           <ScrollView
@@ -1109,8 +1184,10 @@ export default function CourseMapScreen() {
           <View style={styles.routeRow}>
             <View style={styles.startDot} />
             <View style={styles.routeText}>
-              <ThemedText type="smallBold">{copy.course.start}</ThemedText>
-              <ThemedText type="small" themeColor="textSecondary">
+              <ThemedText type="smallBold" style={styles.routeLabel}>
+                {copy.course.start}
+              </ThemedText>
+              <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
                 {formatRoutePointLabel(startPoint, startLabel)}
               </ThemedText>
             </View>
@@ -1118,8 +1195,10 @@ export default function CourseMapScreen() {
           <View style={styles.routeRow}>
             <View style={styles.finishDot} />
             <View style={styles.routeText}>
-              <ThemedText type="smallBold">{copy.course.finish}</ThemedText>
-              <ThemedText type="small" themeColor="textSecondary">
+              <ThemedText type="smallBold" style={styles.routeLabel}>
+                {copy.course.finish}
+              </ThemedText>
+              <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
                 {formatRoutePointLabel(finishPoint, finishLabel)}
               </ThemedText>
             </View>
@@ -1415,9 +1494,15 @@ export default function CourseMapScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
+    backgroundColor: '#EAF2E9',
+  },
+  mapLayer: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#EAF2E9',
   },
   map: {
-    ...StyleSheet.absoluteFillObject,
+    flex: 1,
+    backgroundColor: '#EAF2E9',
   },
   mapFallback: {
     alignItems: 'center',
@@ -1447,29 +1532,51 @@ const styles = StyleSheet.create({
   overlay: {
     flex: 1,
     justifyContent: 'flex-end',
-    padding: Spacing.three,
-    paddingBottom: BottomTabInset + Spacing.three,
+    paddingHorizontal: Spacing.three,
+    paddingTop: Spacing.three,
+    paddingBottom: BottomTabInset + Spacing.two,
   },
   sheetWrapper: {
     width: '100%',
-    maxHeight: '68%',
+    maxHeight: '58%',
+    borderRadius: Spacing.three,
+    backgroundColor: 'rgba(247, 250, 246, 0.96)',
+    overflow: 'hidden',
+    elevation: 8,
+    shadowColor: '#17211B',
+    shadowOpacity: 0.16,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+  },
+  pickSheetWrapper: {
+    width: '100%',
+    maxHeight: '42%',
+    borderRadius: Spacing.three,
+    backgroundColor: 'rgba(247, 250, 246, 0.97)',
+    overflow: 'hidden',
+    elevation: 8,
+    shadowColor: '#17211B',
+    shadowOpacity: 0.16,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
   },
   sheetScroller: {
     flexGrow: 0,
   },
   sheetContent: {
-    gap: Spacing.two,
-    paddingBottom: Spacing.two,
+    gap: Spacing.one,
+    padding: Spacing.two,
+    paddingBottom: Spacing.three,
   },
   searchPanel: {
     gap: Spacing.two,
     padding: Spacing.three,
-    borderRadius: Spacing.three,
+    borderRadius: Spacing.two,
   },
   pickPanel: {
     gap: Spacing.two,
     padding: Spacing.three,
-    borderRadius: Spacing.three,
+    borderRadius: Spacing.two,
   },
   pickPanelHeader: {
     flexDirection: 'row',
@@ -1490,7 +1597,7 @@ const styles = StyleSheet.create({
   },
   modeButton: {
     flex: 1,
-    minHeight: 40,
+    minHeight: 44,
     borderRadius: Spacing.two,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1511,7 +1618,7 @@ const styles = StyleSheet.create({
   },
   placeSearchInput: {
     flex: 1,
-    minHeight: 40,
+    minHeight: 44,
     borderRadius: Spacing.two,
     backgroundColor: '#F4FAF5',
     color: '#17211B',
@@ -1521,7 +1628,7 @@ const styles = StyleSheet.create({
   },
   placeSearchButton: {
     minWidth: 64,
-    minHeight: 40,
+    minHeight: 44,
     borderRadius: Spacing.two,
     backgroundColor: '#17211B',
     alignItems: 'center',
@@ -1562,6 +1669,9 @@ const styles = StyleSheet.create({
   routeText: {
     flex: 1,
   },
+  routeLabel: {
+    lineHeight: 18,
+  },
   metricRow: {
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: '#9EB8A7',
@@ -1601,7 +1711,7 @@ const styles = StyleSheet.create({
   bottomPanel: {
     gap: Spacing.two,
     padding: Spacing.three,
-    borderRadius: Spacing.three,
+    borderRadius: Spacing.two,
   },
   bottomHeader: {
     flexDirection: 'row',
