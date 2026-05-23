@@ -169,6 +169,7 @@ const DEFAULT_HEALING_RACES = [
       { name: "장신영", course: "10K" },
       { name: "이혜경", course: "10K" },
       { name: "안윤수", course: "10K" },
+      { name: "조민경", course: "10K" },
       { name: "안미향", course: "하프" }
     ]
   }
