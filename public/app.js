@@ -11599,11 +11599,29 @@ function getMileageScore(mileageRate, maxScore = 25, useLinear = false) {
 
 function getQualityAttendanceScore(qualityRate, maxScore = 25, useLinear = false) {
   if (useLinear) return getLinearScore(qualityRate, 1, maxScore);
-  if (qualityRate >= 0.9) return maxScore;
-  if (qualityRate >= 0.7) return clampScore(maxScore * 0.8, maxScore, 1);
-  if (qualityRate >= 0.5) return clampScore(maxScore * 0.56, maxScore, 1);
-  if (qualityRate >= 0.25) return clampScore(maxScore * 0.28, maxScore, 1);
-  if (qualityRate > 0) return clampScore((maxScore * 0.28) * (qualityRate / 0.25), maxScore, 1);
+  const scoreSteps = [
+    { rate: 0, scoreRatio: 0 },
+    { rate: 0.25, scoreRatio: 0.28 },
+    { rate: 0.5, scoreRatio: 0.56 },
+    { rate: 0.7, scoreRatio: 0.8 },
+    { rate: 0.9, scoreRatio: 1 }
+  ];
+
+  if (qualityRate >= scoreSteps[scoreSteps.length - 1].rate) return maxScore;
+
+  for (let index = 1; index < scoreSteps.length; index += 1) {
+    const lower = scoreSteps[index - 1];
+    const upper = scoreSteps[index];
+
+    if (qualityRate <= upper.rate) {
+      const rangeRate = upper.rate - lower.rate;
+      const progress = rangeRate ? (qualityRate - lower.rate) / rangeRate : 0;
+      const scoreRatio = lower.scoreRatio + ((upper.scoreRatio - lower.scoreRatio) * progress);
+
+      return clampScore(maxScore * scoreRatio, maxScore, 1);
+    }
+  }
+
   return 0;
 }
 
