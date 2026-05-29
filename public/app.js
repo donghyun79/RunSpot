@@ -10867,25 +10867,31 @@ async function loadMonthlyAthleteCandidates(user) {
     const candidates = getMonthlyAthleteCandidatesForMonth(memberEntries, monthKey, monthlyGoalsByUser, healingContributions);
     const finalizedMonthKey = getLatestFinalizedMonthKey();
 
-    if (!candidates.length) {
+    const awardCandidates = getMonthlyAthleteAwardCandidates(candidates);
+
+    if (!awardCandidates.length) {
       monthlyAthleteStatus.innerText = `${formatMonthLabel(monthKey)} 이달의 선수 예상 기록이 아직 없습니다.`;
       renderAthleteHallOfFame(memberEntries, user, finalizedMonthKey, monthlyGoalsByUser, healingContributions);
       updateMonthlyAthleteAnnouncementUi(user);
       return;
     }
 
-    candidates.slice(0, 10).forEach((entry, index) => {
+    let visibleAwardRank = 0;
+
+    candidates.slice(0, 10).forEach((entry) => {
       const tr = document.createElement("tr");
       const isMe = entry.userId === user.uid || entry.email === user.email;
       const isHost = isHostUser(user);
+      const isCoach = isMonthlyAthleteCoachEntry(entry);
+      const rankLabel = isCoach ? "참고" : String(visibleAwardRank += 1);
 
       if (isMe) {
         tr.classList.add("my-rank");
       }
 
       const cells = [
-        `${index + 1}${isMe ? " (나)" : ""}`,
-        entry.name,
+        `${rankLabel}${isMe ? " (나)" : ""}`,
+        isCoach ? `${entry.name} (코치)` : entry.name,
         `예상 ${formatAthleteScore(entry.totalScore)}점 / 확정 ${formatAthleteScore(entry.confirmedScore)}점`
       ];
 
@@ -10913,12 +10919,12 @@ async function loadMonthlyAthleteCandidates(user) {
       monthlyAthleteList.appendChild(tr);
     });
 
-    const leader = candidates[0];
-    const myRankIndex = candidates.findIndex((entry) => entry.userId === user.uid || entry.email === user.email);
-    const myRankText = myRankIndex >= 0 ? ` 내 순위: ${myRankIndex + 1}위 / ${candidates.length}명.` : "";
+    const leader = awardCandidates[0];
+    const myRankIndex = awardCandidates.findIndex((entry) => entry.userId === user.uid || entry.email === user.email);
+    const myRankText = myRankIndex >= 0 ? ` 내 수상 순위: ${myRankIndex + 1}위 / ${awardCandidates.length}명.` : "";
     const leaderText = `${leader.name} 1위`;
 
-    monthlyAthleteStatus.innerText = `${formatMonthLabel(monthKey)} 이달의 선수 예상 ${leaderText}: 예상 ${formatAthleteScore(leader.totalScore)}점, 현재 확정 ${formatAthleteScore(leader.confirmedScore)}점.${myRankText} 월이 끝난 뒤 명예의 전당에 반영됩니다.`;
+    monthlyAthleteStatus.innerText = `${formatMonthLabel(monthKey)} 이달의 선수 예상 ${leaderText}: 예상 ${formatAthleteScore(leader.totalScore)}점, 현재 확정 ${formatAthleteScore(leader.confirmedScore)}점.${myRankText} 코치 기록은 참고로 표시하고 수상 순위에서는 제외합니다.`;
     renderAthleteHallOfFame(memberEntries, user, finalizedMonthKey, monthlyGoalsByUser, healingContributions);
     updateMonthlyAthleteAnnouncementUi(user);
   } catch (e) {
@@ -11000,10 +11006,13 @@ function getMonthlyAthleteCandidatesForMonth(memberEntries, monthKey, monthlyGoa
   const previousMonthKey = getPreviousMonthKey(monthKey);
 
   return memberEntries
-    .filter((entry) => !isMonthlyAthleteCoachEntry(entry))
     .map((entry) => calculateMonthlyAthleteScore(entry, monthKey, previousMonthKey, monthlyGoalsByUser, healingContributions))
     .filter((entry) => entry.attendanceDays > 0)
     .sort(sortMonthlyAthleteCandidates);
+}
+
+function getMonthlyAthleteAwardCandidates(candidates = []) {
+  return candidates.filter((entry) => !isMonthlyAthleteCoachEntry(entry));
 }
 
 function renderAthleteHallOfFame(memberEntries, user, currentMonthKey, monthlyGoalsByUser = new Map(), healingContributions = null) {
@@ -11018,10 +11027,11 @@ function renderAthleteHallOfFame(memberEntries, user, currentMonthKey, monthlyGo
   const hallEntries = monthKeys
     .map((monthKey) => {
       const candidates = getMonthlyAthleteCandidatesForMonth(memberEntries, monthKey, monthlyGoalsByUser, healingContributions);
-      if (!candidates.length) return null;
+      const awardCandidates = getMonthlyAthleteAwardCandidates(candidates);
+      if (!awardCandidates.length) return null;
 
-      const winner = candidates[0];
-      return { monthKey, winner, winners: [winner], candidateCount: candidates.length };
+      const winner = awardCandidates[0];
+      return { monthKey, winner, winners: [winner], candidateCount: awardCandidates.length };
     })
     .filter(Boolean)
     .reverse();
