@@ -450,6 +450,10 @@ function isHostUser(user) {
   return getNormalizedEmail(user?.email) === HOST_EMAIL;
 }
 
+function isMonthlyAthleteCoachEntry(entry = {}) {
+  return getNormalizedEmail(entry.email) === HOST_EMAIL || String(entry.name || "").trim() === HOST_NAME;
+}
+
 function getNormalizedEmail(value) {
   return String(value || "").trim().toLowerCase();
 }
@@ -10996,6 +11000,7 @@ function getMonthlyAthleteCandidatesForMonth(memberEntries, monthKey, monthlyGoa
   const previousMonthKey = getPreviousMonthKey(monthKey);
 
   return memberEntries
+    .filter((entry) => !isMonthlyAthleteCoachEntry(entry))
     .map((entry) => calculateMonthlyAthleteScore(entry, monthKey, previousMonthKey, monthlyGoalsByUser, healingContributions))
     .filter((entry) => entry.attendanceDays > 0)
     .sort(sortMonthlyAthleteCandidates);
