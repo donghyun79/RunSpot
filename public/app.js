@@ -247,7 +247,8 @@ let runningGroupStandards = [
 const DEFAULT_RUNNING_GROUP_STANDARDS = runningGroupStandards.map((standard) => ({ ...standard }));
 const RUNNING_GROUP_STANDARD_XLSX_PATH = "assets/나빌러닝 조별기준.xlsx";
 const RUNNING_GROUP_STANDARD_NOTE = "조편성 조정을 원하시면 코치와 상의해 주세요.";
-const RUNNING_GROUP_REASSIGNMENT_EFFECTIVE_DATE = "2026-05-01";
+const MAY_RUNNING_GROUP_REASSIGNMENT_EFFECTIVE_DATE = "2026-05-01";
+const JUNE_RUNNING_GROUP_REASSIGNMENT_EFFECTIVE_DATE = "2026-06-01";
 const OFFICIAL_TRAINING_LABEL = "나빌러닝 정훈";
 const QUALITY_MAKEUP_CREDIT = 0.7;
 const QUALITY_AUTO_REDUCED_SET_GROUPS = ["E", "S"];
@@ -4946,12 +4947,20 @@ function applyScheduledRunningGroupAssignments(standards, dateKey = getLocalDate
   const clonedStandards = Array.isArray(standards)
     ? standards.map((standard) => ({ ...standard }))
     : [];
+  const dGroup = clonedStandards.find((standard) => standard.group === "D");
   const eGroup = clonedStandards.find((standard) => standard.group === "E");
   const sGroup = clonedStandards.find((standard) => standard.group === "S");
 
-  if (!eGroup || !sGroup) return clonedStandards;
+  if (!dGroup || !eGroup || !sGroup) return clonedStandards;
 
-  if (dateKey >= RUNNING_GROUP_REASSIGNMENT_EFFECTIVE_DATE) {
+  if (dateKey >= JUNE_RUNNING_GROUP_REASSIGNMENT_EFFECTIVE_DATE) {
+    dGroup.members = "김수미, 이혜경, 김성균, 안효정";
+    eGroup.members = "문재연, 박운정, 정주연, 송경애, 이은주, 현혜인, 조민경";
+    sGroup.members = "김나영, 장신영";
+    return clonedStandards;
+  }
+
+  if (dateKey >= MAY_RUNNING_GROUP_REASSIGNMENT_EFFECTIVE_DATE) {
     eGroup.members = "문재연, 박운정, 안효정, 정주연, 송경애, 이은주, 현혜인";
     sGroup.members = "김나영, 조민경, 장신영";
     return clonedStandards;
