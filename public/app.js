@@ -169,6 +169,7 @@ const DEFAULT_HEALING_RACES = [
       { name: "장신영", course: "10K" },
       { name: "이혜경", course: "10K" },
       { name: "안윤수", course: "10K" },
+      { name: "조민경", course: "10K" },
       { name: "안미향", course: "하프" }
     ]
   }
@@ -447,6 +448,10 @@ function isApprovedProfile(user, profile) {
 
 function isHostUser(user) {
   return getNormalizedEmail(user?.email) === HOST_EMAIL;
+}
+
+function isMonthlyAthleteCoachEntry(entry = {}) {
+  return getNormalizedEmail(entry.email) === HOST_EMAIL || String(entry.name || "").trim() === HOST_NAME;
 }
 
 function getNormalizedEmail(value) {
@@ -10862,25 +10867,31 @@ async function loadMonthlyAthleteCandidates(user) {
     const candidates = getMonthlyAthleteCandidatesForMonth(memberEntries, monthKey, monthlyGoalsByUser, healingContributions);
     const finalizedMonthKey = getLatestFinalizedMonthKey();
 
-    if (!candidates.length) {
+    const awardCandidates = getMonthlyAthleteAwardCandidates(candidates);
+
+    if (!awardCandidates.length) {
       monthlyAthleteStatus.innerText = `${formatMonthLabel(monthKey)} 이달의 선수 예상 기록이 아직 없습니다.`;
       renderAthleteHallOfFame(memberEntries, user, finalizedMonthKey, monthlyGoalsByUser, healingContributions);
       updateMonthlyAthleteAnnouncementUi(user);
       return;
     }
 
-    candidates.slice(0, 10).forEach((entry, index) => {
+    let visibleAwardRank = 0;
+
+    candidates.slice(0, 10).forEach((entry) => {
       const tr = document.createElement("tr");
       const isMe = entry.userId === user.uid || entry.email === user.email;
       const isHost = isHostUser(user);
+      const isCoach = isMonthlyAthleteCoachEntry(entry);
+      const rankLabel = isCoach ? "참고" : String(visibleAwardRank += 1);
 
       if (isMe) {
         tr.classList.add("my-rank");
       }
 
       const cells = [
-        `${index + 1}${isMe ? " (나)" : ""}`,
-        entry.name,
+        `${rankLabel}${isMe ? " (나)" : ""}`,
+        isCoach ? `${entry.name} (코치)` : entry.name,
         `예상 ${formatAthleteScore(entry.totalScore)}점 / 확정 ${formatAthleteScore(entry.confirmedScore)}점`
       ];
 
@@ -10908,12 +10919,12 @@ async function loadMonthlyAthleteCandidates(user) {
       monthlyAthleteList.appendChild(tr);
     });
 
-    const leader = candidates[0];
-    const myRankIndex = candidates.findIndex((entry) => entry.userId === user.uid || entry.email === user.email);
-    const myRankText = myRankIndex >= 0 ? ` 내 순위: ${myRankIndex + 1}위 / ${candidates.length}명.` : "";
+    const leader = awardCandidates[0];
+    const myRankIndex = awardCandidates.findIndex((entry) => entry.userId === user.uid || entry.email === user.email);
+    const myRankText = myRankIndex >= 0 ? ` 내 수상 순위: ${myRankIndex + 1}위 / ${awardCandidates.length}명.` : "";
     const leaderText = `${leader.name} 1위`;
 
-    monthlyAthleteStatus.innerText = `${formatMonthLabel(monthKey)} 이달의 선수 예상 ${leaderText}: 예상 ${formatAthleteScore(leader.totalScore)}점, 현재 확정 ${formatAthleteScore(leader.confirmedScore)}점.${myRankText} 월이 끝난 뒤 명예의 전당에 반영됩니다.`;
+    monthlyAthleteStatus.innerText = `${formatMonthLabel(monthKey)} 이달의 선수 예상 ${leaderText}: 예상 ${formatAthleteScore(leader.totalScore)}점, 현재 확정 ${formatAthleteScore(leader.confirmedScore)}점.${myRankText} 코치 기록은 참고로 표시하고 수상 순위에서는 제외합니다.`;
     renderAthleteHallOfFame(memberEntries, user, finalizedMonthKey, monthlyGoalsByUser, healingContributions);
     updateMonthlyAthleteAnnouncementUi(user);
   } catch (e) {
@@ -11000,6 +11011,10 @@ function getMonthlyAthleteCandidatesForMonth(memberEntries, monthKey, monthlyGoa
     .sort(sortMonthlyAthleteCandidates);
 }
 
+function getMonthlyAthleteAwardCandidates(candidates = []) {
+  return candidates.filter((entry) => !isMonthlyAthleteCoachEntry(entry));
+}
+
 function renderAthleteHallOfFame(memberEntries, user, currentMonthKey, monthlyGoalsByUser = new Map(), healingContributions = null) {
   const athleteHallList = document.getElementById("athleteHallList");
   const athleteHallStatus = document.getElementById("athleteHallStatus");
@@ -11012,10 +11027,11 @@ function renderAthleteHallOfFame(memberEntries, user, currentMonthKey, monthlyGo
   const hallEntries = monthKeys
     .map((monthKey) => {
       const candidates = getMonthlyAthleteCandidatesForMonth(memberEntries, monthKey, monthlyGoalsByUser, healingContributions);
-      if (!candidates.length) return null;
+      const awardCandidates = getMonthlyAthleteAwardCandidates(candidates);
+      if (!awardCandidates.length) return null;
 
-      const winner = candidates[0];
-      return { monthKey, winner, winners: [winner], candidateCount: candidates.length };
+      const winner = awardCandidates[0];
+      return { monthKey, winner, winners: [winner], candidateCount: awardCandidates.length };
     })
     .filter(Boolean)
     .reverse();
@@ -11598,11 +11614,29 @@ function getMileageScore(mileageRate, maxScore = 25, useLinear = false) {
 
 function getQualityAttendanceScore(qualityRate, maxScore = 25, useLinear = false) {
   if (useLinear) return getLinearScore(qualityRate, 1, maxScore);
-  if (qualityRate >= 0.9) return maxScore;
-  if (qualityRate >= 0.7) return clampScore(maxScore * 0.8, maxScore, 1);
-  if (qualityRate >= 0.5) return clampScore(maxScore * 0.56, maxScore, 1);
-  if (qualityRate >= 0.25) return clampScore(maxScore * 0.28, maxScore, 1);
-  if (qualityRate > 0) return clampScore((maxScore * 0.28) * (qualityRate / 0.25), maxScore, 1);
+  const scoreSteps = [
+    { rate: 0, scoreRatio: 0 },
+    { rate: 0.25, scoreRatio: 0.28 },
+    { rate: 0.5, scoreRatio: 0.56 },
+    { rate: 0.7, scoreRatio: 0.8 },
+    { rate: 0.9, scoreRatio: 1 }
+  ];
+
+  if (qualityRate >= scoreSteps[scoreSteps.length - 1].rate) return maxScore;
+
+  for (let index = 1; index < scoreSteps.length; index += 1) {
+    const lower = scoreSteps[index - 1];
+    const upper = scoreSteps[index];
+
+    if (qualityRate <= upper.rate) {
+      const rangeRate = upper.rate - lower.rate;
+      const progress = rangeRate ? (qualityRate - lower.rate) / rangeRate : 0;
+      const scoreRatio = lower.scoreRatio + ((upper.scoreRatio - lower.scoreRatio) * progress);
+
+      return clampScore(maxScore * scoreRatio, maxScore, 1);
+    }
+  }
+
   return 0;
 }
 
