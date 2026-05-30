@@ -125,9 +125,11 @@ let pendingHealingCheckinPhotoRemoved = false;
 let isHealingRaceComposerOpen = false;
 const HEALING_POPUP_STORAGE_KEY_PREFIX = "naviheal-healing-popup";
 const MAY_TRAINING_POPUP_STORAGE_KEY_PREFIX = "naviheal-may-training-popup";
+const RUNNING_GROUP_REASSIGNMENT_POPUP_STORAGE_KEY_PREFIX = "naviheal-running-group-reassignment-popup";
 const MONTHLY_ATHLETE_BANNER_STORAGE_KEY_PREFIX = "naviheal-monthly-athlete-banner";
 const MONTHLY_ATHLETE_POPUP_STORAGE_KEY_PREFIX = "naviheal-monthly-athlete-popup";
 const MAY_TRAINING_POPUP_START_DATE = "2026-05-01";
+const RUNNING_GROUP_REASSIGNMENT_POPUP_KEY = "2026-06-running-group-reassignment";
 const MONTHLY_ATHLETE_ANNOUNCEMENT_END_DAY = 7;
 let dismissedQualityAttendancePromptKey = "";
 let completedQualityAttendancePromptKey = "";
@@ -2735,6 +2737,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const qualityAttendancePopupOpenTabBtn = document.getElementById("qualityAttendancePopupOpenTab");
   const mayTrainingPopupModal = document.getElementById("mayTrainingPopupModal");
   const closeMayTrainingPopupBtn = document.getElementById("closeMayTrainingPopup");
+  const runningGroupReassignmentPopupModal = document.getElementById("runningGroupReassignmentPopupModal");
+  const closeRunningGroupReassignmentPopupBtn = document.getElementById("closeRunningGroupReassignmentPopup");
   const monthlyAthleteCelebrationPopupModal = document.getElementById("monthlyAthleteCelebrationPopupModal");
   const closeMonthlyAthleteCelebrationPopupBtn = document.getElementById("closeMonthlyAthleteCelebrationPopup");
   const monthlyAthleteCelebrationOpenHallBtn = document.getElementById("monthlyAthleteCelebrationOpenHall");
@@ -2755,6 +2759,9 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!user) return;
 
     maybeOpenMonthlyAthleteCelebrationPopup(user);
+    if (hasBlockingNoticeModalOpen()) return;
+
+    maybeOpenRunningGroupReassignmentPopup(user);
     if (hasBlockingNoticeModalOpen()) return;
 
     maybeOpenMayTrainingPopup(user);
@@ -2886,6 +2893,39 @@ document.addEventListener("DOMContentLoaded", () => {
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && !mayTrainingPopupModal?.classList.contains("hidden")) {
       closeMayTrainingPopupBtn?.click();
+    }
+  });
+
+  function closeRunningGroupReassignmentPopup() {
+    if (!runningGroupReassignmentPopupModal) return;
+
+    runningGroupReassignmentPopupModal.classList.add("hidden");
+  }
+
+  function markRunningGroupReassignmentPopupSeen() {
+    const userId = auth.currentUser?.uid || "";
+
+    if (!userId) return;
+
+    writeRunningGroupReassignmentPopupState(userId, {
+      seenKey: RUNNING_GROUP_REASSIGNMENT_POPUP_KEY,
+      seenAt: new Date().toISOString()
+    });
+  }
+
+  closeRunningGroupReassignmentPopupBtn?.addEventListener("click", () => {
+    markRunningGroupReassignmentPopupSeen();
+    closeRunningGroupReassignmentPopup();
+    triggerDeferredNoticePopups();
+  });
+  runningGroupReassignmentPopupModal?.addEventListener("click", (event) => {
+    if (event.target === runningGroupReassignmentPopupModal) {
+      closeRunningGroupReassignmentPopupBtn?.click();
+    }
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !runningGroupReassignmentPopupModal?.classList.contains("hidden")) {
+      closeRunningGroupReassignmentPopupBtn?.click();
     }
   });
 
@@ -6139,6 +6179,10 @@ function getMayTrainingPopupStorageKey(userId = "") {
   return `${MAY_TRAINING_POPUP_STORAGE_KEY_PREFIX}:${userId || "guest"}`;
 }
 
+function getRunningGroupReassignmentPopupStorageKey(userId = "") {
+  return `${RUNNING_GROUP_REASSIGNMENT_POPUP_STORAGE_KEY_PREFIX}:${userId || "guest"}`;
+}
+
 function getMonthlyAthleteBannerStorageKey(userId = "") {
   return `${MONTHLY_ATHLETE_BANNER_STORAGE_KEY_PREFIX}:${userId || "guest"}`;
 }
@@ -6180,6 +6224,25 @@ function readMayTrainingPopupState(userId = "") {
 function writeMayTrainingPopupState(userId = "", state = {}) {
   try {
     localStorage.setItem(getMayTrainingPopupStorageKey(userId), JSON.stringify(state));
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+function readRunningGroupReassignmentPopupState(userId = "") {
+  try {
+    const raw = localStorage.getItem(getRunningGroupReassignmentPopupStorageKey(userId));
+
+    return raw ? JSON.parse(raw) : {};
+  } catch (error) {
+    console.error(error);
+    return {};
+  }
+}
+
+function writeRunningGroupReassignmentPopupState(userId = "", state = {}) {
+  try {
+    localStorage.setItem(getRunningGroupReassignmentPopupStorageKey(userId), JSON.stringify(state));
   } catch (error) {
     console.error(error);
   }
@@ -6367,7 +6430,7 @@ function summarizeHealingPopupText(text = "", maxLength = 24) {
 }
 
 function hasBlockingNoticeModalOpen() {
-  return ["updateModal", "healingPopupModal", "qualityAttendancePopupModal", "mayTrainingPopupModal", "monthlyAthleteCelebrationPopupModal"]
+  return ["updateModal", "healingPopupModal", "qualityAttendancePopupModal", "mayTrainingPopupModal", "runningGroupReassignmentPopupModal", "monthlyAthleteCelebrationPopupModal"]
     .some((id) => {
       const element = document.getElementById(id);
 
@@ -6391,6 +6454,23 @@ function maybeOpenMonthlyAthleteCelebrationPopup(user = auth.currentUser) {
 
   popupModal.classList.remove("hidden");
   document.getElementById("closeMonthlyAthleteCelebrationPopup")?.focus();
+}
+
+function maybeOpenRunningGroupReassignmentPopup(user = auth.currentUser) {
+  if (!user) return;
+
+  const popupModal = document.getElementById("runningGroupReassignmentPopupModal");
+
+  if (!popupModal) return;
+  if (hasBlockingNoticeModalOpen()) return;
+  if (getLocalDateKey() < JUNE_RUNNING_GROUP_REASSIGNMENT_EFFECTIVE_DATE) return;
+
+  const popupState = readRunningGroupReassignmentPopupState(user.uid);
+
+  if (popupState.seenKey === RUNNING_GROUP_REASSIGNMENT_POPUP_KEY) return;
+
+  popupModal.classList.remove("hidden");
+  document.getElementById("closeRunningGroupReassignmentPopup")?.focus();
 }
 
 function maybeOpenMayTrainingPopup(user = auth.currentUser) {

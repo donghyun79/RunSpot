@@ -3489,6 +3489,23 @@
     </section>
   </div>
 
+  <div id="runningGroupReassignmentPopupModal" class="update-modal hidden" role="dialog" aria-modal="true" aria-labelledby="runningGroupReassignmentPopupTitle">
+    <section class="update-modal-panel">
+      <p class="update-modal-kicker">6월 조편성 안내</p>
+      <h2 id="runningGroupReassignmentPopupTitle" class="update-modal-title">새 조에서 더 좋은 흐름을 이어가요</h2>
+      <p class="update-modal-date">2026년 6월 조편성 조정</p>
+      <p class="update-modal-lead">최근 기록과 훈련 흐름을 반영해 6월부터 일부 회원의 조편성이 조정됩니다.</p>
+      <ul class="update-modal-list">
+        <li>안효정님: E조 -> D조 승급</li>
+        <li>조민경님: S조 -> E조 조정</li>
+      </ul>
+      <p class="update-modal-note"><strong>새 조 기준에 맞춰 정훈 페이스와 월간 마일리지 기준이 함께 반영됩니다.</strong></p>
+      <div class="update-modal-actions">
+        <button id="closeRunningGroupReassignmentPopup" type="button">확인</button>
+      </div>
+    </section>
+  </div>
+
   <main class="page">
     <section id="authView" class="auth-view">
       <div class="auth-copy">
@@ -4356,7 +4373,7 @@
     second.addEventListener("input", updateTime);
   </script>
 
-  <script type="module" src="app.js?v=20260531-june-group-reassignment-v284"></script>
+  <script type="module" src="app.js?v=20260531-running-group-popup-v285"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
