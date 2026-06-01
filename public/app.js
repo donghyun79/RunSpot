@@ -11143,11 +11143,11 @@ async function loadMonthlyAthleteCandidates(user) {
       const cells = [
         `${rankLabel}${isMe ? " (나)" : ""}`,
         isCoach ? `${entry.name} (코치)` : entry.name,
-        `예상 ${formatAthleteScore(entry.totalScore)}점 / 확정 ${formatAthleteScore(entry.confirmedScore)}점`
+        `확정 ${formatAthleteScore(entry.confirmedScore)}점 / 예상 ${formatAthleteScore(entry.totalScore)}점`
       ];
 
       if (isHost) {
-        cells.push(`예상 ${formatAthleteScore(entry.totalRawScore)}점 / 확정 ${formatAthleteScore(entry.confirmedRawScore)}점`);
+        cells.push(`확정 ${formatAthleteScore(entry.confirmedRawScore)}점 / 예상 ${formatAthleteScore(entry.totalRawScore)}점`);
       }
 
       cells.push(
@@ -11175,7 +11175,7 @@ async function loadMonthlyAthleteCandidates(user) {
     const myRankText = myRankIndex >= 0 ? ` 내 수상 순위: ${myRankIndex + 1}위 / ${awardCandidates.length}명.` : "";
     const leaderText = `${leader.name} 1위`;
 
-    monthlyAthleteStatus.innerText = `${formatMonthLabel(monthKey)} 이달의 선수 예상 ${leaderText}: 예상 ${formatAthleteScore(leader.totalScore)}점, 현재 확정 ${formatAthleteScore(leader.confirmedScore)}점.${myRankText} 코치 기록은 참고로 표시하고 수상 순위에서는 제외합니다.`;
+    monthlyAthleteStatus.innerText = `${formatMonthLabel(monthKey)} 이달의 선수 예상 ${leaderText}: 현재 확정 ${formatAthleteScore(leader.confirmedScore)}점, 월말 예상 ${formatAthleteScore(leader.totalScore)}점.${myRankText} 순위는 확정 점수 기준이며, 코치 기록은 참고로 표시하고 수상 순위에서는 제외합니다.`;
     renderAthleteHallOfFame(memberEntries, user, finalizedMonthKey, monthlyGoalsByUser, healingContributions);
     updateMonthlyAthleteAnnouncementUi(user);
   } catch (e) {
@@ -11255,7 +11255,7 @@ async function loadMonthlyHealingContributions() {
 
 function getMonthlyAthleteCandidatesForMonth(memberEntries, monthKey, monthlyGoalsByUser = new Map(), healingContributions = null, options = {}) {
   const previousMonthKey = getPreviousMonthKey(monthKey);
-  const scoreMode = options.scoreMode || "projected";
+  const scoreMode = options.scoreMode || "confirmed";
 
   return memberEntries
     .map((entry) => calculateMonthlyAthleteScore(entry, monthKey, previousMonthKey, monthlyGoalsByUser, healingContributions))

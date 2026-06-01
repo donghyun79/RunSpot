@@ -3971,7 +3971,7 @@
 
     <section class="section subtab-hidden" data-training-subtab="analysis">
       <h2>이달의 선수 예상</h2>
-      <p class="section-guide">전체 점수는 월말 예상과 현재 확정을 함께 보여주고, 세부 항목은 오늘까지 실제 반영된 점수만 보여줍니다.</p>
+      <p class="section-guide">순위는 오늘까지 실제 반영된 확정 점수 기준으로 유지하고, 월말 예상 점수는 참고로 함께 보여줍니다.</p>
       <div id="monthlyAthleteStatus" class="goal-status">로그인 후 이달의 선수 예상을 확인할 수 있습니다.</div>
       <div class="table-wrap">
         <table class="monthly-athlete-table">
@@ -3979,7 +3979,7 @@
             <tr>
               <th>순위</th>
               <th>이름</th>
-              <th>예상 / 확정</th>
+              <th>확정 / 예상</th>
               <th id="monthlyAthleteRawScoreHeader" class="hidden">원점수</th>
               <th>출석</th>
               <th>마일리지<br><small>하한 기준</small></th>
@@ -4012,7 +4012,7 @@
           월 목표 보정은 마일리지 점수와 겹치지 않도록 개인 목표의 도전성 2점과 월 전체 목표 달성 3점을 나누어 봅니다. 목표 미설정은 0점이며, 목표를 설정한 뒤 목표 달성률이 부족해도 감점하지 않습니다.<br>
           목표 설정 점수는 화요 정훈의 조별 기준표에 있는 소속 조 권장 월 마일리지 상향치를 기준으로 계산합니다. 개인 목표가 상향치의 60% 미만이면 0.5/2점, 60~79%면 1/2점, 80~99%면 1.5/2점, 상향치 이상이면 2/2점입니다.<br>
           목표 달성 점수는 월 1일부터 말일까지의 개인 목표 대비 누적 거리 달성률로 계산합니다. 70% 미만은 0/3점, 70~89%는 1/3점, 90~99%는 2/3점, 100% 이상은 3/3점입니다.<br>
-          월중에는 회원님이 지금 흐름대로 월말까지 갔을 때의 예상 점수와, 오늘까지 실제로 쌓인 확정 점수를 함께 보여드립니다. 화면 표시는 보기 쉽게 100점 만점으로 맞춥니다.<br>
+          월중에는 오늘까지 실제로 쌓인 확정 점수를 기준으로 순위를 세우고, 회원님이 지금 흐름대로 월말까지 갔을 때의 예상 점수는 참고로 함께 보여드립니다. 화면 표시는 보기 쉽게 100점 만점으로 맞춥니다.<br>
           다만 실제 이달의 선수 선정은 화면 점수만으로 자르지 않고, 100점 상한을 적용하기 전 원점수를 먼저 비교해 1명을 정합니다.<br>
           원점수까지 같으면 정훈 인정률, 출석 일수, 조별 마일리지 달성률, 월 목표 보정, 성장도, 대회 가점, 배지 가점, 배지 개수, 힐링 기여도 순으로 더 세밀하게 비교합니다.<br>
           이번 달 표는 어디까지나 예상 순위이고, 다음 달이 시작되면 그 달 기록을 기준으로 명예의 전당에 최종 반영합니다.
@@ -4433,11 +4433,11 @@
     second.addEventListener("input", updateTime);
   </script>
 
-  <script type="module" src="app.js?v=20260601-growth-pb-baseline-v291"></script>
+  <script type="module" src="app.js?v=20260601-confirmed-athlete-rank-v292"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
-        navigator.serviceWorker.register("service-worker.js?v=20260601-growth-pb-baseline-v291").then((registration) => {
+        navigator.serviceWorker.register("service-worker.js?v=20260601-confirmed-athlete-rank-v292").then((registration) => {
           registration.update().catch(() => {});
         }).catch(() => {});
       });
@@ -4446,7 +4446,7 @@
     if ("caches" in window) {
       caches.keys().then((keys) => {
         keys
-          .filter((key) => key.startsWith("naviheal-runners-") && key !== "naviheal-runners-v291")
+          .filter((key) => key.startsWith("naviheal-runners-") && key !== "naviheal-runners-v292")
           .forEach((key) => caches.delete(key));
       }).catch(() => {});
     }
