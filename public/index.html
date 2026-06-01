@@ -4224,9 +4224,8 @@
           <div id="healingEventStatus" class="goal-status">번개/행사 공지를 불러오는 중입니다.</div>
           <div class="healing-composer-bar">
             <button id="toggleHealingEventComposer" class="button-secondary hidden" type="button" aria-expanded="false">공지 작성 열기</button>
-            <span class="healing-composer-hint">기존 공지를 먼저 확인하고 필요할 때만 새 공지를 작성하세요.</span>
+            <span class="healing-composer-hint">새 공지는 위에서 바로 작성하고, 아래에서 기존 공지를 확인하세요.</span>
           </div>
-          <div id="healingEventList" class="healing-list"></div>
           <div id="healingEventHostForm" class="healing-form hidden">
             <label>번개 제목
               <input id="healingEventTitle" maxlength="80" placeholder="예: 토요일 아침 회복조깅 번개">
@@ -4258,6 +4257,7 @@
               <button id="cancelHealingEventEdit" type="button" class="button-secondary hidden">수정 취소</button>
             </div>
           </div>
+          <div id="healingEventList" class="healing-list"></div>
         </section>
 
         <section class="healing-card subtab-hidden" data-healing-subtab="race">
@@ -4373,11 +4373,11 @@
     second.addEventListener("input", updateTime);
   </script>
 
-  <script type="module" src="app.js?v=20260601-monthly-athlete-confirmed-score-v287"></script>
+  <script type="module" src="app.js?v=20260601-healing-event-composer-v288"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
-        navigator.serviceWorker.register("service-worker.js?v=20260601-monthly-athlete-confirmed-score-v287").then((registration) => {
+        navigator.serviceWorker.register("service-worker.js?v=20260601-healing-event-composer-v288").then((registration) => {
           registration.update().catch(() => {});
         }).catch(() => {});
       });
@@ -4386,7 +4386,7 @@
     if ("caches" in window) {
       caches.keys().then((keys) => {
         keys
-          .filter((key) => key.startsWith("naviheal-runners-") && key !== "naviheal-runners-v287")
+          .filter((key) => key.startsWith("naviheal-runners-") && key !== "naviheal-runners-v288")
           .forEach((key) => caches.delete(key));
       }).catch(() => {});
     }

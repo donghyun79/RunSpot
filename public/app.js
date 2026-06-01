@@ -3815,6 +3815,9 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!auth.currentUser) return;
     isHealingEventComposerOpen = !isHealingEventComposerOpen;
     syncHealingEventFormVisibility(auth.currentUser);
+    if (isHealingEventComposerOpen) {
+      focusHealingForm("healingEventHostForm", "healingEventTitle");
+    }
   });
   document.getElementById("healingEventList")?.addEventListener("click", handleHealingEventListClick);
   document.getElementById("healingEventList")?.addEventListener("change", handleHealingEventListChange);
