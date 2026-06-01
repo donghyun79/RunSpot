@@ -2539,6 +2539,12 @@ function isRunInMonth(run, monthKey) {
   return getDateKey(run.runDate).startsWith(monthKey);
 }
 
+function isRunBeforeMonth(run, monthKey) {
+  const dateKey = getDateKey(run.runDate);
+
+  return Boolean(dateKey) && dateKey < `${monthKey}-01`;
+}
+
 function sumMileageByMonth(runs, monthKey) {
   return runs.reduce((total, run) => {
     if (!isRunInMonth(run, monthKey)) {
@@ -11667,6 +11673,7 @@ function calculateMonthlyAthleteScore(entry, monthKey, previousMonthKey, monthly
   const scoreWeights = getMonthlyAthleteScoreWeights(monthKey);
   const currentRuns = entry.runs.filter((run) => isRunInMonth(run, monthKey));
   const previousRuns = entry.runs.filter((run) => isRunInMonth(run, previousMonthKey));
+  const priorRuns = entry.runs.filter((run) => isRunBeforeMonth(run, monthKey));
   const attendanceDays = countUniqueRunDates(currentRuns);
   const totalDistance = currentRuns.reduce((total, run) => total + run.distance, 0);
   const goalMapKey = getMonthlyGoalMapKey(monthKey, entry.userId, entry.email);
@@ -11683,11 +11690,11 @@ function calculateMonthlyAthleteScore(entry, monthKey, previousMonthKey, monthly
   const attendanceScore = getAttendanceScore(attendanceDays, scoreWeights.attendance);
   const mileageScore = getMileageScore(mileageRate, scoreWeights.mileage);
   const qualityScore = getQualityAttendanceScore(qualityRate, scoreWeights.quality);
-  const growthScore = scoreWeights.growth ? getGrowthScore(currentRuns, previousRuns, scoreWeights.growth) : 0;
+  const growthScore = scoreWeights.growth ? getGrowthScore(currentRuns, previousRuns, scoreWeights.growth, priorRuns) : 0;
   const raceSummary = getMonthlyRaceBonusSummary(currentRuns);
   const raceCount = raceSummary.raceCount;
   const raceBonus = raceSummary.raceBonus;
-  const badgeAchievements = getMonthlyBadgeAchievements(currentRuns, previousRuns, qualitySummary, totalDistance);
+  const badgeAchievements = getMonthlyBadgeAchievements(currentRuns, previousRuns, qualitySummary, totalDistance, priorRuns);
   const badgeCount = badgeAchievements.length;
   const badgeBonus = getMonthlyBadgeBonus(badgeCount);
   const projectedAttendanceDays = Math.min(getMonthProgressInfo(monthKey).totalDays, Math.round(projectMonthlyValue(attendanceDays, monthKey)));
@@ -11708,7 +11715,7 @@ function calculateMonthlyAthleteScore(entry, monthKey, previousMonthKey, monthly
     totalDistance: projectedDistance,
     qualityCredit: projectedQualityAttendanceDays,
     raceCount,
-    hasPersonalBest: hasMonthlyPersonalBest(currentRuns, previousRuns)
+    hasPersonalBest: hasMonthlyPersonalBest(currentRuns, priorRuns)
   });
   const projectedBadgeCount = projectedBadgeAchievements.length;
   const projectedBadgeBonus = getMonthlyBadgeBonus(projectedBadgeCount);
@@ -12021,7 +12028,7 @@ function countWeekdaysInMonth(monthKey, weekday, maxDate = null) {
   return count;
 }
 
-function getGrowthScore(currentRuns, previousRuns, maxScore = 15) {
+function getGrowthScore(currentRuns, previousRuns, maxScore = 15, personalBestBaselineRuns = previousRuns) {
   const unit = maxScore / 4;
 
   if (!previousRuns.length) return currentRuns.length ? 10 : 0;
@@ -12034,7 +12041,7 @@ function getGrowthScore(currentRuns, previousRuns, maxScore = 15) {
 
   if (currentAttendance > previousAttendance) score += unit;
   if (currentStats.totalDistance > previousStats.totalDistance) score += unit;
-  if (hasMonthlyPersonalBest(currentRuns, previousRuns)) score += unit;
+  if (hasMonthlyPersonalBest(currentRuns, personalBestBaselineRuns)) score += unit;
 
   const keptTrainingVolume = currentStats.totalDistance >= previousStats.totalDistance * 0.8
     || currentAttendance >= previousAttendance * 0.8;
@@ -12046,10 +12053,10 @@ function getGrowthScore(currentRuns, previousRuns, maxScore = 15) {
   return clampScore(score, maxScore, 1);
 }
 
-function getMonthlyBadgeAchievements(currentRuns, previousRuns, qualitySummary, totalDistance) {
+function getMonthlyBadgeAchievements(currentRuns, previousRuns, qualitySummary, totalDistance, personalBestBaselineRuns = previousRuns) {
   const attendanceDays = countUniqueRunDates(currentRuns);
   const raceCount = currentRuns.filter(isRaceResultForMonthlyAthlete).length;
-  const hasPersonalBest = hasMonthlyPersonalBest(currentRuns, previousRuns);
+  const hasPersonalBest = hasMonthlyPersonalBest(currentRuns, personalBestBaselineRuns);
 
   return getMonthlyBadgeAchievementsFromMetrics({
     attendanceDays,
