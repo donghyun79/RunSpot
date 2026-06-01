@@ -316,7 +316,21 @@ const QUALITY_MONTHLY_SCHEDULE = {
     purpose: "기초 + LT",
     note: "",
     workouts: [
-      { date: "6/2", text: "600 x 8" },
+      {
+        date: "6/2",
+        text: "600 x 8",
+        schedule: {
+          purpose: "기초 + LT",
+          groupDetails: [
+            { groups: ["A"], intervalLabel: "600m 2'15\"~2'24\"", recoveryLabel: "200m 1'06\"~1'12\"", setCount: 8, pace: "3'45\"~4'00\"/km" },
+            { groups: ["B"], intervalLabel: "600m 2'24\"~2'36\"", recoveryLabel: "200m 1'10\"~1'16\"", setCount: 8, pace: "4'00\"~4'20\"/km" },
+            { groups: ["C"], intervalLabel: "600m 2'36\"~2'48\"", recoveryLabel: "200m 1'12\"~1'20\"", setCount: 8, pace: "4'20\"~4'40\"/km" },
+            { groups: ["D"], intervalLabel: "600m 2'48\"~3'00\"", recoveryLabel: "200m 1'18\"~1'24\"", setCount: 8, pace: "4'40\"~5'00\"/km" },
+            { groups: ["E"], intervalLabel: "600m 3'12\"~3'24\"", recoveryLabel: "200m 1'24\"~1'32\"", setCount: 7, pace: "5'20\"~5'40\"/km" },
+            { groups: ["S"], intervalLabel: "600m 3'36\"~4'00\"", recoveryLabel: "200m 1'32\"~1'42\"", setCount: 7, pace: "6'00\"~6'40\"/km" }
+          ]
+        }
+      },
       { date: "6/9", text: "1000 x 5" },
       { date: "6/16", text: "1600 x 3" },
       { date: "6/23", text: "400 x 10" },
@@ -2088,6 +2102,17 @@ function formatQualityHostGroupPlanGuide(planText = "") {
 
 function formatQualityGroupDetailText(detail = {}) {
   const groupLabel = detail.groups?.map((group) => `${group}조`).join(", ") || "조";
+
+  if (detail.intervalLabel || detail.recoveryLabel || detail.setCount) {
+    return [
+      `${groupLabel}:`,
+      detail.intervalLabel || "",
+      detail.recoveryLabel ? `/ 리커버리 ${detail.recoveryLabel}` : "",
+      detail.setCount ? `/ ${detail.setCount}세트` : "",
+      detail.pace ? `/ ${detail.pace}` : ""
+    ].filter(Boolean).join(" ");
+  }
+
   const blockLabel = `${detail.blockSets}세트 + ${detail.blockRestMinutes}분 휴식 + ${detail.repeatSets}세트`;
 
   return `${groupLabel}: 400m ${detail.repSeconds}초 / 제자리 휴식 ${detail.restSeconds}초 / ${blockLabel} / 총 ${detail.totalMinutes}분 (${detail.pace})`;
@@ -2102,19 +2127,23 @@ function formatQualityScheduledGroupGuide(workout = {}, userGroup = null) {
     const rows = groupDetails.map((detail) => [
       "<tr>",
       `<td>${escapeHtml(detail.groups.map((group) => `${group}조`).join(", "))}</td>`,
-      `<td>400m ${escapeHtml(detail.repSeconds)}초</td>`,
-      `<td>제자리 ${escapeHtml(detail.restSeconds)}초</td>`,
-      `<td>${escapeHtml(detail.blockSets)}세트 + ${escapeHtml(detail.blockRestMinutes)}분 + ${escapeHtml(detail.repeatSets)}세트</td>`,
-      `<td>${escapeHtml(detail.totalMinutes)}분 (${escapeHtml(detail.pace)})</td>`,
+      `<td>${escapeHtml(detail.intervalLabel || `400m ${detail.repSeconds}초`)}</td>`,
+      `<td>${escapeHtml(detail.recoveryLabel || `제자리 ${detail.restSeconds}초`)}</td>`,
+      `<td>${escapeHtml(detail.setCount ? `${detail.setCount}세트` : `${detail.blockSets}세트 + ${detail.blockRestMinutes}분 + ${detail.repeatSets}세트`)}</td>`,
+      `<td>${escapeHtml(detail.totalMinutes ? `${detail.totalMinutes}분 (${detail.pace})` : detail.pace || "")}</td>`,
       "</tr>"
     ].join("")).join("");
+    const firstDetail = groupDetails[0] || {};
+    const intervalHeader = firstDetail.intervalLabel ? "인터벌" : "400m";
+    const recoveryHeader = firstDetail.recoveryLabel ? "리커버리" : "휴식";
+    const totalHeader = firstDetail.totalMinutes ? "총 시간" : "페이스";
 
     return [
       '<div class="quality-host-plan-guide">',
-      '<div class="quality-host-plan-title">조별 레피티션 안내</div>',
+      '<div class="quality-host-plan-title">조별 세부 안내</div>',
       '<div class="quality-host-plan-table-wrap">',
       '<table class="quality-host-plan-table">',
-      '<thead><tr><th>조</th><th>400m</th><th>휴식</th><th>구성</th><th>총 시간</th></tr></thead>',
+      `<thead><tr><th>조</th><th>${intervalHeader}</th><th>${recoveryHeader}</th><th>세트</th><th>${totalHeader}</th></tr></thead>`,
       `<tbody>${rows}</tbody>`,
       '</table>',
       '</div>',
