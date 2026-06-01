@@ -331,9 +331,51 @@ const QUALITY_MONTHLY_SCHEDULE = {
           ]
         }
       },
-      { date: "6/9", text: "1000 x 5" },
-      { date: "6/16", text: "1600 x 3" },
-      { date: "6/23", text: "400 x 10" },
+      {
+        date: "6/9",
+        text: "1000 x 5",
+        schedule: {
+          purpose: "기초 + LT",
+          groupDetails: [
+            { groups: ["A"], intervalLabel: "1000m 3'45\"~4'00\"", recoveryLabel: "400m 2'12\"~2'24\"", setCount: 5, pace: "3'45\"~4'00\"/km" },
+            { groups: ["B"], intervalLabel: "1000m 4'00\"~4'20\"", recoveryLabel: "400m 2'20\"~2'32\"", setCount: 5, pace: "4'00\"~4'20\"/km" },
+            { groups: ["C"], intervalLabel: "1000m 4'20\"~4'40\"", recoveryLabel: "400m 2'24\"~2'40\"", setCount: 5, pace: "4'20\"~4'40\"/km" },
+            { groups: ["D"], intervalLabel: "1000m 4'40\"~5'00\"", recoveryLabel: "400m 2'36\"~2'48\"", setCount: 5, pace: "4'40\"~5'00\"/km" },
+            { groups: ["E"], intervalLabel: "1000m 5'20\"~5'40\"", recoveryLabel: "400m 2'48\"~3'04\"", setCount: 4, pace: "5'20\"~5'40\"/km" },
+            { groups: ["S"], intervalLabel: "1000m 6'00\"~6'40\"", recoveryLabel: "400m 3'04\"~3'24\"", setCount: 4, pace: "6'00\"~6'40\"/km" }
+          ]
+        }
+      },
+      {
+        date: "6/16",
+        text: "1600 x 3",
+        schedule: {
+          purpose: "기초 + LT",
+          groupDetails: [
+            { groups: ["A"], intervalLabel: "1600m 6'00\"~6'24\"", recoveryLabel: "400m 2'12\"~2'24\"", setCount: 3, pace: "3'45\"~4'00\"/km" },
+            { groups: ["B"], intervalLabel: "1600m 6'24\"~6'56\"", recoveryLabel: "400m 2'20\"~2'32\"", setCount: 3, pace: "4'00\"~4'20\"/km" },
+            { groups: ["C"], intervalLabel: "1600m 6'56\"~7'28\"", recoveryLabel: "400m 2'24\"~2'40\"", setCount: 3, pace: "4'20\"~4'40\"/km" },
+            { groups: ["D"], intervalLabel: "1600m 7'28\"~8'00\"", recoveryLabel: "400m 2'36\"~2'48\"", setCount: 3, pace: "4'40\"~5'00\"/km" },
+            { groups: ["E"], intervalLabel: "1600m 8'32\"~9'04\"", recoveryLabel: "400m 2'48\"~3'04\"", setCount: 2, pace: "5'20\"~5'40\"/km" },
+            { groups: ["S"], intervalLabel: "1600m 9'36\"~10'40\"", recoveryLabel: "400m 3'04\"~3'24\"", setCount: 2, pace: "6'00\"~6'40\"/km" }
+          ]
+        }
+      },
+      {
+        date: "6/23",
+        text: "400 x 10",
+        schedule: {
+          purpose: "기초 + LT",
+          groupDetails: [
+            { groups: ["A"], intervalLabel: "400m 1'30\"~1'36\"", recoveryLabel: "200m 1'06\"~1'12\"", setCount: 10, pace: "3'45\"~4'00\"/km" },
+            { groups: ["B"], intervalLabel: "400m 1'36\"~1'44\"", recoveryLabel: "200m 1'10\"~1'16\"", setCount: 10, pace: "4'00\"~4'20\"/km" },
+            { groups: ["C"], intervalLabel: "400m 1'44\"~1'52\"", recoveryLabel: "200m 1'12\"~1'20\"", setCount: 10, pace: "4'20\"~4'40\"/km" },
+            { groups: ["D"], intervalLabel: "400m 1'52\"~2'00\"", recoveryLabel: "200m 1'18\"~1'24\"", setCount: 10, pace: "4'40\"~5'00\"/km" },
+            { groups: ["E"], intervalLabel: "400m 2'08\"~2'16\"", recoveryLabel: "200m 1'24\"~1'32\"", setCount: 9, pace: "5'20\"~5'40\"/km" },
+            { groups: ["S"], intervalLabel: "400m 2'24\"~2'40\"", recoveryLabel: "200m 1'32\"~1'42\"", setCount: 9, pace: "6'00\"~6'40\"/km" }
+          ]
+        }
+      },
       { date: "6/30", text: "5K TT" }
     ]
   },
