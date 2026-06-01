@@ -4373,11 +4373,11 @@
     second.addEventListener("input", updateTime);
   </script>
 
-  <script type="module" src="app.js?v=20260531-running-group-popup-copy-v286"></script>
+  <script type="module" src="app.js?v=20260601-monthly-athlete-confirmed-score-v287"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
-        navigator.serviceWorker.register("service-worker.js?v=20260515-healing-race-layout-v283").then((registration) => {
+        navigator.serviceWorker.register("service-worker.js?v=20260601-monthly-athlete-confirmed-score-v287").then((registration) => {
           registration.update().catch(() => {});
         }).catch(() => {});
       });
@@ -4386,7 +4386,7 @@
     if ("caches" in window) {
       caches.keys().then((keys) => {
         keys
-          .filter((key) => key.startsWith("naviheal-runners-") && key !== "naviheal-runners-v247")
+          .filter((key) => key.startsWith("naviheal-runners-") && key !== "naviheal-runners-v287")
           .forEach((key) => caches.delete(key));
       }).catch(() => {});
     }

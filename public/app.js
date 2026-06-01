@@ -6323,11 +6323,11 @@ function getMonthlyAthleteAnnouncementSummary(entry) {
   return {
     eyebrow: `${monthLabel} 명예의 전당`,
     title: `${Number(monthKey.split("-")[1])}월 왕별 확정`,
-    body: `${winner.name}님이 ${formatAthleteScore(winner.totalScore)}점으로 ${monthLabel} 이달의 선수에 선정됐습니다. ${achievementSummary}`,
+    body: `${winner.name}님이 ${formatAthleteScore(winner.confirmedScore)}점으로 ${monthLabel} 이달의 선수에 선정됐습니다. ${achievementSummary}`,
     lead: `${winner.name}님이 ${monthLabel} 이달의 선수로 확정됐습니다. 한 달 동안의 꾸준함이 멋진 왕별로 이어졌어요.`,
     note: `${MONTHLY_ATHLETE_ANNOUNCEMENT_END_DAY}일까지 메인 화면 상단 배너에서도 다시 확인할 수 있습니다.`,
     list: [
-      `최종 점수 ${formatAthleteScore(winner.totalScore)}점`,
+      `최종 점수 ${formatAthleteScore(winner.confirmedScore)}점`,
       `출석 ${winner.attendanceDays}일 · 거리 ${formatMileage(winner.totalDistance)}`,
       `정훈 ${formatQualityCredit(winner.qualityAttendanceDays)}/${winner.qualityWorkoutCount}회 인정`
     ]
@@ -11091,13 +11091,14 @@ async function loadMonthlyHealingContributions() {
   }
 }
 
-function getMonthlyAthleteCandidatesForMonth(memberEntries, monthKey, monthlyGoalsByUser = new Map(), healingContributions = null) {
+function getMonthlyAthleteCandidatesForMonth(memberEntries, monthKey, monthlyGoalsByUser = new Map(), healingContributions = null, options = {}) {
   const previousMonthKey = getPreviousMonthKey(monthKey);
+  const scoreMode = options.scoreMode || "projected";
 
   return memberEntries
     .map((entry) => calculateMonthlyAthleteScore(entry, monthKey, previousMonthKey, monthlyGoalsByUser, healingContributions))
     .filter((entry) => entry.attendanceDays > 0)
-    .sort(sortMonthlyAthleteCandidates);
+    .sort((a, b) => sortMonthlyAthleteCandidates(a, b, scoreMode));
 }
 
 function getMonthlyAthleteAwardCandidates(candidates = []) {
@@ -11115,7 +11116,9 @@ function renderAthleteHallOfFame(memberEntries, user, currentMonthKey, monthlyGo
   const monthKeys = getMonthKeysBetween(MONTHLY_ATHLETE_START_MONTH, currentMonthKey);
   const hallEntries = monthKeys
     .map((monthKey) => {
-      const candidates = getMonthlyAthleteCandidatesForMonth(memberEntries, monthKey, monthlyGoalsByUser, healingContributions);
+      const candidates = getMonthlyAthleteCandidatesForMonth(memberEntries, monthKey, monthlyGoalsByUser, healingContributions, {
+        scoreMode: "confirmed"
+      });
       const awardCandidates = getMonthlyAthleteAwardCandidates(candidates);
       if (!awardCandidates.length) return null;
 
@@ -11150,7 +11153,7 @@ function renderAthleteHallOfFame(memberEntries, user, currentMonthKey, monthlyGo
       getAthleteHallMonthLabel(monthKey),
       `${winner.name}${isMe ? " (나)" : ""}`,
       getAthleteHallAchievementSummary(winner),
-      `${formatAthleteScore(winner.totalScore)}점`,
+      `${formatAthleteScore(winner.confirmedScore)}점`,
       `${formatAthleteScore(winner.attendanceScore)}/${winner.attendanceMaxScore} (${winner.attendanceDays}일)`,
       `${formatAthleteScore(winner.mileageScore)}/${winner.mileageMaxScore} (${winner.groupLabel} ${winner.mileageRate}%)`,
       formatMonthlyGoalAdjustment(winner),
@@ -11213,7 +11216,7 @@ function renderAthleteHallSummary(hallEntries, user) {
     achievement.className = "hall-summary-achievement";
     achievement.innerText = getAthleteHallAchievementSummary(primaryWinner);
     score.className = "hall-summary-score";
-    score.innerText = `${formatAthleteScore(primaryWinner.totalScore)}점 · 정훈 ${formatQualityCredit(primaryWinner.qualityAttendanceDays)}/${primaryWinner.qualityWorkoutCount}회 인정 · 힐링 ${formatAthleteScore(primaryWinner.healingScore || 0)}점`;
+    score.innerText = `${formatAthleteScore(primaryWinner.confirmedScore)}점 · 정훈 ${formatQualityCredit(primaryWinner.qualityAttendanceDays)}/${primaryWinner.qualityWorkoutCount}회 인정 · 힐링 ${formatAthleteScore(primaryWinner.healingScore || 0)}점`;
 
     card.append(month, name, achievement, score);
     athleteHallSummaryList.appendChild(card);
@@ -11667,10 +11670,17 @@ function getMonthlyRaceBonusSummary(runs) {
   };
 }
 
-function sortMonthlyAthleteCandidates(a, b) {
-  if (b.totalRawScore !== a.totalRawScore) return b.totalRawScore - a.totalRawScore;
-  if (b.confirmedRawScore !== a.confirmedRawScore) return b.confirmedRawScore - a.confirmedRawScore;
-  if (b.totalScore !== a.totalScore) return b.totalScore - a.totalScore;
+function sortMonthlyAthleteCandidates(a, b, scoreMode = "projected") {
+  if (scoreMode === "confirmed") {
+    if (b.confirmedRawScore !== a.confirmedRawScore) return b.confirmedRawScore - a.confirmedRawScore;
+    if (b.confirmedScore !== a.confirmedScore) return b.confirmedScore - a.confirmedScore;
+    if (b.totalRawScore !== a.totalRawScore) return b.totalRawScore - a.totalRawScore;
+    if (b.totalScore !== a.totalScore) return b.totalScore - a.totalScore;
+  } else {
+    if (b.totalRawScore !== a.totalRawScore) return b.totalRawScore - a.totalRawScore;
+    if (b.confirmedRawScore !== a.confirmedRawScore) return b.confirmedRawScore - a.confirmedRawScore;
+    if (b.totalScore !== a.totalScore) return b.totalScore - a.totalScore;
+  }
   if (b.confirmedScore !== a.confirmedScore) return b.confirmedScore - a.confirmedScore;
   if (b.qualityRate !== a.qualityRate) return b.qualityRate - a.qualityRate;
   if (b.attendanceDays !== a.attendanceDays) return b.attendanceDays - a.attendanceDays;
