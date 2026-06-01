@@ -5354,11 +5354,15 @@ function formatHealingDateTime(value) {
   if (Number.isNaN(parsed.getTime())) {
     return String(value).replace("T", " ");
   }
+  const year = parsed.getFullYear();
   const month = parsed.getMonth() + 1;
   const date = parsed.getDate();
   const hours = parsed.getHours().toString().padStart(2, "0");
   const minutes = parsed.getMinutes().toString().padStart(2, "0");
-  return `${month}/${date} ${hours}:${minutes}`;
+  const dateLabel = year === new Date().getFullYear()
+    ? `${month}/${date}`
+    : `${year}. ${month}/${date}`;
+  return `${dateLabel} ${hours}:${minutes}`;
 }
 
 function formatHealingRaceDateTime(value) {
