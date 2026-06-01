@@ -3004,11 +3004,13 @@ document.addEventListener("DOMContentLoaded", () => {
     const isHost = isHostUser(user);
     document.getElementById("monthlyAthleteRawScoreHeader")?.classList.toggle("hidden", !isHost);
     memberManagement.classList.toggle("hidden", !isHost);
+    document.getElementById("hostMemberPbOverview")?.classList.toggle("hidden", !isHost);
     syncHealingEventFormVisibility(user);
     syncHealingRaceFormVisibility(user);
 
     if (!isHost) {
       document.getElementById("memberList").innerHTML = "";
+      renderHostMemberPersonalBests([]);
       clearMemberRunsPanel();
     }
   }
@@ -3448,6 +3450,7 @@ document.addEventListener("DOMContentLoaded", () => {
         await loadMyRuns(user).catch(showDashboardLoadError);
         await loadMonthlyAthleteCandidates(user).catch(showDashboardLoadError);
         await loadClubRanking(user).catch(showDashboardLoadError);
+        await loadHostMemberPersonalBests(user).catch(showDashboardLoadError);
         await loadWeeklyRanking(user).catch(showDashboardLoadError);
         await loadSuggestions(user).catch(showDashboardLoadError);
         await loadHealingHub(user).catch(showDashboardLoadError);
@@ -9168,20 +9171,7 @@ async function loadMembers() {
         tr.appendChild(td);
       });
 
-      const memberRuns = [];
-      const memberRunIds = new Set();
-
-      (runsByUserId.get(member.userId) || []).forEach((run) => {
-        if (memberRunIds.has(run.id)) return;
-        memberRunIds.add(run.id);
-        memberRuns.push(run);
-      });
-
-      (runsByEmail.get(member.email.toLowerCase()) || []).forEach((run) => {
-        if (memberRunIds.has(run.id)) return;
-        memberRunIds.add(run.id);
-        memberRuns.push(run);
-      });
+      const memberRuns = getMemberRunsFromLookup(member, runsByUserId, runsByEmail);
 
       const groupSummary = getMemberPredictionGroupSummary(member, memberRuns);
       if (groupSummary.hasChange) {
@@ -9254,6 +9244,15 @@ async function loadMembers() {
     memberStatus.innerText = changedGroupCount > 0
       ? `등록 회원 ${members.length}명 · 예상조와 실제 조가 다른 회원 ${changedGroupCount}명`
       : `등록 회원 ${members.length}명`;
+    renderHostMemberPersonalBests(
+      members
+        .filter((member) => member.approved && !member.disabled)
+        .map((member) => ({
+          member,
+          pbMap: getPersonalBestMapFromRuns(getMemberRunsFromLookup(member, runsByUserId, runsByEmail))
+        }))
+        .filter((row) => PB_CATEGORIES.some((category) => Boolean(row.pbMap[category.key])))
+    );
   } catch (e) {
     console.error(e);
     memberStatus.innerText = "회원 목록을 불러오지 못했습니다.";
@@ -10549,6 +10548,156 @@ function formatKoreanDate(dateString) {
   if (!date) return dateString;
 
   return `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일`;
+}
+
+function getMemberRunsFromLookup(member, runsByUserId = new Map(), runsByEmail = new Map()) {
+  const memberRuns = [];
+  const memberRunIds = new Set();
+
+  (runsByUserId.get(member.userId) || []).forEach((run) => {
+    if (memberRunIds.has(run.id)) return;
+    memberRunIds.add(run.id);
+    memberRuns.push(run);
+  });
+
+  (runsByEmail.get(String(member.email || "").toLowerCase()) || []).forEach((run) => {
+    if (memberRunIds.has(run.id)) return;
+    memberRunIds.add(run.id);
+    memberRuns.push(run);
+  });
+
+  return memberRuns;
+}
+
+function createHostMemberPbCell(record) {
+  const td = document.createElement("td");
+
+  if (!record) {
+    td.innerHTML = '<span class="host-pb-empty">-</span>';
+    return td;
+  }
+
+  const dateText = record.runDate ? `${formatKoreanDate(record.runDate)} 달성` : "달성일 미기록";
+  td.innerHTML = [
+    `<span class="pb-record">${formatTime(record.time)} (${formatPace(record.pace)})</span>`,
+    `<span class="pb-date">${dateText}</span>`
+  ].join("");
+  return td;
+}
+
+function renderHostMemberPersonalBests(memberRows = null) {
+  const overview = document.getElementById("hostMemberPbOverview");
+  const status = document.getElementById("hostMemberPbStatus");
+  const list = document.getElementById("hostMemberPbList");
+
+  if (!overview || !status || !list) return;
+
+  const user = auth.currentUser;
+  const isHost = isHostUser(user);
+  overview.classList.toggle("hidden", !isHost);
+  list.innerHTML = "";
+
+  if (!isHost) {
+    status.innerText = "호스트 계정에서 회원 PB를 확인할 수 있습니다.";
+    return;
+  }
+
+  if (!memberRows) {
+    status.innerText = "회원 PB를 불러오는 중입니다...";
+    return;
+  }
+
+  if (!memberRows.length) {
+    status.innerText = "표시할 회원 PB 기록이 아직 없습니다.";
+    return;
+  }
+
+  memberRows.forEach(({ member, pbMap }) => {
+    const tr = document.createElement("tr");
+    const nameTd = document.createElement("td");
+    const name = document.createElement("span");
+    const email = document.createElement("span");
+
+    name.innerText = member.name;
+    email.className = "host-pb-email";
+    email.innerText = member.email || "-";
+    nameTd.className = "host-pb-name";
+    nameTd.append(name, email);
+    tr.appendChild(nameTd);
+
+    PB_CATEGORIES.forEach((category) => {
+      tr.appendChild(createHostMemberPbCell(pbMap[category.key]));
+    });
+
+    list.appendChild(tr);
+  });
+
+  const recordCount = memberRows.reduce((total, row) => (
+    total + PB_CATEGORIES.filter((category) => Boolean(row.pbMap[category.key])).length
+  ), 0);
+  status.innerText = `회원 ${memberRows.length}명의 개인 최고 기록 ${recordCount}개를 표시합니다.`;
+}
+
+async function loadHostMemberPersonalBests(user = auth.currentUser) {
+  if (!isHostUser(user)) {
+    renderHostMemberPersonalBests([]);
+    return;
+  }
+
+  renderHostMemberPersonalBests(null);
+
+  const [memberSnapshot, runsSnapshot] = await Promise.all([
+    getDocsFromServer(collection(db, "users")),
+    getDocsFromServer(collection(db, "runs"))
+  ]);
+  const members = [];
+  const runsByUserId = new Map();
+  const runsByEmail = new Map();
+
+  memberSnapshot.forEach((snapshotDoc) => {
+    const data = snapshotDoc.data();
+    const member = {
+      id: snapshotDoc.id,
+      userId: data.userId || snapshotDoc.id,
+      name: data.name || "이름 없음",
+      email: data.email || "",
+      approved: data.approved !== false,
+      disabled: Boolean(data.disabled),
+      role: data.role || (data.email?.toLowerCase() === HOST_EMAIL ? "host" : "member")
+    };
+
+    if (member.approved && !member.disabled) {
+      members.push(member);
+    }
+  });
+
+  runsSnapshot.forEach((snapshotDoc) => {
+    const run = buildRunRecord(snapshotDoc.id, snapshotDoc.data());
+    const userIdKey = run.userId || "";
+    const emailKey = String(run.email || "").toLowerCase();
+
+    if (userIdKey) {
+      const userRuns = runsByUserId.get(userIdKey) || [];
+      userRuns.push(run);
+      runsByUserId.set(userIdKey, userRuns);
+    }
+
+    if (emailKey) {
+      const emailRuns = runsByEmail.get(emailKey) || [];
+      emailRuns.push(run);
+      runsByEmail.set(emailKey, emailRuns);
+    }
+  });
+
+  const memberRows = members
+    .sort((a, b) => a.name.localeCompare(b.name, "ko"))
+    .map((member) => ({
+      member,
+      pbMap: getPersonalBestMapFromRuns(getMemberRunsFromLookup(member, runsByUserId, runsByEmail))
+    }))
+    .filter((row) => PB_CATEGORIES.some((category) => Boolean(row.pbMap[category.key])));
+
+  renderHostMemberPersonalBests(memberRows);
 }
 
 async function loadClubRanking(user) {

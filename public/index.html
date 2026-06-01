@@ -2189,6 +2189,44 @@
       line-height: 1.35;
     }
 
+    .host-pb-overview {
+      margin-top: 12px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    .host-pb-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .host-pb-header h3 {
+      margin: 0;
+      color: var(--brand-dark);
+      font-size: 16px;
+    }
+
+    .host-pb-table td {
+      vertical-align: top;
+    }
+
+    .host-pb-name {
+      display: grid;
+      gap: 3px;
+      font-weight: 800;
+    }
+
+    .host-pb-email,
+    .host-pb-empty {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
     .pb-celebration {
       margin-top: 12px;
       padding: 12px 14px;
@@ -3768,6 +3806,28 @@
       </ul>
       <div id="pbCelebration" class="pb-celebration hidden"></div>
 
+      <section id="hostMemberPbOverview" class="host-pb-overview hidden">
+        <div class="host-pb-header">
+          <h3>회원 개인 최고 기록</h3>
+          <span class="host-badge">Host</span>
+        </div>
+        <div id="hostMemberPbStatus" class="goal-status">호스트 계정에서 회원 PB를 확인할 수 있습니다.</div>
+        <div class="table-wrap">
+          <table class="member-table host-pb-table">
+            <thead>
+              <tr>
+                <th>회원</th>
+                <th>5K</th>
+                <th>10K</th>
+                <th>Half</th>
+                <th>Full</th>
+              </tr>
+            </thead>
+            <tbody id="hostMemberPbList"></tbody>
+          </table>
+        </div>
+      </section>
+
       <section class="today-club-panel">
         <div class="today-club-header">
           <div class="today-club-title">오늘의 나빌 러닝</div>
@@ -4373,11 +4433,11 @@
     second.addEventListener("input", updateTime);
   </script>
 
-  <script type="module" src="app.js?v=20260601-healing-event-date-year-v289"></script>
+  <script type="module" src="app.js?v=20260601-host-member-pb-v290"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", () => {
-        navigator.serviceWorker.register("service-worker.js?v=20260601-healing-event-date-year-v289").then((registration) => {
+        navigator.serviceWorker.register("service-worker.js?v=20260601-host-member-pb-v290").then((registration) => {
           registration.update().catch(() => {});
         }).catch(() => {});
       });
@@ -4386,7 +4446,7 @@
     if ("caches" in window) {
       caches.keys().then((keys) => {
         keys
-          .filter((key) => key.startsWith("naviheal-runners-") && key !== "naviheal-runners-v289")
+          .filter((key) => key.startsWith("naviheal-runners-") && key !== "naviheal-runners-v290")
           .forEach((key) => caches.delete(key));
       }).catch(() => {});
     }
