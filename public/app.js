@@ -762,6 +762,7 @@ function updateRunFormMode() {
 
   const isEditing = Boolean(editingRun);
   saveBtn.innerText = isEditing ? "수정 저장" : "저장";
+  saveBtn.disabled = false;
   cancelRunEditBtn.classList.toggle("hidden", !isEditing);
   runEditStatus.classList.toggle("hidden", !isEditing);
 
@@ -3605,6 +3606,8 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
+    saveBtn.disabled = true;
+
     try {
       const runOwner = editingRun
         ? {
@@ -3670,6 +3673,8 @@ document.addEventListener("DOMContentLoaded", () => {
     } catch (e) {
       console.error(e);
       alert(editingRun ? "기록 수정에 실패했습니다. Firestore 권한을 확인해주세요." : "기록 저장에 실패했습니다.");
+    } finally {
+      saveBtn.disabled = false;
     }
   });
 
@@ -5374,7 +5379,37 @@ async function deleteRun(run) {
   if (!confirmed) return;
 
   try {
-    await deleteDoc(doc(db, "runs", run.id));
+    const runIdsToDelete = new Set([run.id]);
+    const matchingQueries = [];
+
+    if (run.userId) {
+      matchingQueries.push(getDocsFromServer(query(
+        collection(db, "runs"),
+        where("userId", "==", run.userId)
+      )));
+    }
+
+    if (run.email) {
+      matchingQueries.push(getDocsFromServer(query(
+        collection(db, "runs"),
+        where("email", "==", run.email)
+      )));
+    }
+
+    const snapshots = await Promise.all(matchingQueries);
+
+    snapshots.forEach((querySnapshot) => {
+      querySnapshot.forEach((snapshotDoc) => {
+        if (isSameRunRecord(snapshotDoc.id, snapshotDoc.data(), run)) {
+          runIdsToDelete.add(snapshotDoc.id);
+        }
+      });
+    });
+
+    await Promise.all(
+      Array.from(runIdsToDelete).map((runId) => deleteDoc(doc(db, "runs", runId)))
+    );
+
     if (editingRun?.id === run.id) {
       resetRunForm();
     }
@@ -5388,7 +5423,7 @@ async function deleteRun(run) {
     if (selectedAdminMember && run.userId === selectedAdminMember.userId) {
       await loadMemberRuns(selectedAdminMember);
     }
-    alert("기록을 삭제했습니다.");
+    alert(runIdsToDelete.size > 1 ? `중복 포함 ${runIdsToDelete.size}개 기록을 삭제했습니다.` : "기록을 삭제했습니다.");
   } catch (e) {
     console.error(e);
     if (e.code === "permission-denied") {
@@ -5398,6 +5433,32 @@ async function deleteRun(run) {
 
     alert(`기록 삭제에 실패했습니다. ${e.message}`);
   }
+}
+
+function isSameRunRecord(id, data, referenceRun) {
+  if (!referenceRun || id === referenceRun.id) return false;
+
+  const candidate = buildRunRecord(id, data, {
+    userId: referenceRun.userId || "",
+    name: referenceRun.name || "",
+    email: referenceRun.email || ""
+  });
+
+  const sameOwner = referenceRun.userId
+    ? candidate.userId === referenceRun.userId || candidate.email === referenceRun.email
+    : referenceRun.email
+      ? candidate.email === referenceRun.email
+      : candidate.name === referenceRun.name;
+
+  return sameOwner
+    && candidate.runDate === referenceRun.runDate
+    && candidate.type === referenceRun.type
+    && Math.abs(Number(candidate.distance) - Number(referenceRun.distance)) < 0.001
+    && Math.abs(Number(candidate.time) - Number(referenceRun.time)) < 0.001
+    && (candidate.workoutType || "") === (referenceRun.workoutType || "")
+    && (candidate.workoutDetail || "") === (referenceRun.workoutDetail || "")
+    && (candidate.raceName || "") === (referenceRun.raceName || "")
+    && (candidate.raceDate || "") === (referenceRun.raceDate || "");
 }
 
 function getHealingEventTypeLabel(type) {
