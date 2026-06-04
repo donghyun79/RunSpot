@@ -1689,7 +1689,7 @@
 
     .environment-widget {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) 128px;
+      grid-template-columns: minmax(170px, 1fr) minmax(116px, 128px);
       grid-template-rows: repeat(2, minmax(34px, auto));
       align-items: stretch;
       gap: 6px;
@@ -1734,7 +1734,7 @@
     .environment-sub {
       display: block;
       max-width: 100%;
-      overflow-wrap: normal;
+      overflow-wrap: anywhere;
     }
 
     .environment-main {
@@ -3083,7 +3083,7 @@
         max-width: none;
       }
       .environment-widget {
-        grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
+        grid-template-columns: minmax(0, 1.05fr) minmax(108px, 0.95fr);
         font-size: 11px;
       }
       .environment-main,
@@ -3371,6 +3371,7 @@
         line-height: 1.35;
       }
       .environment-widget {
+        grid-template-columns: minmax(0, 1fr) minmax(92px, 0.85fr);
         grid-template-rows: repeat(2, minmax(28px, auto));
         gap: 4px;
         font-size: 10px;
@@ -3614,6 +3615,8 @@
       <div class="header-actions">
         <div id="nowonEnvironment" class="environment-widget" aria-live="polite">
           <span class="environment-pill weather"><span class="environment-main"><strong>노원구</strong> 날씨 확인 중</span><span class="environment-sub">미세먼지도 함께 확인해요</span></span>
+          <span class="environment-pill dust normal"><span class="environment-main">미세먼지 확인 중</span><span class="environment-sub">잠시 후 갱신</span></span>
+          <span class="environment-pill dust normal"><span class="environment-main">초미세 확인 중</span><span class="environment-sub">잠시 후 갱신</span></span>
         </div>
         <div class="account-actions">
           <div id="status" class="status-line">로그아웃 상태</div>

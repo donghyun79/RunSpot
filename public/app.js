@@ -1279,7 +1279,7 @@ function getUpcomingWeatherRisk(hourly) {
   };
 }
 
-function renderNowonEnvironment(weatherData, airCurrent) {
+function renderNowonEnvironment(weatherData, airCurrent, status = {}) {
   const widget = document.getElementById("nowonEnvironment");
 
   if (!widget) return;
@@ -1302,26 +1302,43 @@ function renderNowonEnvironment(weatherData, airCurrent) {
   const pm25Sub = Number.isFinite(pm25) ? `${getDustRunningAdvice(pm25Grade)} · ${pm25}㎍/㎥` : "잠시 후 갱신";
   const trendHtml = getHourlyWeatherTrendHtml(weatherData?.hourly);
   const upcomingRisk = getUpcomingWeatherRisk(weatherData?.hourly);
+  const weatherClassName = status.weatherFailed ? "environment-pill weather bad" : "environment-pill weather";
+  const weatherMain = status.weatherFailed
+    ? "<strong>노원구</strong> 날씨 불러오기 실패"
+    : `<strong>노원구</strong> ${weatherText}`;
+  const weatherSub = status.weatherFailed ? "미세먼지는 별도로 확인했어요" : humidityText;
+  const pm10ClassName = `environment-pill dust ${status.airFailed ? "bad" : pm10Grade.className}`;
+  const pm25ClassName = `environment-pill dust ${status.airFailed ? "bad" : pm25Grade.className}`;
 
   latestEnvironment = {
-    temperature,
-    humidity,
+    temperature: Number.isFinite(temperature) ? temperature : null,
+    humidity: Number.isFinite(humidity) ? humidity : null,
     weatherCode,
     weatherLabel: getWeatherLabel(weatherCode),
-    pm10,
-    pm25,
+    pm10: Number.isFinite(pm10) ? pm10 : null,
+    pm25: Number.isFinite(pm25) ? pm25 : null,
     pm10Grade,
     pm25Grade,
     ...upcomingRisk
   };
 
   widget.innerHTML = [
-    `<span class="environment-pill weather"><span class="environment-main"><strong>노원구</strong> ${weatherText}</span><span class="environment-sub">${humidityText}</span>${trendHtml}</span>`,
-    `<span class="environment-pill dust ${pm10Grade.className}" title="${pm10Grade.label === "좋음" ? "뛰기 좋은 공기예요." : pm10Grade.label === "보통" ? "가볍게 달리기엔 무난해요." : "강도 높은 러닝은 줄이는 게 좋아요."}"><span class="environment-main">${pm10Main}</span><span class="environment-sub">${pm10Sub}</span></span>`,
-    `<span class="environment-pill dust ${pm25Grade.className}" title="${pm25Grade.label === "좋음" ? "뛰기 좋은 공기예요." : pm25Grade.label === "보통" ? "가볍게 달리기엔 무난해요." : "강도 높은 러닝은 줄이는 게 좋아요."}"><span class="environment-main">${pm25Main}</span><span class="environment-sub">${pm25Sub}</span></span>`
+    `<span class="${weatherClassName}"><span class="environment-main">${weatherMain}</span><span class="environment-sub">${weatherSub}</span>${status.weatherFailed ? "" : trendHtml}</span>`,
+    `<span class="${pm10ClassName}" title="${pm10Grade.label === "좋음" ? "뛰기 좋은 공기예요." : pm10Grade.label === "보통" ? "가볍게 달리기엔 무난해요." : "강도 높은 러닝은 줄이는 게 좋아요."}"><span class="environment-main">${status.airFailed ? "미세먼지 불러오기 실패" : pm10Main}</span><span class="environment-sub">${status.airFailed ? "잠시 후 다시 확인" : pm10Sub}</span></span>`,
+    `<span class="${pm25ClassName}" title="${pm25Grade.label === "좋음" ? "뛰기 좋은 공기예요." : pm25Grade.label === "보통" ? "가볍게 달리기엔 무난해요." : "강도 높은 러닝은 줄이는 게 좋아요."}"><span class="environment-main">${status.airFailed ? "초미세 불러오기 실패" : pm25Main}</span><span class="environment-sub">${status.airFailed ? "잠시 후 다시 확인" : pm25Sub}</span></span>`
   ].join("");
 
   updateDailyRecommendation(latestRuns);
+}
+
+async function fetchEnvironmentJson(url) {
+  const response = await fetch(url, { cache: "no-store" });
+
+  if (!response.ok) {
+    throw new Error(`Environment API response failed: ${response.status}`);
+  }
+
+  return response.json();
 }
 
 function resetNowonEnvironment() {
@@ -1330,7 +1347,11 @@ function resetNowonEnvironment() {
   if (!widget) return;
 
   latestEnvironment = null;
-  widget.innerHTML = '<span class="environment-pill weather"><span class="environment-main"><strong>노원구</strong> 날씨 확인 중</span><span class="environment-sub">미세먼지도 함께 확인해요</span></span>';
+  widget.innerHTML = [
+    '<span class="environment-pill weather"><span class="environment-main"><strong>노원구</strong> 날씨 확인 중</span><span class="environment-sub">미세먼지도 함께 확인해요</span></span>',
+    '<span class="environment-pill dust normal"><span class="environment-main">미세먼지 확인 중</span><span class="environment-sub">잠시 후 갱신</span></span>',
+    '<span class="environment-pill dust normal"><span class="environment-main">초미세 확인 중</span><span class="environment-sub">잠시 후 갱신</span></span>'
+  ].join("");
 }
 
 async function loadNowonEnvironment() {
@@ -1359,25 +1380,24 @@ async function loadNowonEnvironment() {
   }).toString();
 
   try {
-    const [weatherResponse, airResponse] = await Promise.all([
-      fetch(weatherUrl, { cache: "no-store" }),
-      fetch(airUrl, { cache: "no-store" })
+    const [weatherResult, airResult] = await Promise.allSettled([
+      fetchEnvironmentJson(weatherUrl),
+      fetchEnvironmentJson(airUrl)
     ]);
+    const weatherData = weatherResult.status === "fulfilled" ? weatherResult.value : null;
+    const airData = airResult.status === "fulfilled" ? airResult.value : null;
+    const weatherFailed = weatherResult.status === "rejected";
+    const airFailed = airResult.status === "rejected";
 
-    if (!weatherResponse.ok || !airResponse.ok) {
-      throw new Error("Environment API response failed");
-    }
+    if (weatherFailed) console.error(weatherResult.reason);
+    if (airFailed) console.error(airResult.reason);
+    if (weatherFailed && airFailed) throw new Error("Environment APIs failed");
 
-    const [weatherData, airData] = await Promise.all([
-      weatherResponse.json(),
-      airResponse.json()
-    ]);
-
-    renderNowonEnvironment(weatherData, airData.current);
+    renderNowonEnvironment(weatherData, airData?.current, { weatherFailed, airFailed });
   } catch (error) {
     console.error(error);
     latestEnvironment = null;
-    widget.innerHTML = '<span class="environment-pill weather bad"><span class="environment-main"><strong>노원구</strong> 정보 불러오기 실패</span><span class="environment-sub">잠시 후 다시 확인해 주세요</span></span>';
+    renderNowonEnvironment(null, null, { weatherFailed: true, airFailed: true });
   }
 }
 
