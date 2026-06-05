@@ -2302,15 +2302,17 @@
     .hall-month-star {
       display: inline-flex;
       align-items: center;
-      min-height: 22px;
-      margin-left: 6px;
-      padding: 2px 7px;
-      background: #fff7d6;
+      justify-content: center;
+      min-height: 30px;
+      margin-left: 8px;
+      padding: 5px 11px;
+      background: linear-gradient(135deg, #fff7d6 0%, #ffd96b 100%);
       border: 1px solid #f1cc68;
       border-radius: 999px;
       color: var(--accent-dark);
-      font-size: 11px;
+      font-size: 13px;
       font-weight: 900;
+      box-shadow: 0 5px 12px rgba(154, 101, 0, 0.16);
       white-space: nowrap;
     }
 
@@ -2345,6 +2347,117 @@
       font-weight: 800;
     }
 
+    .goal-celebration-section {
+      display: grid;
+      gap: 14px;
+      margin-top: 14px;
+      padding: 16px;
+      background: #ffffff;
+      border: 1px solid #f1cc68;
+      border-radius: 8px;
+    }
+
+    .goal-celebration-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .goal-celebration-head h3 {
+      margin: 0 0 4px;
+      color: var(--brand-dark);
+      font-size: 18px;
+    }
+
+    .goal-celebration-month {
+      flex: 0 0 auto;
+      padding: 5px 9px;
+      background: var(--accent-soft);
+      border: 1px solid #f1cc68;
+      border-radius: 999px;
+      color: var(--accent-dark);
+      font-size: 12px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .goal-celebration-card {
+      display: grid;
+      gap: 10px;
+      min-width: 0;
+      padding: 13px;
+      background: linear-gradient(135deg, #fffdf6 0%, #eef4ff 100%);
+      border: 1px solid #d6e1ff;
+      border-radius: 8px;
+    }
+
+    .goal-celebration-card h4 {
+      margin: 0;
+      color: var(--brand-dark);
+      font-size: 16px;
+    }
+
+    .goal-achiever-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .goal-achiever-item {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      gap: 9px;
+      align-items: center;
+      padding: 9px;
+      background: #f2fbf6;
+      border: 1px solid #bfe5d1;
+      border-radius: 8px;
+    }
+
+    .goal-achiever-star,
+    .goal-history-star {
+      color: var(--accent-dark);
+      font-weight: 900;
+    }
+
+    .goal-achiever-list {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .goal-achiever-star {
+      display: grid;
+      place-items: center;
+      width: 28px;
+      height: 28px;
+      background: var(--accent);
+      border-radius: 50%;
+      color: #4f3400;
+      font-size: 14px;
+    }
+
+    .goal-achiever-name {
+      color: var(--text);
+      font-weight: 900;
+      overflow-wrap: anywhere;
+    }
+
+    .goal-achiever-detail {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .goal-achiever-rate {
+      padding: 4px 7px;
+      background: #ffffff;
+      border: 1px solid #9dd8be;
+      border-radius: 999px;
+      color: #16805f;
+      font-size: 12px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
     .hall-feature-section {
       padding: 22px 18px 18px;
       background:
@@ -2357,6 +2470,35 @@
 
     .hall-feature-section .table-wrap table {
       border-color: #f1cc68;
+    }
+
+    .hall-feature-section h2 {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      margin-bottom: 10px;
+      font-size: 26px;
+    }
+
+    .hall-feature-section .goal-status {
+      border-left: 5px solid var(--accent);
+      background: #fff7d6;
+    }
+
+    .athlete-hall-row {
+      background: linear-gradient(90deg, #fffdf6 0%, #ffffff 42%, #f7fbff 100%);
+    }
+
+    .athlete-hall-row td {
+      padding-top: 14px;
+      padding-bottom: 14px;
+      font-weight: 800;
+    }
+
+    .athlete-hall-row td:nth-child(2) {
+      color: var(--brand-dark);
+      font-size: 16px;
+      font-weight: 900;
     }
 
     #targetResult,
@@ -3028,6 +3170,14 @@
       }
       .hall-summary-list {
         grid-template-columns: 1fr;
+      }
+      .goal-celebration-head,
+      .goal-achiever-list {
+        display: grid;
+        grid-template-columns: 1fr;
+      }
+      .goal-celebration-month {
+        width: fit-content;
       }
       .hall-feature-section {
         padding: 18px 14px 14px;
@@ -4025,7 +4175,7 @@
 
     <section class="section hall-feature-section subtab-hidden" data-training-subtab="analysis">
       <h2>명예의 전당</h2>
-      <p class="section-guide">2026년 4월부터 확정된 이달의 선수를 월별로 누적 관리합니다. 현재 달 수상자는 다음 달이 시작된 뒤 반영됩니다.</p>
+      <p class="section-guide">2026년 4월부터 확정된 이달의 선수와 회원별 월 목표 달성을 함께 누적 관리합니다. 현재 달 수상자는 다음 달이 시작된 뒤 반영됩니다.</p>
       <div id="athleteHallStatus" class="goal-status">로그인 후 명예의 전당을 확인할 수 있습니다.</div>
       <div class="table-wrap">
         <table>
@@ -4047,6 +4197,14 @@
           </thead>
           <tbody id="athleteHallList"></tbody>
         </table>
+      </div>
+      <div id="monthlyGoalCelebrationSection" class="goal-celebration-section hidden">
+        <div class="goal-celebration-head">
+          <h3 id="monthlyGoalCelebrationTitle">목표 마일리지 달성 선수</h3>
+        </div>
+        <div class="goal-celebration-card">
+          <div id="monthlyGoalAchieverList" class="goal-achiever-list"></div>
+        </div>
       </div>
     </section>
 

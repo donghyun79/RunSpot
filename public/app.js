@@ -11193,12 +11193,14 @@ async function loadMonthlyAthleteCandidates(user) {
   const athleteHallStatus = document.getElementById("athleteHallStatus");
   const athleteHallSummaryList = document.getElementById("athleteHallSummaryList");
   const athleteHallSummaryStatus = document.getElementById("athleteHallSummaryStatus");
+  const monthlyGoalCelebrationSection = document.getElementById("monthlyGoalCelebrationSection");
 
   if (!monthlyAthleteList || !monthlyAthleteStatus) return;
 
   monthlyAthleteList.innerHTML = "";
   if (athleteHallList) athleteHallList.innerHTML = "";
   if (athleteHallSummaryList) athleteHallSummaryList.innerHTML = "";
+  if (monthlyGoalCelebrationSection) monthlyGoalCelebrationSection.classList.add("hidden");
 
   if (!user) {
     monthlyAthleteStatus.innerText = "로그인 후 이달의 선수 예상을 확인할 수 있습니다.";
@@ -11217,6 +11219,7 @@ async function loadMonthlyAthleteCandidates(user) {
     const monthKey = getCurrentMonthKey();
     const runsByUser = new Map();
     const monthlyGoalsByUser = new Map();
+    const monthlyGoalProfiles = new Map();
 
     querySnapshot.forEach((snapshotDoc) => {
       const data = snapshotDoc.data();
@@ -11260,6 +11263,27 @@ async function loadMonthlyAthleteCandidates(user) {
         if (!goalMapKey || !goalKm) return;
 
         monthlyGoalsByUser.set(goalMapKey, goalKm);
+        const profileLookupKey = getMonthlyGoalLookupKey(data.userId || "", data.email || "");
+        if (profileLookupKey && !monthlyGoalProfiles.has(profileLookupKey)) {
+          monthlyGoalProfiles.set(profileLookupKey, {
+            userId: data.userId || "",
+            email: data.email || "",
+            name: data.name || data.email || "이름 없음",
+            runs: []
+          });
+        }
+        if (data.userId && data.email) {
+          const emailGoalMapKey = getMonthlyGoalMapKey(data.month || "", "", data.email || "");
+          if (emailGoalMapKey) monthlyGoalsByUser.set(emailGoalMapKey, goalKm);
+          if (!monthlyGoalProfiles.has(data.email)) {
+            monthlyGoalProfiles.set(data.email, {
+              userId: data.userId || "",
+              email: data.email || "",
+              name: data.name || data.email || "이름 없음",
+              runs: []
+            });
+          }
+        }
       });
     } catch (goalError) {
       console.warn("monthlyGoals read skipped in monthly athlete scoring", goalError);
@@ -11267,6 +11291,18 @@ async function loadMonthlyAthleteCandidates(user) {
 
     const healingContributions = await loadMonthlyHealingContributions();
     const memberEntries = Array.from(runsByUser.values());
+    const memberLookupKeys = new Set();
+    memberEntries.forEach((entry) => {
+      if (entry.userId) memberLookupKeys.add(entry.userId);
+      if (entry.email) memberLookupKeys.add(entry.email);
+    });
+    monthlyGoalProfiles.forEach((profile, lookupKey) => {
+      if (!memberLookupKeys.has(lookupKey)) {
+        memberEntries.push(profile);
+        if (profile.userId) memberLookupKeys.add(profile.userId);
+        if (profile.email) memberLookupKeys.add(profile.email);
+      }
+    });
     const candidates = getMonthlyAthleteCandidatesForMonth(memberEntries, monthKey, monthlyGoalsByUser, healingContributions);
     const finalizedMonthKey = getLatestFinalizedMonthKey();
 
@@ -11452,6 +11488,7 @@ function renderAthleteHallOfFame(memberEntries, user, currentMonthKey, monthlyGo
     athleteHallStatus.innerText = "아직 확정되어 명예의 전당에 기록할 수상자가 없습니다.";
     if (athleteHallSummaryStatus) athleteHallSummaryStatus.innerText = "아직 첫 명예의 전당 수상자를 기다리고 있습니다.";
     renderAthleteHallSummary([], user);
+    renderMonthlyGoalAchievementHistory(memberEntries, user, currentMonthKey, monthlyGoalsByUser);
     return;
   }
 
@@ -11459,6 +11496,7 @@ function renderAthleteHallOfFame(memberEntries, user, currentMonthKey, monthlyGo
     const tr = document.createElement("tr");
     const isMe = winner.userId === user.uid || winner.email === user.email;
 
+    tr.classList.add("athlete-hall-row");
     if (isMe) {
       tr.classList.add("my-rank");
     }
@@ -11492,6 +11530,134 @@ function renderAthleteHallOfFame(memberEntries, user, currentMonthKey, monthlyGo
   athleteHallStatus.innerText = `2026년 4월부터 ${hallEntries.length}개월의 확정 이달의 선수를 기록 중입니다.`;
   if (athleteHallSummaryStatus) athleteHallSummaryStatus.innerText = `최근 ${Math.min(3, hallEntries.length)}개월 수상자를 먼저 보여드려요.`;
   renderAthleteHallSummary(hallEntries, user);
+  renderMonthlyGoalAchievementHistory(memberEntries, user, currentMonthKey, monthlyGoalsByUser);
+}
+
+function renderMonthlyGoalAchievementHistory(memberEntries, user, currentMonthKey, monthlyGoalsByUser = new Map()) {
+  const section = document.getElementById("monthlyGoalCelebrationSection");
+  const title = document.getElementById("monthlyGoalCelebrationTitle");
+  const achieverList = document.getElementById("monthlyGoalAchieverList");
+
+  if (!section || !title || !achieverList) return;
+
+  section.classList.remove("hidden");
+  achieverList.innerHTML = "";
+
+  const monthKeys = getMonthKeysBetween(MONTHLY_ATHLETE_START_MONTH, currentMonthKey);
+  const visibleMonthKeys = monthKeys.slice(-6);
+  const historyEntries = getMonthlyGoalAchievementHistory(memberEntries, monthKeys, monthlyGoalsByUser);
+  const latestMonthKey = visibleMonthKeys[visibleMonthKeys.length - 1] || currentMonthKey;
+  const latestAchievers = historyEntries
+    .filter((entry) => entry.months.get(latestMonthKey)?.achieved)
+    .sort((a, b) => {
+      const aMonth = a.months.get(latestMonthKey);
+      const bMonth = b.months.get(latestMonthKey);
+      if ((bMonth?.rate || 0) !== (aMonth?.rate || 0)) return (bMonth?.rate || 0) - (aMonth?.rate || 0);
+      return b.totalAchieved - a.totalAchieved;
+    });
+  title.innerText = latestMonthKey ? `${Number(latestMonthKey.split("-")[1])}월 목표 마일리지 달성 선수` : "목표 마일리지 달성 선수";
+
+  if (!historyEntries.length) {
+    return;
+  }
+
+  if (!latestAchievers.length) {
+    const empty = document.createElement("div");
+    empty.className = "hall-summary-empty";
+    empty.innerText = "전월 목표 달성 회원이 아직 없습니다.";
+    achieverList.appendChild(empty);
+  } else {
+    latestAchievers.forEach((entry) => {
+      const month = entry.months.get(latestMonthKey);
+      const item = document.createElement("div");
+      const star = document.createElement("span");
+      const copy = document.createElement("div");
+      const name = document.createElement("div");
+      const detail = document.createElement("div");
+      const rate = document.createElement("span");
+
+      item.className = "goal-achiever-item";
+      star.className = "goal-achiever-star";
+      star.innerText = "★";
+      name.className = "goal-achiever-name";
+      name.innerText = `${entry.name}${isMonthlyGoalHistoryMe(entry, user) ? " (나)" : ""}`;
+      detail.className = "goal-achiever-detail";
+      detail.innerText = `목표 ${formatMileage(month.goalKm)} / 실행 ${formatMileage(month.distance)} · 누적 별 ${entry.totalAchieved}개`;
+      rate.className = "goal-achiever-rate";
+      rate.innerText = `${month.rate}%`;
+
+      copy.append(name, detail);
+      item.append(star, copy, rate);
+      achieverList.appendChild(item);
+    });
+  }
+}
+
+function getMonthlyGoalAchievementHistory(memberEntries, monthKeys, monthlyGoalsByUser = new Map()) {
+  return memberEntries
+    .map((entry) => {
+      const months = new Map();
+      let totalAchieved = 0;
+      let totalGoal = 0;
+      let totalDistance = 0;
+      let rateSum = 0;
+      let goalMonthCount = 0;
+
+      monthKeys.forEach((monthKey) => {
+        const goalKm = getMonthlyGoalForEntry(monthKey, entry, monthlyGoalsByUser);
+        if (!goalKm) {
+          months.set(monthKey, null);
+          return;
+        }
+
+        const distance = sumMileageByMonth(entry.runs, monthKey);
+        const rate = getMonthlyGoalRate(distance, goalKm, monthKey);
+        const achieved = distance >= goalKm;
+
+        if (achieved) totalAchieved += 1;
+        totalGoal += goalKm;
+        totalDistance += distance;
+        rateSum += rate;
+        goalMonthCount += 1;
+        months.set(monthKey, { goalKm, distance, rate, achieved });
+      });
+
+      return {
+        userId: entry.userId || "",
+        email: entry.email || "",
+        name: entry.name || entry.email || "이름 없음",
+        months,
+        totalAchieved,
+        totalGoal,
+        totalDistance,
+        averageRate: goalMonthCount ? rateSum / goalMonthCount : 0,
+        currentStreak: getMonthlyGoalCurrentStreak(monthKeys, months)
+      };
+    })
+    .filter((entry) => entry.totalGoal > 0);
+}
+
+function getMonthlyGoalForEntry(monthKey, entry, monthlyGoalsByUser = new Map()) {
+  const userKey = getMonthlyGoalMapKey(monthKey, entry.userId || "", "");
+  const emailKey = getMonthlyGoalMapKey(monthKey, "", entry.email || "");
+
+  return Number(monthlyGoalsByUser.get(userKey) || monthlyGoalsByUser.get(emailKey) || 0);
+}
+
+function getMonthlyGoalCurrentStreak(monthKeys, months) {
+  let streak = 0;
+
+  for (let index = monthKeys.length - 1; index >= 0; index -= 1) {
+    const month = months.get(monthKeys[index]);
+    if (!month?.achieved) break;
+    streak += 1;
+  }
+
+  return streak;
+}
+
+function isMonthlyGoalHistoryMe(entry, user) {
+  return Boolean(user && (entry.userId === user.uid || (entry.email && entry.email === user.email)));
 }
 
 function renderAthleteHallSummary(hallEntries, user) {
