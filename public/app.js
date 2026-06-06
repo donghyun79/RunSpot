@@ -82,6 +82,7 @@ let editingHealingEvent = null;
 let editingHealingCheckin = null;
 let editingHealingCheer = null;
 let editingHealingRace = null;
+let targetTimeManuallySelected = false;
 let activeHealingReactionPickerKey = "";
 let activeHealingCommentComposerKey = "";
 let activeHealingCommentEditKey = "";
@@ -183,6 +184,7 @@ const MONTHLY_ATHLETE_START_MONTH = "2026-04";
 const MONTHLY_GROWTH_SCORE_START_MONTH = "2026-05";
 const MONTHLY_HEALING_SCORE_START_MONTH = "2026-05";
 const MONTHLY_HEALING_SCORE_MAX = 10;
+const MONTHLY_HEALING_EVENT_MIN_ATTENDEES = 3;
 const MONTHLY_MILEAGE_OVER_TARGET_BONUS_MAX = 5;
 const NOWON_COORDINATES = {
   latitude: 37.6543,
@@ -3398,6 +3400,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   targetSelect.addEventListener("change", () => {
+    targetTimeManuallySelected = true;
     const resultDiv = document.getElementById("targetResult");
 
     resultDiv.classList.add("hidden");
@@ -3509,6 +3512,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       dismissedQualityAttendancePromptKey = "";
       completedQualityAttendancePromptKey = "";
+      targetTimeManuallySelected = false;
       setAuthenticatedView(true);
       updateHostView(user);
       loadNowonEnvironment();
@@ -3545,6 +3549,7 @@ document.addEventListener("DOMContentLoaded", () => {
         setActiveAppView("training");
         await loadMonthlyGoal(user).catch(showDashboardLoadError);
         await loadRunningGroupStandards(user).catch(showDashboardLoadError);
+        applyDefaultTargetTimeForUser(user);
         await loadMyRuns(user).catch(showDashboardLoadError);
         await loadMonthlyAthleteCandidates(user).catch(showDashboardLoadError);
         await loadClubRanking(user).catch(showDashboardLoadError);
@@ -5158,6 +5163,7 @@ async function loadRunningGroupStandards(user = auth.currentUser) {
     runningGroupStandardsLoadedFromXlsx = true;
     renderRunningGroupStandards(user);
     renderQualityMonthlyPlan();
+    applyDefaultTargetTimeForUser(user);
     updateMarathonPrediction();
     return;
   } catch (e) {
@@ -5184,6 +5190,7 @@ async function loadRunningGroupStandards(user = auth.currentUser) {
 
     renderRunningGroupStandards(user);
     renderQualityMonthlyPlan();
+    applyDefaultTargetTimeForUser(user);
     updateMarathonPrediction();
   } catch (e) {
     console.error(e);
@@ -5191,6 +5198,7 @@ async function loadRunningGroupStandards(user = auth.currentUser) {
     runningGroupStandards = normalizeRunningGroupStandards(DEFAULT_RUNNING_GROUP_STANDARDS);
     renderRunningGroupStandards(user);
     renderQualityMonthlyPlan();
+    applyDefaultTargetTimeForUser(user);
 
     if (groupStandardStatus) {
       groupStandardStatus.innerText = RUNNING_GROUP_STANDARD_NOTE;
@@ -6548,8 +6556,8 @@ function getHealingPopupMeta() {
     return itemMs > latestMs ? item : latest;
   }, null);
   const latestCheckin = latestHealingCheckins.reduce((latest, item) => {
-    const latestMs = getDateTimeValueMs(latest?.updatedAt || latest?.createdAt);
-    const itemMs = getDateTimeValueMs(item?.updatedAt || item?.createdAt);
+    const latestMs = getHealingCheckinCreatedMs(latest);
+    const itemMs = getHealingCheckinCreatedMs(item);
 
     return itemMs > latestMs ? item : latest;
   }, null);
@@ -6566,7 +6574,7 @@ function getHealingPopupMeta() {
     return itemMs > latestMs ? item : latest;
   }, null);
   const latestEventMs = getDateTimeValueMs(latestEvent?.updatedAt || latestEvent?.createdAt || latestEvent?.eventDate);
-  const latestCheckinMs = getDateTimeValueMs(latestCheckin?.updatedAt || latestCheckin?.createdAt);
+  const latestCheckinMs = getHealingCheckinCreatedMs(latestCheckin);
   const latestCheerMs = getDateTimeValueMs(latestCheer?.updatedAt || latestCheer?.createdAt);
   const latestRaceMs = getDateTimeValueMs(latestRace?.updatedAt || latestRace?.createdAt);
   const latestContentMs = Math.max(latestEventMs, latestCheckinMs, latestCheerMs, latestRaceMs, 0);
@@ -7063,7 +7071,7 @@ async function loadHealingHub(user = auth.currentUser) {
     });
 
     latestHealingEvents.sort((a, b) => getDateTimeValueMs(a.eventDate) - getDateTimeValueMs(b.eventDate));
-    latestHealingCheckins.sort((a, b) => getDateTimeValueMs(b.updatedAt) - getDateTimeValueMs(a.updatedAt));
+    latestHealingCheckins.sort((a, b) => getHealingCheckinCreatedMs(b) - getHealingCheckinCreatedMs(a));
     latestHealingCheers.sort((a, b) => getDateTimeValueMs(b.createdAt) - getDateTimeValueMs(a.createdAt));
     mergeDefaultHealingRaces();
     latestHealingRaces.sort((a, b) => getDateTimeValueMs(a.raceDate) - getDateTimeValueMs(b.raceDate));
@@ -7117,6 +7125,14 @@ function isExpiredHealingPhotoValue(value) {
   return expiresAtMs > 0 && expiresAtMs <= Date.now();
 }
 
+function getHealingCheckinCreatedMs(checkin) {
+  return getDateTimeValueMs(checkin?.createdAt || checkin?.updatedAt);
+}
+
+function getHealingCheckinDisplayDate(checkin) {
+  return checkin?.createdAt || checkin?.updatedAt || null;
+}
+
 async function cleanupExpiredHealingCheckinPhotos(snapshot, user = auth.currentUser) {
   if (!snapshot || !user) return;
 
@@ -7140,8 +7156,7 @@ async function cleanupExpiredHealingCheckinPhotos(snapshot, user = auth.currentU
     photoHeight: 0,
     photoSizeBytes: 0,
     photoDateKey: "",
-    photoExpiresAt: null,
-    updatedAt: new Date()
+    photoExpiresAt: null
   }).catch((error) => {
     console.error(error);
   })));
@@ -7949,7 +7964,7 @@ function renderHealingCheckins(user = auth.currentUser) {
 
     const meta = document.createElement("div");
     meta.className = "healing-card-meta";
-    meta.innerText = `${checkin.name} · ${getHealingCheckinMoodLabel(checkin.mood)} · ${formatSavedDateTime(checkin.updatedAt) || "-"}`;
+    meta.innerText = `${checkin.name} · ${getHealingCheckinMoodLabel(checkin.mood)} · ${formatSavedDateTime(getHealingCheckinDisplayDate(checkin)) || "-"}`;
     card.appendChild(meta);
 
     if (checkin.content) {
@@ -11805,6 +11820,13 @@ function isSameMemberRecord(record = {}, entry = {}) {
   );
 }
 
+function getMemberRecordKey(record = {}) {
+  if (record.userId) return `uid:${record.userId}`;
+  if (record.email) return `email:${record.email}`;
+
+  return "";
+}
+
 function isHealingEventPreparedBy(event = {}, entry = {}) {
   const preparerIds = Array.isArray(event.preparerIds) ? event.preparerIds : [];
   const preparerEmails = Array.isArray(event.preparerEmails) ? event.preparerEmails : [];
@@ -11838,14 +11860,35 @@ function getMonthlyHealingScore(entry, monthKey, healingContributions = null) {
   const eventsInMonth = healingContributions.events.filter((event) => (
     isValueInMonth(event.eventDate || event.createdAt, monthKey)
   ));
-  const hostedEventCount = eventsInMonth.filter((event) => isHealingEventPreparedBy(event, entry)).length;
   const eventById = new Map(eventsInMonth.map((event) => [event.id, event]));
+  const attendMemberKeysByEventId = new Map();
+
+  healingContributions.responses.forEach((response) => {
+    if (response.response !== "attend" || !eventById.has(response.eventId)) return;
+
+    const memberKey = getMemberRecordKey(response);
+    if (!memberKey) return;
+
+    if (!attendMemberKeysByEventId.has(response.eventId)) {
+      attendMemberKeysByEventId.set(response.eventId, new Set());
+    }
+    attendMemberKeysByEventId.get(response.eventId).add(memberKey);
+  });
+
+  const qualifiedEventIds = new Set(
+    Array.from(attendMemberKeysByEventId.entries())
+      .filter(([, attendeeKeys]) => attendeeKeys.size >= MONTHLY_HEALING_EVENT_MIN_ATTENDEES)
+      .map(([eventId]) => eventId)
+  );
+  const scoredEventsInMonth = eventsInMonth.filter((event) => qualifiedEventIds.has(event.id));
+  const hostedEventCount = scoredEventsInMonth.filter((event) => isHealingEventPreparedBy(event, entry)).length;
   const attendEventIds = new Set();
 
   healingContributions.responses.forEach((response) => {
     if (response.response !== "attend" || !isSameMemberRecord(response, entry)) return;
 
     const event = eventById.get(response.eventId);
+    if (!qualifiedEventIds.has(response.eventId)) return;
     if (!event || isHealingEventPreparedBy(event, entry)) return;
 
     attendEventIds.add(response.eventId);
@@ -12622,6 +12665,8 @@ function clearDashboard() {
   document.getElementById("pbCelebration").innerText = "";
   document.getElementById("pbCelebration").classList.add("hidden");
   document.getElementById("marathonPrediction").innerText = "-";
+  targetTimeManuallySelected = false;
+  applyDefaultTargetTimeForUser(null, { force: true });
   document.getElementById("targetResult").innerHTML = "";
   document.getElementById("targetResult").classList.add("hidden");
   clearMemberRunsPanel();
@@ -12629,6 +12674,38 @@ function clearDashboard() {
   resetQualityForm();
   updatePersonalBestView();
   drawChart([]);
+}
+
+function getDefaultTargetTimeForUser(user = auth.currentUser) {
+  if (!user) return 240;
+
+  const memberGroup = getRunningGroupByMemberName(getUserName(user));
+  const targetMinutes = Number(memberGroup?.targetMinutes || 0);
+
+  return targetMinutes || 240;
+}
+
+function applyDefaultTargetTimeForUser(user = auth.currentUser, options = {}) {
+  const targetSelect = document.getElementById("targetTime");
+  const shouldForce = Boolean(options.force);
+
+  if (!targetSelect || (!shouldForce && targetTimeManuallySelected)) return false;
+
+  const targetMinutes = getDefaultTargetTimeForUser(user);
+  const targetOption = Array.from(targetSelect.options).find((option) => Number(option.value) === targetMinutes);
+
+  if (!targetOption) return false;
+  if (targetSelect.value === targetOption.value) return false;
+
+  targetSelect.value = targetOption.value;
+  const resultDiv = document.getElementById("targetResult");
+  if (resultDiv) {
+    resultDiv.classList.add("hidden");
+    resultDiv.innerHTML = "";
+  }
+  drawChart(latestRuns);
+
+  return true;
 }
 
 function updateMarathonPrediction() {
