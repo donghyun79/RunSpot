@@ -53,6 +53,8 @@ let latestClubRankings = [];
 let latestClubRankingMeta = null;
 let latestChallengeRankings = [];
 let latestChallengeRankingMeta = null;
+let latestHostMemberPbRows = [];
+let hostMemberPbLoadPromise = null;
 let visibleRunCount = INITIAL_VISIBLE_RUN_COUNT;
 let signupInProgress = false;
 let selectedAdminMember = null;
@@ -3256,6 +3258,15 @@ document.addEventListener("DOMContentLoaded", () => {
       { button: trainingRecordsSubtab, name: "records" },
       { button: trainingAnalysisSubtab, name: "analysis" }
     ]);
+
+    if (isHostUser(auth.currentUser)) {
+      if (latestHostMemberPbRows.length) {
+        renderHostMemberPersonalBests(latestHostMemberPbRows);
+        return;
+      }
+
+      loadHostMemberPersonalBests(auth.currentUser).catch(showDashboardLoadError);
+    }
   });
   trainingAnalysisSubtab?.addEventListener("click", () => {
     setSectionSubtab("training", "analysis", [
@@ -9417,15 +9428,20 @@ async function loadMembers() {
     memberStatus.innerText = changedGroupCount > 0
       ? `등록 회원 ${members.length}명 · 예상조와 실제 조가 다른 회원 ${changedGroupCount}명`
       : `등록 회원 ${members.length}명`;
-    renderHostMemberPersonalBests(
-      members
-        .filter((member) => member.approved && !member.disabled)
-        .map((member) => ({
+    const memberRows = members
+      .filter((member) => member.approved && !member.disabled)
+      .map((member) => {
+        const runs = getMemberRunsFromLookup(member, runsByUserId, runsByEmail);
+
+        return {
           member,
-          pbMap: getPersonalBestMapFromRuns(getMemberRunsFromLookup(member, runsByUserId, runsByEmail))
-        }))
-        .filter((row) => PB_CATEGORIES.some((category) => Boolean(row.pbMap[category.key])))
-    );
+          runs,
+          pbMap: getPersonalBestMapFromRuns(runs)
+        };
+      })
+      .filter((row) => PB_CATEGORIES.some((category) => Boolean(row.pbMap[category.key])));
+    latestHostMemberPbRows = memberRows;
+    renderHostMemberPersonalBests(memberRows);
   } catch (e) {
     console.error(e);
     memberStatus.innerText = "회원 목록을 불러오지 못했습니다.";
@@ -10742,6 +10758,51 @@ function getMemberRunsFromLookup(member, runsByUserId = new Map(), runsByEmail =
   return memberRuns;
 }
 
+function getHostMemberVdotBasisFromPbMap(pbMap = {}) {
+  return PB_CATEGORIES
+    .map((category) => {
+      const record = pbMap[category.key];
+      const vdot = record ? estimateVdot(record.time, category.distance) : 0;
+
+      return {
+        category,
+        record,
+        vdot
+      };
+    })
+    .filter((source) => Number.isFinite(source.vdot) && source.vdot > 0)
+    .sort((a, b) => b.vdot - a.vdot)[0] || null;
+}
+
+function getHostMemberPbDisplayRecord(pbMap = {}, category) {
+  const record = pbMap[category.key];
+
+  if (record) return record;
+
+  const basis = getHostMemberVdotBasisFromPbMap(pbMap);
+
+  if (!basis) return null;
+
+  const estimatedTime = estimateTimeForVdotDistance(basis.vdot, category.distance);
+
+  if (!estimatedTime) return null;
+
+  return {
+    time: estimatedTime,
+    pace: estimatedTime / category.distance,
+    estimated: true,
+    basisLabel: basis.category.label,
+    basisTime: basis.record.time
+  };
+}
+
+function getHostMemberPbGroupSortIndex(member) {
+  const runningGroup = getRunningGroupByMemberName(member.name);
+  const groupIndex = getRunningGroupIndex(runningGroup);
+
+  return groupIndex >= 0 ? groupIndex : Number.MAX_SAFE_INTEGER;
+}
+
 function createHostMemberPbCell(record) {
   const td = document.createElement("td");
 
@@ -10750,10 +10811,12 @@ function createHostMemberPbCell(record) {
     return td;
   }
 
-  const dateText = record.runDate ? `${formatKoreanDate(record.runDate)} 달성` : "달성일 미기록";
+  const dateText = record.estimated
+    ? `VDOT 예상 · ${record.basisLabel} ${formatTime(record.basisTime)} 기준`
+    : record.runDate ? `${formatKoreanDate(record.runDate)} 달성` : "달성일 미기록";
   td.innerHTML = [
-    `<span class="pb-record">${formatTime(record.time)} (${formatPace(record.pace)})</span>`,
-    `<span class="pb-date">${dateText}</span>`
+    `<span class="pb-record${record.estimated ? " host-pb-estimated-record" : ""}">${formatTime(record.time)} (${formatPace(record.pace)})</span>`,
+    `<span class="pb-date${record.estimated ? " host-pb-estimate" : ""}">${dateText}</span>`
   ].join("");
   return td;
 }
@@ -10785,92 +10848,136 @@ function renderHostMemberPersonalBests(memberRows = null) {
     return;
   }
 
-  memberRows.forEach(({ member, pbMap }) => {
-    const tr = document.createElement("tr");
-    const nameTd = document.createElement("td");
-    const name = document.createElement("span");
-    const email = document.createElement("span");
+  const previousMonthKey = getPreviousMonthKey(getCurrentMonthKey());
 
-    name.innerText = member.name;
-    email.className = "host-pb-email";
-    email.innerText = member.email || "-";
-    nameTd.className = "host-pb-name";
-    nameTd.append(name, email);
-    tr.appendChild(nameTd);
+  [...memberRows]
+    .sort((a, b) => {
+      const groupDiff = getHostMemberPbGroupSortIndex(a.member) - getHostMemberPbGroupSortIndex(b.member);
 
-    PB_CATEGORIES.forEach((category) => {
-      tr.appendChild(createHostMemberPbCell(pbMap[category.key]));
+      if (groupDiff !== 0) return groupDiff;
+
+      return a.member.name.localeCompare(b.member.name, "ko");
+    })
+    .forEach(({ member, pbMap, runs = [] }) => {
+      const tr = document.createElement("tr");
+      const nameTd = document.createElement("td");
+      const name = document.createElement("span");
+      const group = document.createElement("span");
+      const runningGroup = getRunningGroupByMemberName(member.name);
+      const previousMonthMileage = sumMileageByMonth(runs, previousMonthKey);
+
+      name.innerText = member.name;
+      group.className = "host-pb-group";
+      group.innerText = `${runningGroup ? `${runningGroup.group}조` : "미배정"} · ${formatMileage(previousMonthMileage)}`;
+      nameTd.className = "host-pb-name";
+      nameTd.append(name, group);
+      tr.appendChild(nameTd);
+
+      PB_CATEGORIES.forEach((category) => {
+        tr.appendChild(createHostMemberPbCell(getHostMemberPbDisplayRecord(pbMap, category)));
+      });
+
+      list.appendChild(tr);
     });
-
-    list.appendChild(tr);
-  });
 
   const recordCount = memberRows.reduce((total, row) => (
     total + PB_CATEGORIES.filter((category) => Boolean(row.pbMap[category.key])).length
   ), 0);
-  status.innerText = `회원 ${memberRows.length}명의 개인 최고 기록 ${recordCount}개를 표시합니다.`;
+  const estimatedCount = memberRows.reduce((total, row) => {
+    const basis = getHostMemberVdotBasisFromPbMap(row.pbMap);
+    if (!basis) return total;
+
+    return total + PB_CATEGORIES.filter((category) => !row.pbMap[category.key]).length;
+  }, 0);
+  status.innerText = `회원 ${memberRows.length}명의 개인 최고 기록 ${recordCount}개와 VDOT 예상 기록 ${estimatedCount}개를 표시합니다.`;
 }
 
 async function loadHostMemberPersonalBests(user = auth.currentUser) {
   if (!isHostUser(user)) {
+    latestHostMemberPbRows = [];
+    hostMemberPbLoadPromise = null;
     renderHostMemberPersonalBests([]);
+    return;
+  }
+
+  if (latestHostMemberPbRows.length) {
+    renderHostMemberPersonalBests(latestHostMemberPbRows);
+    return;
+  }
+
+  if (hostMemberPbLoadPromise) {
+    await hostMemberPbLoadPromise;
     return;
   }
 
   renderHostMemberPersonalBests(null);
 
-  const [memberSnapshot, runsSnapshot] = await Promise.all([
-    getDocsFromServer(collection(db, "users")),
-    getDocsFromServer(collection(db, "runs"))
-  ]);
-  const members = [];
-  const runsByUserId = new Map();
-  const runsByEmail = new Map();
+  hostMemberPbLoadPromise = (async () => {
+    const [memberSnapshot, runsSnapshot] = await Promise.all([
+      getDocsFromServer(collection(db, "users")),
+      getDocsFromServer(collection(db, "runs"))
+    ]);
+    const members = [];
+    const runsByUserId = new Map();
+    const runsByEmail = new Map();
 
-  memberSnapshot.forEach((snapshotDoc) => {
-    const data = snapshotDoc.data();
-    const member = {
-      id: snapshotDoc.id,
-      userId: data.userId || snapshotDoc.id,
-      name: data.name || "이름 없음",
-      email: data.email || "",
-      approved: data.approved !== false,
-      disabled: Boolean(data.disabled),
-      role: data.role || (data.email?.toLowerCase() === HOST_EMAIL ? "host" : "member")
-    };
+    memberSnapshot.forEach((snapshotDoc) => {
+      const data = snapshotDoc.data();
+      const member = {
+        id: snapshotDoc.id,
+        userId: data.userId || snapshotDoc.id,
+        name: data.name || "이름 없음",
+        email: data.email || "",
+        approved: data.approved !== false,
+        disabled: Boolean(data.disabled),
+        role: data.role || (data.email?.toLowerCase() === HOST_EMAIL ? "host" : "member")
+      };
 
-    if (member.approved && !member.disabled) {
-      members.push(member);
-    }
-  });
+      if (member.approved && !member.disabled) {
+        members.push(member);
+      }
+    });
 
-  runsSnapshot.forEach((snapshotDoc) => {
-    const run = buildRunRecord(snapshotDoc.id, snapshotDoc.data());
-    const userIdKey = run.userId || "";
-    const emailKey = String(run.email || "").toLowerCase();
+    runsSnapshot.forEach((snapshotDoc) => {
+      const run = buildRunRecord(snapshotDoc.id, snapshotDoc.data());
+      const userIdKey = run.userId || "";
+      const emailKey = String(run.email || "").toLowerCase();
 
-    if (userIdKey) {
-      const userRuns = runsByUserId.get(userIdKey) || [];
-      userRuns.push(run);
-      runsByUserId.set(userIdKey, userRuns);
-    }
+      if (userIdKey) {
+        const userRuns = runsByUserId.get(userIdKey) || [];
+        userRuns.push(run);
+        runsByUserId.set(userIdKey, userRuns);
+      }
 
-    if (emailKey) {
-      const emailRuns = runsByEmail.get(emailKey) || [];
-      emailRuns.push(run);
-      runsByEmail.set(emailKey, emailRuns);
-    }
-  });
+      if (emailKey) {
+        const emailRuns = runsByEmail.get(emailKey) || [];
+        emailRuns.push(run);
+        runsByEmail.set(emailKey, emailRuns);
+      }
+    });
 
-  const memberRows = members
-    .sort((a, b) => a.name.localeCompare(b.name, "ko"))
-    .map((member) => ({
-      member,
-      pbMap: getPersonalBestMapFromRuns(getMemberRunsFromLookup(member, runsByUserId, runsByEmail))
-    }))
-    .filter((row) => PB_CATEGORIES.some((category) => Boolean(row.pbMap[category.key])));
+    const memberRows = members
+      .sort((a, b) => a.name.localeCompare(b.name, "ko"))
+      .map((member) => {
+        const runs = getMemberRunsFromLookup(member, runsByUserId, runsByEmail);
 
-  renderHostMemberPersonalBests(memberRows);
+        return {
+          member,
+          runs,
+          pbMap: getPersonalBestMapFromRuns(runs)
+        };
+      })
+      .filter((row) => PB_CATEGORIES.some((category) => Boolean(row.pbMap[category.key])));
+
+    latestHostMemberPbRows = memberRows;
+    renderHostMemberPersonalBests(memberRows);
+  })();
+
+  try {
+    await hostMemberPbLoadPromise;
+  } finally {
+    hostMemberPbLoadPromise = null;
+  }
 }
 
 async function loadClubRanking(user) {
