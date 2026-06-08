@@ -1537,6 +1537,10 @@
       background: #ffffff;
     }
 
+    #healingEventPreparers {
+      grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+    }
+
     .healing-checkbox-option {
       display: inline-flex;
       flex-direction: row;
@@ -1572,6 +1576,13 @@
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+    }
+
+    #healingEventPreparers .healing-checkbox-option span {
+      white-space: normal;
+      word-break: keep-all;
+      overflow-wrap: anywhere;
+      line-height: 1.25;
     }
 
     .healing-participation-option {

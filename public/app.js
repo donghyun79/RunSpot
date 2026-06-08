@@ -5655,7 +5655,7 @@ function getSelectedHealingEventPreparers(user = auth.currentUser) {
   };
 }
 
-function renderHealingEventPreparerOptions(selectedIds = [], user = auth.currentUser) {
+function renderHealingEventPreparerOptions(selectedIds = [], user = auth.currentUser, selectedEmails = []) {
   if (!healingEventPreparersInput) return;
 
   healingEventPreparersInput.innerHTML = "";
@@ -5669,6 +5669,7 @@ function renderHealingEventPreparerOptions(selectedIds = [], user = auth.current
   }
 
   const selectedSet = new Set(selectedIds.filter(Boolean));
+  const selectedEmailSet = new Set(selectedEmails.filter(Boolean).map((email) => email.toLowerCase()));
   if (!selectedSet.size && user) {
     const selfOption = latestHealingMemberOptions.find((option) => option.userId === user.uid || option.email === user.email);
     if (selfOption) selectedSet.add(selfOption.userId);
@@ -5681,10 +5682,12 @@ function renderHealingEventPreparerOptions(selectedIds = [], user = auth.current
     const input = document.createElement("input");
     input.type = "checkbox";
     input.value = option.userId;
-    input.checked = selectedSet.has(option.userId);
+    input.checked = selectedSet.has(option.userId) || selectedEmailSet.has((option.email || "").toLowerCase());
 
     const text = document.createElement("span");
     text.innerText = option.name;
+    text.title = option.name;
+    label.title = option.name;
 
     label.append(input, text);
     healingEventPreparersInput.appendChild(label);
@@ -5701,7 +5704,7 @@ function syncHealingEventFormVisibility(user = auth.currentUser) {
     toggleHealingEventComposerBtn.setAttribute("aria-expanded", showForm ? "true" : "false");
     toggleHealingEventComposerBtn.innerText = showForm ? "공지 작성 닫기" : "공지 작성 열기";
   }
-  renderHealingEventPreparerOptions(editingHealingEvent?.preparerIds || [], user);
+  renderHealingEventPreparerOptions(editingHealingEvent?.preparerIds || [], user, editingHealingEvent?.preparerEmails || []);
 }
 
 function syncHealingRaceFormVisibility(user = auth.currentUser) {
@@ -7314,6 +7317,14 @@ function focusHealingForm(formId, inputId) {
   }, 180);
 }
 
+function focusHealingEventPreparers() {
+  healingEventPreparersInput?.scrollIntoView({ behavior: "smooth", block: "center" });
+  window.setTimeout(() => {
+    const firstInput = healingEventPreparersInput?.querySelector("input[type='checkbox']");
+    firstInput?.focus();
+  }, 180);
+}
+
 function resetHealingEventForm() {
   editingHealingEvent = null;
   isHealingEventComposerOpen = false;
@@ -7328,7 +7339,7 @@ function resetHealingEventForm() {
   renderHealingHub(auth.currentUser);
 }
 
-function startHealingEventEdit(event) {
+function startHealingEventEdit(event, options = {}) {
   editingHealingEvent = event;
   isHealingEventComposerOpen = true;
   if (healingEventTitleInput) healingEventTitleInput.value = event.title || "";
@@ -7340,6 +7351,11 @@ function startHealingEventEdit(event) {
   document.getElementById("cancelHealingEventEdit")?.classList.remove("hidden");
   syncHealingEventFormVisibility(auth.currentUser);
   renderHealingHub(auth.currentUser);
+  if (options.focusPreparers) {
+    setHealingStatus("event", "준비자를 추가하거나 변경한 뒤 저장해주세요.");
+    focusHealingEventPreparers();
+    return;
+  }
   setHealingStatus("event", "번개 내용을 수정한 뒤 저장해주세요.");
   focusHealingForm("healingEventHostForm", "healingEventTitle");
 }
@@ -7463,6 +7479,11 @@ function handleHealingEventListClick(event) {
 
   if (action === "edit" && targetEvent) {
     startHealingEventEdit(targetEvent);
+    return;
+  }
+
+  if (action === "edit-preparers" && targetEvent) {
+    startHealingEventEdit(targetEvent, { focusPreparers: true });
     return;
   }
 
@@ -7919,6 +7940,16 @@ function renderHealingEvents(user = auth.currentUser) {
       editButton.dataset.eventId = event.id;
       editButton.innerText = isEditingHealingEventId(event.id) ? "수정 중" : "수정";
       actionRow.appendChild(editButton);
+    }
+
+    if (isHostUser(user)) {
+      const preparerButton = document.createElement("button");
+      preparerButton.type = "button";
+      preparerButton.className = "button-secondary table-action";
+      preparerButton.dataset.healingAction = "edit-preparers";
+      preparerButton.dataset.eventId = event.id;
+      preparerButton.innerText = isEditingHealingEventId(event.id) ? "준비자 수정 중" : "준비자 수정";
+      actionRow.appendChild(preparerButton);
     }
 
     if (isHostUser(user)) {
