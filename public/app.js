@@ -5120,8 +5120,8 @@ function applyScheduledRunningGroupAssignments(standards, dateKey = getLocalDate
   if (!cGroup || !dGroup || !eGroup || !sGroup) return clonedStandards;
 
   if (dateKey >= JULY_RUNNING_GROUP_REASSIGNMENT_EFFECTIVE_DATE) {
-    cGroup.members = "김종선, 민선홍, 박정미, 안효정";
-    dGroup.members = "김수미, 이혜경, 김성균, 박운정, 현혜인";
+    cGroup.members = "김종선, 민선홍, 박정미";
+    dGroup.members = "김수미, 이혜경, 김성균, 안효정, 박운정, 현혜인";
     eGroup.members = "문재연, 정주연, 송경애, 이은주, 조민경";
     sGroup.members = "김나영, 장신영";
     return clonedStandards;
