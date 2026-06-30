@@ -132,7 +132,7 @@ const RUNNING_GROUP_REASSIGNMENT_POPUP_STORAGE_KEY_PREFIX = "naviheal-running-gr
 const MONTHLY_ATHLETE_BANNER_STORAGE_KEY_PREFIX = "naviheal-monthly-athlete-banner";
 const MONTHLY_ATHLETE_POPUP_STORAGE_KEY_PREFIX = "naviheal-monthly-athlete-popup";
 const MAY_TRAINING_POPUP_START_DATE = "2026-05-01";
-const RUNNING_GROUP_REASSIGNMENT_POPUP_KEY = "2026-06-running-group-reassignment";
+const RUNNING_GROUP_REASSIGNMENT_POPUP_KEY = "2026-07-running-group-reassignment";
 const MONTHLY_ATHLETE_ANNOUNCEMENT_END_DAY = 7;
 let dismissedQualityAttendancePromptKey = "";
 let completedQualityAttendancePromptKey = "";
@@ -255,6 +255,7 @@ const RUNNING_GROUP_STANDARD_XLSX_PATH = "assets/나빌러닝 조별기준.xlsx"
 const RUNNING_GROUP_STANDARD_NOTE = "조편성 조정을 원하시면 코치와 상의해 주세요.";
 const MAY_RUNNING_GROUP_REASSIGNMENT_EFFECTIVE_DATE = "2026-05-01";
 const JUNE_RUNNING_GROUP_REASSIGNMENT_EFFECTIVE_DATE = "2026-06-01";
+const JULY_RUNNING_GROUP_REASSIGNMENT_EFFECTIVE_DATE = "2026-07-01";
 const OFFICIAL_TRAINING_LABEL = "나빌러닝 정훈";
 const QUALITY_MAKEUP_CREDIT = 0.7;
 const QUALITY_AUTO_REDUCED_SET_GROUPS = ["E", "S"];
@@ -5112,10 +5113,19 @@ function applyScheduledRunningGroupAssignments(standards, dateKey = getLocalDate
     ? standards.map((standard) => ({ ...standard }))
     : [];
   const dGroup = clonedStandards.find((standard) => standard.group === "D");
+  const cGroup = clonedStandards.find((standard) => standard.group === "C");
   const eGroup = clonedStandards.find((standard) => standard.group === "E");
   const sGroup = clonedStandards.find((standard) => standard.group === "S");
 
-  if (!dGroup || !eGroup || !sGroup) return clonedStandards;
+  if (!cGroup || !dGroup || !eGroup || !sGroup) return clonedStandards;
+
+  if (dateKey >= JULY_RUNNING_GROUP_REASSIGNMENT_EFFECTIVE_DATE) {
+    cGroup.members = "김종선, 민선홍, 박정미, 안효정";
+    dGroup.members = "김수미, 이혜경, 김성균, 박운정, 현혜인";
+    eGroup.members = "문재연, 정주연, 송경애, 이은주, 조민경";
+    sGroup.members = "김나영, 장신영";
+    return clonedStandards;
+  }
 
   if (dateKey >= JUNE_RUNNING_GROUP_REASSIGNMENT_EFFECTIVE_DATE) {
     dGroup.members = "김수미, 이혜경, 김성균, 안효정";
@@ -6653,7 +6663,7 @@ function maybeOpenRunningGroupReassignmentPopup(user = auth.currentUser) {
 
   if (!popupModal) return;
   if (hasBlockingNoticeModalOpen()) return;
-  if (getLocalDateKey() < JUNE_RUNNING_GROUP_REASSIGNMENT_EFFECTIVE_DATE) return;
+  if (getLocalDateKey() < JULY_RUNNING_GROUP_REASSIGNMENT_EFFECTIVE_DATE) return;
 
   const popupState = readRunningGroupReassignmentPopupState(user.uid);
 
